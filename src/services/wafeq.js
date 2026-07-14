@@ -33,6 +33,9 @@ export async function postJournalEntryDraft(env, accounts, entries, description 
     return {
       account: codeToWafeqId[e.account_code] || e.account_code,
       amount,
+      // المبلغ بالعملة الأساسية للشركة. بما أن العملة نفسها الأساسية فالقيمة متطابقة.
+      // (لو اختلفت العملات مستقبلاً، اضرب في سعر الصرف هنا.)
+      amount_to_bcy: amount,
       currency,
       description: e.description || '',
     };
