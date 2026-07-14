@@ -39,27 +39,31 @@ binding = "AI"
 [triggers]
 crons = ["0 6 1 * *"]
 
-# ----------------------------------------------------------------------------
-# Public / non-sensitive variables (متغيرات عامة غير حساسة)
-# ----------------------------------------------------------------------------
-[vars]
-WAFEQ_API_BASE = "https://api.wafeq.com/v1"
-CLAUDE_MODEL = "claude-opus-4-8"
-CLAUDE_API_BASE = "https://api.anthropic.com/v1"
-# معرّف مشروع بيسكامب الذي ستُرسل إليه التقارير
-BASECAMP_ACCOUNT_ID = "REPLACE_WITH_BASECAMP_ACCOUNT_ID"
-BASECAMP_PROJECT_ID = "REPLACE_WITH_BASECAMP_PROJECT_ID"
-BASECAMP_MESSAGE_BOARD_ID = "REPLACE_WITH_BASECAMP_MESSAGE_BOARD_ID"
-
 # ============================================================================
-# الأسرار الحساسة (Secrets) — لا تُوضع هنا إطلاقاً.
-# استخدم الأوامر التالية لتخزينها بشكل مشفّر في Cloudflare:
+# كل المتغيرات والأسرار تُدار من لوحة Cloudflare مباشرة — وليست في هذا الملف.
+# ----------------------------------------------------------------------------
+# لماذا؟ أي قيمة تُوضع هنا تحت [vars] سيعيد النشر كتابتها فوق ما تعدّله يدوياً
+# في اللوحة. لذلك نتركها كلها في:
+#   Workers & Pages → naf-accountant → Settings → Variables and secrets
 #
-#   wrangler secret put CLAUDE_API_KEY
-#   wrangler secret put WAFEQ_API_KEY
-#   wrangler secret put BASECAMP_TOKEN
-#   wrangler secret put TELEGRAM_BOT_TOKEN
-#   wrangler secret put TELEGRAM_WEBHOOK_SECRET      # للتحقق من صحة طلبات الويبهوك
-#   wrangler secret put AUTHORIZED_CHAT_IDS          # معرّفات المحادثات المصرّح لها (مفصولة بفواصل)
-#   wrangler secret put DASHBOARD_API_KEY            # مفتاح حماية واجهة لوحة التحكم
+# أضِف القيم التالية من اللوحة بنوع "Secret" (يبقى محفوظاً عبر عمليات النشر):
+#
+#   المفاتيح الحساسة:
+#     CLAUDE_API_KEY
+#     WAFEQ_API_KEY
+#     BASECAMP_TOKEN
+#     TELEGRAM_BOT_TOKEN
+#     TELEGRAM_WEBHOOK_SECRET      # للتحقق من صحة طلبات الويبهوك
+#     AUTHORIZED_CHAT_IDS          # معرّفات المحادثات المصرّح لها (مفصولة بفواصل)
+#     DASHBOARD_API_KEY            # مفتاح حماية واجهة لوحة التحكم
+#
+#   معرّفات بيسكامب (أضِفها بنوع Secret أيضاً كي لا يمسحها النشر):
+#     BASECAMP_ACCOUNT_ID
+#     BASECAMP_PROJECT_ID
+#     BASECAMP_MESSAGE_BOARD_ID
+#
+#   اختياري (للكود قيم افتراضية إن لم تُضبط):
+#     CLAUDE_MODEL      (الافتراضي: claude-opus-4-8)
+#     CLAUDE_API_BASE   (الافتراضي: https://api.anthropic.com/v1)
+#     WAFEQ_API_BASE    (الافتراضي: https://api.wafeq.com/v1)
 # ============================================================================
