@@ -1,0 +1,65 @@
+# ============================================================================
+# NAF Accountant - Cloudflare Worker Configuration
+# منصة "ناف لو" المحاسبية الذكية - إعدادات Cloudflare Worker
+# ============================================================================
+
+name = "naf-accountant"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ----------------------------------------------------------------------------
+# Cloudflare D1 Database (قاعدة البيانات)
+# أنشئ القاعدة أولاً:  wrangler d1 create naf-accountant-db
+# ثم انسخ الـ database_id هنا.
+# ----------------------------------------------------------------------------
+[[d1_databases]]
+binding = "DB"
+database_name = "naf-accountant-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# ----------------------------------------------------------------------------
+# Cloudflare R2 Storage (تخزين الملفات: الصوتيات والفواتير)
+# أنشئ الحاوية أولاً:  wrangler r2 bucket create naf-accountant-media
+# ----------------------------------------------------------------------------
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "naf-accountant-media"
+
+# ----------------------------------------------------------------------------
+# Cloudflare Workers AI (نموذج Whisper لتحويل الصوت إلى نص)
+# ----------------------------------------------------------------------------
+[ai]
+binding = "AI"
+
+# ----------------------------------------------------------------------------
+# Cron Triggers (المهام المجدولة - التقارير الشهرية لبيسكامب)
+# يعمل في أول يوم من كل شهر الساعة 6 صباحاً (UTC)
+# ----------------------------------------------------------------------------
+[triggers]
+crons = ["0 6 1 * *"]
+
+# ----------------------------------------------------------------------------
+# Public / non-sensitive variables (متغيرات عامة غير حساسة)
+# ----------------------------------------------------------------------------
+[vars]
+WAFEQ_API_BASE = "https://api.wafeq.com/v1"
+CLAUDE_MODEL = "claude-opus-4-8"
+CLAUDE_API_BASE = "https://api.anthropic.com/v1"
+# معرّف مشروع بيسكامب الذي ستُرسل إليه التقارير
+BASECAMP_ACCOUNT_ID = "REPLACE_WITH_BASECAMP_ACCOUNT_ID"
+BASECAMP_PROJECT_ID = "REPLACE_WITH_BASECAMP_PROJECT_ID"
+BASECAMP_MESSAGE_BOARD_ID = "REPLACE_WITH_BASECAMP_MESSAGE_BOARD_ID"
+
+# ============================================================================
+# الأسرار الحساسة (Secrets) — لا تُوضع هنا إطلاقاً.
+# استخدم الأوامر التالية لتخزينها بشكل مشفّر في Cloudflare:
+#
+#   wrangler secret put CLAUDE_API_KEY
+#   wrangler secret put WAFEQ_API_KEY
+#   wrangler secret put BASECAMP_TOKEN
+#   wrangler secret put TELEGRAM_BOT_TOKEN
+#   wrangler secret put TELEGRAM_WEBHOOK_SECRET      # للتحقق من صحة طلبات الويبهوك
+#   wrangler secret put AUTHORIZED_CHAT_IDS          # معرّفات المحادثات المصرّح لها (مفصولة بفواصل)
+#   wrangler secret put DASHBOARD_API_KEY            # مفتاح حماية واجهة لوحة التحكم
+# ============================================================================
