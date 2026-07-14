@@ -9,6 +9,7 @@ import { cors } from 'hono/cors';
 import telegramRoute from './routes/telegram.js';
 import reportsRoute, { generateAndSendReport } from './routes/reports.js';
 import dashboardRoute from './routes/dashboard.js';
+import basecampOauthRoute from './routes/basecamp_oauth.js';
 import { writeLog } from './lib/db.js';
 
 const app = new Hono();
@@ -28,6 +29,7 @@ app.get('/api/health', (c) => c.json({ ok: true }));
 app.route('/api', telegramRoute);
 app.route('/api', reportsRoute);
 app.route('/api', dashboardRoute);
+app.route('/api', basecampOauthRoute);
 
 // معالج شامل للأخطاء
 app.onError((err, c) => {
