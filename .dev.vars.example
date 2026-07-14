@@ -1,0 +1,13 @@
+# ============================================================================
+# نسخة للتطوير المحلي فقط — انسخ هذا الملف إلى .dev.vars وعبّئ القيم.
+# لا ترفع ملف .dev.vars إلى Git (مُدرج في .gitignore).
+# For local development: copy to .dev.vars and fill in real values.
+# ============================================================================
+
+CLAUDE_API_KEY="sk-ant-..."
+WAFEQ_API_KEY="wafeq_..."
+BASECAMP_TOKEN="basecamp_oauth_token_..."
+TELEGRAM_BOT_TOKEN="123456:ABC-..."
+TELEGRAM_WEBHOOK_SECRET="a-long-random-string"
+AUTHORIZED_CHAT_IDS="123456789,987654321"
+DASHBOARD_API_KEY="a-long-random-dashboard-key"

@@ -1,0 +1,34 @@
+{
+  "name": "naf-accountant",
+  "version": "1.0.0",
+  "description": "منصة وسيطة محاسبية ذكية لشركة ناف لو — Serverless AI Accounting Middleware on Cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create naf-accountant-db",
+    "db:migrate": "wrangler d1 execute naf-accountant-db --file=./migrations/0001_init.sql --remote",
+    "db:migrate:local": "wrangler d1 execute naf-accountant-db --file=./migrations/0001_init.sql --local",
+    "db:seed": "wrangler d1 execute naf-accountant-db --file=./migrations/0002_seed_chart_of_accounts.sql --remote",
+    "r2:create": "wrangler r2 bucket create naf-accountant-media",
+    "tail": "wrangler tail"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "hono",
+    "d1",
+    "accounting",
+    "wafeq",
+    "telegram-bot",
+    "claude-ai"
+  ],
+  "author": "NAF Law",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "wrangler": "^3.95.0"
+  }
+}
