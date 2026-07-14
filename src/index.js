@@ -10,6 +10,7 @@ import telegramRoute from './routes/telegram.js';
 import reportsRoute, { generateAndSendReport } from './routes/reports.js';
 import dashboardRoute from './routes/dashboard.js';
 import basecampOauthRoute from './routes/basecamp_oauth.js';
+import { syncChartOfAccounts } from './services/sync.js';
 import { writeLog } from './lib/db.js';
 
 const app = new Hono();
@@ -41,9 +42,32 @@ export default {
   fetch: app.fetch,
 
   // ------------------------------------------------------------------
-  // معالج المهام المجدولة (Cron Triggers) — التقرير الشهري لبيسكامب.
+  // معالج المهام المجدولة (Cron Triggers):
+  //   "0 22 * * *" (كل ليلة)   → مزامنة شجرة الحسابات من وافق.
+  //   "0 6 1 * *"  (أول الشهر) → التقرير الشهري إلى بيسكامب.
   // ------------------------------------------------------------------
   async scheduled(event, env, ctx) {
+    // المزامنة الليلية لشجرة الحسابات.
+    if (event.cron === '0 22 * * *') {
+      ctx.waitUntil(
+        (async () => {
+          try {
+            const result = await syncChartOfAccounts(env);
+            console.log('Nightly accounts sync done:', result);
+          } catch (err) {
+            console.error('Nightly accounts sync failed:', err);
+            await writeLog(env.DB, {
+              action: 'cron_accounts_sync',
+              status: 'error',
+              errorDetails: err.message || String(err),
+            });
+          }
+        })()
+      );
+      return;
+    }
+
+    // التقرير الشهري إلى بيسكامب (أي جدولة أخرى، افتراضياً أول الشهر).
     ctx.waitUntil(
       (async () => {
         try {
