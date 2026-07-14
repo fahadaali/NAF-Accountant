@@ -16,7 +16,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "naf-accountant-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "16fc771e-e3d6-4140-a651-1d7a3c215806"
 
 # ----------------------------------------------------------------------------
 # Cloudflare R2 Storage (تخزين الملفات: الصوتيات والفواتير)
