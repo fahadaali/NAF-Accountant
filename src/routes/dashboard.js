@@ -160,8 +160,18 @@ dashboard.get('/settings/status', async (c) => {
       TELEGRAM_BOT_TOKEN: mask(env.TELEGRAM_BOT_TOKEN),
       CLAUDE_API_KEY: mask(env.CLAUDE_API_KEY),
       WAFEQ_API_KEY: mask(env.WAFEQ_API_KEY),
-      BASECAMP_TOKEN: mask(env.BASECAMP_TOKEN),
       AUTHORIZED_CHAT_IDS: mask(env.AUTHORIZED_CHAT_IDS),
+      DEFAULT_BANK_ACCOUNT_CODE: mask(env.DEFAULT_BANK_ACCOUNT_CODE),
+      VAT_TAX_RATE_ID: mask(env.VAT_TAX_RATE_ID),
+      // بيسكامب — التجديد التلقائي:
+      BASECAMP_CLIENT_ID: mask(env.BASECAMP_CLIENT_ID),
+      BASECAMP_CLIENT_SECRET: mask(env.BASECAMP_CLIENT_SECRET),
+      BASECAMP_REFRESH_TOKEN: mask(env.BASECAMP_REFRESH_TOKEN),
+      // بيسكامب — التوكن الثابت (بديل اختباري):
+      BASECAMP_TOKEN: mask(env.BASECAMP_TOKEN),
+      BASECAMP_ACCOUNT_ID: mask(env.BASECAMP_ACCOUNT_ID),
+      BASECAMP_PROJECT_ID: mask(env.BASECAMP_PROJECT_ID),
+      BASECAMP_MESSAGE_BOARD_ID: mask(env.BASECAMP_MESSAGE_BOARD_ID),
     },
   });
 });

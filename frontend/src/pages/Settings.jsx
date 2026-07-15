@@ -5,8 +5,15 @@ const KEY_META = [
   { key: 'TELEGRAM_BOT_TOKEN', label: 'مفتاح بوت تليجرام', hint: 'TELEGRAM_BOT_TOKEN' },
   { key: 'CLAUDE_API_KEY', label: 'مفتاح كلاود (Anthropic)', hint: 'CLAUDE_API_KEY' },
   { key: 'WAFEQ_API_KEY', label: 'مفتاح وافق', hint: 'WAFEQ_API_KEY' },
-  { key: 'BASECAMP_TOKEN', label: 'رمز بيسكامب', hint: 'BASECAMP_TOKEN' },
   { key: 'AUTHORIZED_CHAT_IDS', label: 'معرّفات المحادثات المصرّح لها', hint: 'AUTHORIZED_CHAT_IDS' },
+  { key: 'DEFAULT_BANK_ACCOUNT_CODE', label: 'رمز الحساب البنكي الافتراضي', hint: 'DEFAULT_BANK_ACCOUNT_CODE' },
+  { key: 'VAT_TAX_RATE_ID', label: 'معرّف ضريبة القيمة المضافة', hint: 'VAT_TAX_RATE_ID' },
+  { key: 'BASECAMP_CLIENT_ID', label: 'بيسكامب — Client ID', hint: 'BASECAMP_CLIENT_ID' },
+  { key: 'BASECAMP_CLIENT_SECRET', label: 'بيسكامب — Client Secret', hint: 'BASECAMP_CLIENT_SECRET' },
+  { key: 'BASECAMP_REFRESH_TOKEN', label: 'بيسكامب — Refresh Token', hint: 'BASECAMP_REFRESH_TOKEN' },
+  { key: 'BASECAMP_ACCOUNT_ID', label: 'بيسكامب — Account ID', hint: 'BASECAMP_ACCOUNT_ID' },
+  { key: 'BASECAMP_PROJECT_ID', label: 'بيسكامب — Project ID', hint: 'BASECAMP_PROJECT_ID' },
+  { key: 'BASECAMP_MESSAGE_BOARD_ID', label: 'بيسكامب — Message Board ID', hint: 'BASECAMP_MESSAGE_BOARD_ID' },
 ];
 
 export default function Settings({ user, onLogout }) {
