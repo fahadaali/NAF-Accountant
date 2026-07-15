@@ -10,6 +10,7 @@ import telegramRoute from './routes/telegram.js';
 import reportsRoute, { generateAndSendReport } from './routes/reports.js';
 import dashboardRoute from './routes/dashboard.js';
 import basecampOauthRoute from './routes/basecamp_oauth.js';
+import authRoute from './routes/auth.js';
 import { syncChartOfAccounts } from './services/sync.js';
 import { writeLog } from './lib/db.js';
 
@@ -23,14 +24,23 @@ app.use('/api/*', cors({
 }));
 
 // فحص الصحة
-app.get('/', (c) => c.json({ ok: true, service: 'naf-accountant', ts: Date.now() }));
 app.get('/api/health', (c) => c.json({ ok: true }));
 
-// المسارات
+// مسارات الـ API
+app.route('/api', authRoute);
 app.route('/api', telegramRoute);
 app.route('/api', reportsRoute);
 app.route('/api', dashboardRoute);
 app.route('/api', basecampOauthRoute);
+
+// مسار API غير موجود → 404 JSON (لا تُخدم صفحة SPA لطلبات الـ API).
+app.all('/api/*', (c) => c.json({ ok: false, error: 'not found' }, 404));
+
+// أي مسار آخر يخدمه ملفات لوحة التحكم الثابتة (SPA).
+app.all('*', async (c) => {
+  if (c.env.ASSETS) return c.env.ASSETS.fetch(c.req.raw);
+  return c.json({ ok: true, service: 'naf-accountant', ts: Date.now() });
+});
 
 // معالج شامل للأخطاء
 app.onError((err, c) => {

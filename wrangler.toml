@@ -9,6 +9,17 @@ compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
 # ----------------------------------------------------------------------------
+# ملفات لوحة التحكم الثابتة (Static Assets) — يخدمها نفس الـ Worker.
+# يُبنى مجلد frontend/dist عبر أمر البناء في Workers Builds:
+#   cd frontend && npm install && npm run build
+# ثم يخدمها الـ Worker على نفس الرابط (اللوحة + الـ API معاً).
+# ----------------------------------------------------------------------------
+[assets]
+directory = "./frontend/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# ----------------------------------------------------------------------------
 # Cloudflare D1 Database (قاعدة البيانات)
 # أنشئ القاعدة أولاً:  wrangler d1 create naf-accountant-db
 # ثم انسخ الـ database_id هنا.

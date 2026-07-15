@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, getApiKey, setApiKey } from '../lib/api.js';
+import { api } from '../lib/api.js';
 
 const KEY_META = [
   { key: 'TELEGRAM_BOT_TOKEN', label: 'مفتاح بوت تليجرام', hint: 'TELEGRAM_BOT_TOKEN' },
@@ -9,8 +9,7 @@ const KEY_META = [
   { key: 'AUTHORIZED_CHAT_IDS', label: 'معرّفات المحادثات المصرّح لها', hint: 'AUTHORIZED_CHAT_IDS' },
 ];
 
-export default function Settings() {
-  const [localKey, setLocalKey] = useState(getApiKey());
+export default function Settings({ user, onLogout }) {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -28,14 +27,8 @@ export default function Settings() {
   };
 
   useEffect(() => {
-    if (getApiKey()) loadStatus();
-  }, []);
-
-  const saveKey = () => {
-    setApiKey(localKey);
-    setMsg('تم حفظ مفتاح لوحة التحكم.');
     loadStatus();
-  };
+  }, []);
 
   const runReport = async () => {
     setReporting(true);
@@ -60,22 +53,17 @@ export default function Settings() {
       {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
       {msg && <div className="card border-green-200 bg-green-50 text-green-700">{msg}</div>}
 
-      {/* مفتاح لوحة التحكم */}
+      {/* الحساب */}
       <div className="card">
-        <h3 className="font-bold text-slate-800 mb-1">مفتاح لوحة التحكم</h3>
-        <p className="text-slate-500 text-sm mb-4">
-          يُستخدم للمصادقة مع الخلفية (DASHBOARD_API_KEY). يُحفظ محلياً في متصفحك فقط.
-        </p>
-        <div className="flex gap-3">
-          <input
-            type="password"
-            className="flex-1 border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
-            placeholder="أدخل مفتاح لوحة التحكم"
-            value={localKey}
-            onChange={(e) => setLocalKey(e.target.value)}
-            dir="ltr"
-          />
-          <button className="btn-primary" onClick={saveKey}>حفظ</button>
+        <h3 className="font-bold text-slate-800 mb-1">الحساب</h3>
+        <div className="flex items-center justify-between mt-3">
+          <div>
+            <div className="font-semibold text-slate-700" dir="ltr">{user?.email}</div>
+            <div className="text-xs text-slate-400">
+              الصلاحية: {user?.role === 'admin' ? 'مسؤول' : 'مستخدم'}
+            </div>
+          </div>
+          <button className="btn-ghost" onClick={onLogout}>🚪 تسجيل الخروج</button>
         </div>
       </div>
 

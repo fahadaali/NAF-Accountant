@@ -5,17 +5,29 @@
 
 import { Hono } from 'hono';
 import { syncChartOfAccounts } from '../services/sync.js';
+import { getUserBySession } from '../lib/auth.js';
 
 const dashboard = new Hono();
 
 // ---- وسيط الحماية ----
+// يقبل: (1) رمز جلسة مستخدم صالح (تسجيل الدخول)، أو
+//        (2) DASHBOARD_API_KEY (للاستخدام الآلي مثل curl والمزامنة).
 dashboard.use('*', async (c, next) => {
   const auth = c.req.header('Authorization') || '';
   const token = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!c.env.DASHBOARD_API_KEY || token !== c.env.DASHBOARD_API_KEY) {
-    return c.json({ ok: false, error: 'unauthorized' }, 401);
+  if (!token) return c.json({ ok: false, error: 'unauthorized' }, 401);
+
+  // مفتاح آلي
+  if (c.env.DASHBOARD_API_KEY && token === c.env.DASHBOARD_API_KEY) {
+    return next();
   }
-  await next();
+  // جلسة مستخدم
+  const user = await getUserBySession(c.env.DB, token);
+  if (user) {
+    c.set('user', user);
+    return next();
+  }
+  return c.json({ ok: false, error: 'unauthorized' }, 401);
 });
 
 // ---- العمليات الأخيرة ----

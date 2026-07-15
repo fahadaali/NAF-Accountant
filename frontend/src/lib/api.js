@@ -1,17 +1,20 @@
 // ============================================================================
-// عميل الاتصال بالخلفية (API Client)
+// عميل الاتصال بالخلفية (API Client) + المصادقة
 // ============================================================================
 
 // عنوان الـ Worker. عدّله أو اضبط VITE_API_BASE عند البناء.
 const API_BASE = import.meta.env.VITE_API_BASE || '';
 
-const KEY_STORAGE = 'naf_dashboard_key';
+const TOKEN_STORAGE = 'naf_session_token';
 
-export function getApiKey() {
-  return localStorage.getItem(KEY_STORAGE) || '';
+export function getToken() {
+  return localStorage.getItem(TOKEN_STORAGE) || '';
 }
-export function setApiKey(key) {
-  localStorage.setItem(KEY_STORAGE, key);
+export function setToken(token) {
+  if (token) localStorage.setItem(TOKEN_STORAGE, token);
+}
+export function clearToken() {
+  localStorage.removeItem(TOKEN_STORAGE);
 }
 
 async function request(path, options = {}) {
@@ -19,17 +22,33 @@ async function request(path, options = {}) {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${getApiKey()}`,
+      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
       ...(options.headers || {}),
     },
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    // رمز غير صالح/منتهٍ — أزله.
+    clearToken();
+  }
   if (!res.ok) {
     throw new Error(data.error || `فشل الطلب (${res.status})`);
   }
   return data;
 }
 
+// ---- المصادقة ----
+export const auth = {
+  status: () => request('/auth/status'),
+  bootstrap: (email, password) =>
+    request('/auth/bootstrap', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  login: (email, password) =>
+    request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  me: () => request('/auth/me'),
+  logout: () => request('/auth/logout', { method: 'POST' }),
+};
+
+// ---- لوحة التحكم ----
 export const api = {
   stats: () => request('/stats'),
   transactions: (limit = 50) => request(`/transactions?limit=${limit}`),
