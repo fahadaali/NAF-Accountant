@@ -110,42 +110,46 @@ function normalizeName(s) {
     .toLowerCase();
 }
 
+/** أسماء الحقول المحتملة لاسم جهة الاتصال في وافق. */
+function contactName(c) {
+  return c.name || c.name_ar || c.name_en || c.display_name || c.legal_name || '';
+}
+
 /**
- * يبحث عن جهة اتصال بالاسم (مطابقة دقيقة بعد التطبيع)، وإن لم توجد ينشئها.
- * لا يربط بجهة اتصال غير مطابقة. يُرجع معرّف وافق.
+ * بحث عن جهات اتصال بكلمة/اسم. يُرجع قائمة موحّدة [{id, name}].
  */
-export async function findOrCreateContact(env, name) {
+export async function searchContacts(env, query) {
   const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
-  const headers = { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` };
-  const target = normalizeName(name);
-
-  // بحث ومطابقة دقيقة على أي من حقول الاسم المحتملة.
-  const searchRes = await fetch(
-    `${base}/contacts/?search=${encodeURIComponent(name)}&page_size=25`,
-    { headers }
+  const res = await fetch(
+    `${base}/contacts/?search=${encodeURIComponent(query)}&page_size=50`,
+    { headers: { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` } }
   );
-  if (searchRes.ok) {
-    const data = await searchRes.json();
-    const list = data.results || data.data || [];
-    const match = list.find((c) =>
-      [c.name, c.name_ar, c.name_en, c.display_name, c.legal_name].some(
-        (n) => n && normalizeName(n) === target
-      )
-    );
-    if (match && match.id) return String(match.id);
-  }
+  if (!res.ok) return [];
+  const data = await res.json();
+  const list = data.results || data.data || [];
+  return list
+    .filter((c) => c.id)
+    .map((c) => ({ id: String(c.id), name: contactName(c) }));
+}
 
-  // لا مطابقة دقيقة → إنشاء جهة اتصال جديدة.
-  const createRes = await fetch(`${base}/contacts/`, {
+/**
+ * إنشاء جهة اتصال جديدة بالاسم. يُرجع المعرّف.
+ */
+export async function createContact(env, name) {
+  const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
+  const res = await fetch(`${base}/contacts/`, {
     method: 'POST',
-    headers: { ...headers, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Api-Key ${env.WAFEQ_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({ name }),
   });
-  if (!createRes.ok) {
-    const body = await createRes.text();
-    throw new Error(`Wafeq contact create failed: ${createRes.status} ${body}`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Wafeq contact create failed: ${res.status} ${body}`);
   }
-  const created = await createRes.json();
+  const created = await res.json();
   return String(created.id || created.uuid || '');
 }
 

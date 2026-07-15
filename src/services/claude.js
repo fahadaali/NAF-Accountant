@@ -156,3 +156,74 @@ export async function analyzeTransaction(env, opts) {
   }
   return result;
 }
+
+/**
+ * مطابقة اسم جهة اتصال مذكور مع قائمة جهات الاتصال الموجودة عبر Claude.
+ * يتعامل مع الأسماء الجزئية/المختصرة/المعاد ترتيبها.
+ * @param {string} mentionedName
+ * @param {Array<{id,name}>} candidates
+ * @returns {Promise<{decision:'match'|'new'|'ambiguous', index:number, candidates:number[]}>}
+ *   index: رقم المطابقة (1-based) أو 0 للجديد. candidates: أرقام الاحتمالات عند التعدد.
+ */
+export async function matchContactWithClaude(env, mentionedName, candidates) {
+  const numbered = candidates.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
+
+  const system = `أنت مساعد لمطابقة أسماء جهات الاتصال (عملاء/موردين) في نظام محاسبي عربي.
+المستخدم يذكر اسماً قد يكون مختصراً أو جزئياً أو بترتيب مختلف عن الاسم المسجّل.
+أمثلة على المطابقة الصحيحة:
+- "جرير" ↔ "شركة جرير"
+- "شركة بن عوض" ↔ "شركة بن عوض التجارية العالمية"
+- "محمد العبدالله" ↔ "محمد بن خالد العبدالله"
+مهمتك: تحديد إن كان الاسم المذكور يشير إلى إحدى جهات الاتصال الموجودة.
+
+أرجع JSON فقط بهذا الشكل (بدون أي نص آخر):
+{ "decision": "match" | "new" | "ambiguous", "index": <رقم المطابقة 1..N أو 0>, "candidates": [أرقام] }
+
+القواعد:
+- إن طابق جهة واحدة بثقة عالية → "match" مع index رقمها.
+- إن لم يطابق أي جهة (اسم جديد فعلاً) → "new" مع index=0.
+- إن كان هناك أكثر من احتمال قوي ولا يمكن الجزم → "ambiguous" مع candidates تحوي أرقام الاحتمالات.
+- كن حذراً: لا تطابق بمجرد تشابه كلمة عامة (مثل "شركة" أو "مؤسسة" أو اسم أول شائع وحده).`;
+
+  const user = `الاسم المذكور: "${mentionedName}"
+
+جهات الاتصال الموجودة:
+${numbered}`;
+
+  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
+      max_tokens: 300,
+      system,
+      messages: [{ role: 'user', content: [{ type: 'text', text: user }] }],
+    }),
+  });
+
+  if (!res.ok) {
+    // عند فشل المطابقة الذكية، اعتبرها جديدة (الأكثر أماناً من نسبها لخطأ).
+    return { decision: 'new', index: 0, candidates: [] };
+  }
+
+  const data = await res.json();
+  const textPart = (data.content || [])
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+
+  try {
+    const parsed = extractJson(textPart);
+    return {
+      decision: parsed.decision || 'new',
+      index: Number(parsed.index || 0),
+      candidates: Array.isArray(parsed.candidates) ? parsed.candidates.map(Number) : [],
+    };
+  } catch (_) {
+    return { decision: 'new', index: 0, candidates: [] };
+  }
+}

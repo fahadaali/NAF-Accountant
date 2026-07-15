@@ -19,9 +19,10 @@ import {
   postJournalEntryDraft,
   createBillDraft,
   createInvoiceDraft,
-  findOrCreateContact,
+  createContact,
   uploadAttachment,
 } from '../services/wafeq.js';
+import { resolveContact } from '../services/contacts.js';
 
 function arrayBufferToBase64(buffer) {
   let binary = '';
@@ -94,9 +95,9 @@ function confirmInvoice(result, wafeqId) {
 }
 
 // ---------------------------------------------------------------------------
-// الترحيل إلى وافق حسب نوع العملية.
+// الترحيل إلى وافق حسب نوع العملية (بمعرّف جهة اتصال مُحلّل مسبقاً).
 // ---------------------------------------------------------------------------
-async function postToWafeq(env, result, accounts, ref, attachmentIds) {
+async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId) {
   const idMap = accountIdMap(accounts);
 
   if (result.type === 'manual_journal') {
@@ -106,8 +107,6 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds) {
   }
 
   if (result.type === 'purchase_bill') {
-    let contactId = null;
-    if (result.contact_name) contactId = await findOrCreateContact(env, result.contact_name);
     const lineItems = (result.bill?.line_items || []).map((li) => ({
       account: idMap[li.account_code] || li.account_code,
       description: li.description,
@@ -123,9 +122,6 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds) {
   }
 
   if (result.type === 'sales_invoice') {
-    const contactId = result.contact_name
-      ? await findOrCreateContact(env, result.contact_name)
-      : null;
     const lineItems = (result.invoice?.line_items || []).map((li) => ({
       account: idMap[li.account_code] || li.account_code,
       description: li.description,
@@ -142,6 +138,53 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds) {
   }
 
   throw new Error(`نوع عملية غير معروف: ${result.type}`);
+}
+
+/** تطبيع اسم للمقارنة (نسخة مبسّطة في المعالج). */
+function normName(s) {
+  return (s || '')
+    .replace(/[ً-ْ]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * رفع المرفق (إن وُجد) ثم الترحيل إلى وافق وإنهاء العملية.
+ */
+async function finalizeAndPost(env, ctx) {
+  const { txId, chatId, result, accounts, messageId, contactId, mediaR2Key, mediaType } = ctx;
+
+  let attachmentIds = [];
+  if (mediaR2Key && (result.type === 'purchase_bill' || result.type === 'sales_invoice')) {
+    try {
+      const obj = await env.MEDIA.get(mediaR2Key);
+      if (obj) {
+        const buf = await obj.arrayBuffer();
+        const fname = mediaR2Key.split('/').pop() || 'attachment.jpg';
+        const attId = await uploadAttachment(env, buf, fname, mediaType || 'image/jpeg');
+        if (attId) attachmentIds.push(attId);
+      }
+    } catch (e) {
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: 'wafeq_attachment',
+        status: 'error',
+        errorDetails: e.message,
+      });
+    }
+  }
+
+  const ref = `${result.summary || 'عملية آلية'} — تليجرام #${messageId}`;
+  const { wafeqId, confirm } = await postToWafeq(env, result, accounts, ref, attachmentIds, contactId);
+
+  await updateTransaction(env.DB, txId, { wafeqDraftId: wafeqId, status: 'posted' });
+  await writeLog(env.DB, { transactionId: txId, action: 'wafeq_post', status: 'success' });
+  await clearConversationState(env.DB, chatId);
+  await sendTelegramMessage(env, chatId, confirm);
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +267,35 @@ export async function processTelegramUpdate(env, update) {
       }
     }
 
+    // ---- ردّ اختيار جهة الاتصال (بعد سؤال التوضيح) ----
+    if (prior && prior.kind === 'contact_choice' && prior.analyzed) {
+      const accounts = await getActiveAccounts(env.DB);
+      const candidates = prior.candidates || [];
+      const sel = (finalText || '').trim();
+      let contactId;
+
+      const num = parseInt(sel, 10);
+      if (!isNaN(num) && num >= 1 && num <= candidates.length) {
+        contactId = candidates[num - 1].id; // اختار بالرقم
+      } else {
+        const byName = candidates.find((c) => normName(c.name) === normName(sel));
+        if (byName) contactId = byName.id; // اختار بالاسم المطابق
+        else contactId = await createContact(env, sel || prior.analyzed.contact_name); // اسم جديد
+      }
+
+      await finalizeAndPost(env, {
+        txId,
+        chatId,
+        result: prior.analyzed,
+        accounts,
+        messageId,
+        contactId,
+        mediaR2Key: prior.mediaR2Key,
+        mediaType: prior.mediaType,
+      });
+      return;
+    }
+
     if (!finalText && !image) {
       throw new Error('لا يوجد محتوى قابل للمعالجة في الرسالة');
     }
@@ -272,38 +344,45 @@ export async function processTelegramUpdate(env, update) {
       return;
     }
 
-    // ---- رفع المرفق (صورة الفاتورة) إن وُجد ----
-    let attachmentIds = [];
-    if (image && mediaR2Key && (result.type === 'purchase_bill' || result.type === 'sales_invoice')) {
-      try {
-        const obj = await env.MEDIA.get(mediaR2Key);
-        if (obj) {
-          const buf = await obj.arrayBuffer();
-          const fname = mediaR2Key.split('/').pop() || 'attachment.jpg';
-          const attId = await uploadAttachment(env, buf, fname, mediaType || 'image/jpeg');
-          if (attId) attachmentIds.push(attId);
-        }
-      } catch (e) {
-        // لا نُفشل العملية بسبب المرفق فقط — نسجّل ونكمل.
-        await writeLog(env.DB, {
-          transactionId: txId,
-          action: 'wafeq_attachment',
-          status: 'error',
-          errorDetails: e.message,
+    // ---- حلّ جهة الاتصال (للفواتير) — مطابقة ذكية أو سؤال عند التعدد ----
+    let contactId = null;
+    if (
+      (result.type === 'purchase_bill' || result.type === 'sales_invoice') &&
+      result.contact_name
+    ) {
+      const r = await resolveContact(env, result.contact_name);
+      if (r.status === 'ambiguous') {
+        const optionsText = r.candidates.map((c, i) => `${i + 1}) ${c.name}`).join('\n');
+        await setConversationState(env.DB, chatId, {
+          kind: 'contact_choice',
+          analyzed: result,
+          candidates: r.candidates,
+          mediaR2Key,
+          mediaType,
         });
+        await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
+        await sendTelegramMessage(
+          env,
+          chatId,
+          `❓ وجدت أكثر من جهة اتصال تشبه «${result.contact_name}». أيّها تقصد؟\n\n${optionsText}\n\n` +
+            `اكتب الرقم للاختيار، أو اكتب اسماً جديداً لإنشاء جهة اتصال جديدة.`
+        );
+        return;
       }
+      contactId = r.contactId;
     }
 
-    // ---- الترحيل إلى وافق حسب النوع ----
-    const ref = `${result.summary || 'عملية آلية'} — تليجرام #${messageId}`;
-    const { wafeqId, confirm } = await postToWafeq(env, result, accounts, ref, attachmentIds);
-
-    await updateTransaction(env.DB, txId, { wafeqDraftId: wafeqId, status: 'posted' });
-    await writeLog(env.DB, { transactionId: txId, action: 'wafeq_post', status: 'success' });
-
-    // ---- انتهى الحوار: امسح السياق وأرسل التأكيد ----
-    await clearConversationState(env.DB, chatId);
-    await sendTelegramMessage(env, chatId, confirm);
+    // ---- الترحيل إلى وافق ----
+    await finalizeAndPost(env, {
+      txId,
+      chatId,
+      result,
+      accounts,
+      messageId,
+      contactId,
+      mediaR2Key,
+      mediaType,
+    });
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);
     await updateTransaction(env.DB, txId, { status: 'failed', errorMessage: msg });
