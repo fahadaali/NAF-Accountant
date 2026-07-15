@@ -6,30 +6,30 @@
 import { Hono } from 'hono';
 import { getWafeqDraftSummary } from '../services/wafeq.js';
 import { postBasecampMessage } from '../services/basecamp.js';
+import { authenticate } from '../lib/auth.js';
 import { writeLog } from '../lib/db.js';
 
 const reports = new Hono();
+
+// حماية التشغيل اليدوي للتقرير (جلسة مستخدم أو DASHBOARD_API_KEY).
+reports.use('/reports/*', async (c, next) => {
+  const who = await authenticate(c);
+  if (!who) return c.json({ ok: false, error: 'unauthorized' }, 401);
+  await next();
+});
 
 /**
  * بناء وإرسال التقرير الشهري. مشترك بين المسار والـ Cron.
  */
 export async function generateAndSendReport(env) {
-  const summary = await getWafeqDraftSummary(env);
-
-  const drafts = summary.results || summary.data || summary || [];
-  const count = Array.isArray(drafts) ? drafts.length : 0;
+  const { count, items } = await getWafeqDraftSummary(env);
 
   const now = new Date();
   const monthLabel = now.toLocaleDateString('ar', { year: 'numeric', month: 'long' });
 
-  const rows = (Array.isArray(drafts) ? drafts : [])
+  const rows = items
     .slice(0, 100)
-    .map((d) => {
-      const id = d.id || d.uuid || '';
-      const desc = d.description || '';
-      const date = d.date || '';
-      return `<li>#${id} — ${desc} <em>(${date})</em></li>`;
-    })
+    .map((d) => `<li>${d.type} #${d.number || d.id} <em>(${d.date})</em></li>`)
     .join('');
 
   const contentHtml =

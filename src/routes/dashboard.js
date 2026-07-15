@@ -5,7 +5,7 @@
 
 import { Hono } from 'hono';
 import { syncChartOfAccounts } from '../services/sync.js';
-import { getUserBySession } from '../lib/auth.js';
+import { authenticate } from '../lib/auth.js';
 
 const dashboard = new Hono();
 
@@ -13,21 +13,10 @@ const dashboard = new Hono();
 // يقبل: (1) رمز جلسة مستخدم صالح (تسجيل الدخول)، أو
 //        (2) DASHBOARD_API_KEY (للاستخدام الآلي مثل curl والمزامنة).
 dashboard.use('*', async (c, next) => {
-  const auth = c.req.header('Authorization') || '';
-  const token = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!token) return c.json({ ok: false, error: 'unauthorized' }, 401);
-
-  // مفتاح آلي
-  if (c.env.DASHBOARD_API_KEY && token === c.env.DASHBOARD_API_KEY) {
-    return next();
-  }
-  // جلسة مستخدم
-  const user = await getUserBySession(c.env.DB, token);
-  if (user) {
-    c.set('user', user);
-    return next();
-  }
-  return c.json({ ok: false, error: 'unauthorized' }, 401);
+  const who = await authenticate(c);
+  if (!who) return c.json({ ok: false, error: 'unauthorized' }, 401);
+  if (who.email) c.set('user', who);
+  await next();
 });
 
 // ---- العمليات مع فلاتر وفرز ----

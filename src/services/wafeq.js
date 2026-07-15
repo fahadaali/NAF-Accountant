@@ -77,38 +77,43 @@ export async function postJournalEntryDraft(env, accounts, entries, description 
 
 /**
  * سحب ملخص المسودات من وافق (للتقرير الشهري).
+ * المسودات الفعلية هي فواتير البيع والمشتريات (القيود اليدوية تُرحّل مباشرة).
+ * مرِن: يتجاوز أي نوع يفشل جلبه بدل إفشال التقرير كاملاً.
+ * @returns {Promise<{count:number, items:Array}>}
  */
 export async function getWafeqDraftSummary(env) {
-  const res = await fetch(
-    `${env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1'}/manual-journals/?status=DRAFT`,
-    {
-      headers: { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` },
-    }
-  );
+  const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
+  const headers = { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` };
+  const items = [];
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Wafeq draft summary failed: ${res.status} ${body}`);
+  async function pull(path, label) {
+    try {
+      const res = await fetch(`${base}/${path}/?status=DRAFT&page_size=100`, { headers });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = data.results || data.data || [];
+      for (const d of list) {
+        items.push({
+          type: label,
+          id: String(d.id || d.uuid || ''),
+          number: d.bill_number || d.invoice_number || '',
+          date: d.bill_date || d.invoice_date || d.date || '',
+        });
+      }
+    } catch (_) {
+      /* تجاهل نوعاً فشل جلبه */
+    }
   }
 
-  return res.json();
+  await pull('bills', 'فاتورة مشتريات');
+  await pull('invoices', 'فاتورة بيع');
+
+  return { count: items.length, items };
 }
 
 // ============================================================================
 // جهات الاتصال (Contacts) — للبحث عن عميل/مورّد أو إنشائه.
 // ============================================================================
-
-/** تطبيع اسم للمقارنة: توحيد المسافات وإزالة التشكيل وتوحيد الألف/الياء/التاء. */
-function normalizeName(s) {
-  return (s || '')
-    .replace(/[ً-ْ]/g, '') // إزالة التشكيل
-    .replace(/[أإآ]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
 
 /** أسماء الحقول المحتملة لاسم جهة الاتصال في وافق. */
 function contactName(c) {

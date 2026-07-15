@@ -98,3 +98,14 @@ export async function countUsers(db) {
   const row = await db.prepare(`SELECT COUNT(*) AS n FROM users`).first();
   return row ? row.n : 0;
 }
+
+/**
+ * تحقّق موحّد لطلبات الـ API: يقبل جلسة مستخدم صالحة أو DASHBOARD_API_KEY.
+ * يُرجع كائن المستخدم، أو { apiKey: true } للمفتاح الآلي، أو null.
+ */
+export async function authenticate(c) {
+  const token = (c.req.header('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
+  if (c.env.DASHBOARD_API_KEY && token === c.env.DASHBOARD_API_KEY) return { apiKey: true };
+  return getUserBySession(c.env.DB, token);
+}
