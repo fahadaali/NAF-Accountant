@@ -98,26 +98,44 @@ export async function getWafeqDraftSummary(env) {
 // جهات الاتصال (Contacts) — للبحث عن عميل/مورّد أو إنشائه.
 // ============================================================================
 
+/** تطبيع اسم للمقارنة: توحيد المسافات وإزالة التشكيل وتوحيد الألف/الياء/التاء. */
+function normalizeName(s) {
+  return (s || '')
+    .replace(/[ً-ْ]/g, '') // إزالة التشكيل
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 /**
- * يبحث عن جهة اتصال بالاسم، وإن لم توجد ينشئها. يُرجع معرّف وافق.
+ * يبحث عن جهة اتصال بالاسم (مطابقة دقيقة بعد التطبيع)، وإن لم توجد ينشئها.
+ * لا يربط بجهة اتصال غير مطابقة. يُرجع معرّف وافق.
  */
 export async function findOrCreateContact(env, name) {
   const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
   const headers = { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` };
+  const target = normalizeName(name);
 
-  // بحث
+  // بحث ومطابقة دقيقة على أي من حقول الاسم المحتملة.
   const searchRes = await fetch(
-    `${base}/contacts/?search=${encodeURIComponent(name)}&page_size=10`,
+    `${base}/contacts/?search=${encodeURIComponent(name)}&page_size=25`,
     { headers }
   );
   if (searchRes.ok) {
     const data = await searchRes.json();
     const list = data.results || data.data || [];
-    const exact = list.find((c) => (c.name || '').trim() === name.trim()) || list[0];
-    if (exact && exact.id) return String(exact.id);
+    const match = list.find((c) =>
+      [c.name, c.name_ar, c.name_en, c.display_name, c.legal_name].some(
+        (n) => n && normalizeName(n) === target
+      )
+    );
+    if (match && match.id) return String(match.id);
   }
 
-  // إنشاء
+  // لا مطابقة دقيقة → إنشاء جهة اتصال جديدة.
   const createRes = await fetch(`${base}/contacts/`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
