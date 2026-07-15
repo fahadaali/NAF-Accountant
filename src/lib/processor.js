@@ -34,6 +34,32 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
+// حد Claude لحجم الصورة (~5MB). نبقى دونه بهامش أمان.
+const MAX_IMAGE_BYTES = 4.8 * 1024 * 1024;
+
+/**
+ * كشف نوع الصورة الحقيقي من البايتات الأولى (magic bytes) بدل الوثوق بما
+ * يعلنه تليجرام. يُرجع نوع MIME مدعوماً من Claude أو null إن كان غير مدعوم.
+ * المدعوم: image/jpeg, image/png, image/gif, image/webp
+ */
+function detectImageType(buffer) {
+  const b = new Uint8Array(buffer);
+  if (b.length < 12) return null;
+  // JPEG: FF D8 FF
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  // GIF: 47 49 46 38
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
+  // WEBP: "RIFF"...."WEBP"
+  if (
+    b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+    b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50
+  )
+    return 'image/webp';
+  return null; // غير مدعوم (مثل HEIC/HEIF من الآيفون)
+}
+
 /** تاريخ الرسالة (YYYY-MM-DD) بتوقيت السعودية (UTC+3) من طابع تليجرام. */
 function messageDateISO(unixSeconds) {
   const ms = (unixSeconds ? unixSeconds : Math.floor(Date.now() / 1000)) * 1000;
@@ -233,15 +259,24 @@ export async function processTelegramUpdate(env, update) {
 
     // ---- معالجة الصورة (فاتورة) ----
     if (sourceType === 'image') {
-      let fileId;
-      if (message.photo) {
-        fileId = message.photo[message.photo.length - 1].file_id;
-        mediaType = 'image/jpeg';
-      } else {
-        fileId = message.document.file_id;
-        mediaType = message.document.mime_type || 'image/jpeg';
-      }
+      const fileId = message.photo
+        ? message.photo[message.photo.length - 1].file_id
+        : message.document.file_id;
       const buffer = await downloadTelegramFile(env, fileId);
+
+      // كشف النوع الحقيقي من البايتات (لا نثق بما يعلنه تليجرام).
+      const detected = detectImageType(buffer);
+      if (!detected) {
+        throw new Error(
+          'صيغة الصورة غير مدعومة (قد تكون HEIC من الآيفون). الرجاء إرسالها بصيغة JPG أو PNG — ' +
+            'على الآيفون: الإعدادات ← الكاميرا ← التنسيقات ← «الأكثر توافقاً».'
+        );
+      }
+      if (buffer.byteLength > MAX_IMAGE_BYTES) {
+        throw new Error('حجم الصورة كبير جداً. الرجاء إرسال صورة أصغر (أقل من 5 ميغابايت).');
+      }
+
+      mediaType = detected;
       const ext = mediaType.split('/')[1] || 'jpg';
       mediaR2Key = `invoice/${chatId}/${messageId}.${ext}`;
       await env.MEDIA.put(mediaR2Key, buffer, { httpMetadata: { contentType: mediaType } });
