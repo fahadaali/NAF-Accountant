@@ -3,9 +3,9 @@ node_modules/
 frontend/node_modules/
 
 # Build output
-dist/
-frontend/dist/
+/dist/
 .wrangler/
+# ملاحظة: frontend/dist مرفوع عمداً ليخدمه الـ Worker مباشرة (بدون أمر بناء أثناء النشر).
 
 # Cloudflare / secrets
 .dev.vars
