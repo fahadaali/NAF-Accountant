@@ -163,6 +163,51 @@ export async function analyzeTransaction(env, opts) {
 }
 
 /**
+ * تصحيح نص مُفرّغ من الصوت عبر Claude في السياق المحاسبي.
+ * يصلح الكلمات والمصطلحات المشوّهة دون اختراع معلومات.
+ * عند أي فشل يُعيد النص الأصلي (لا يكسر التدفق).
+ */
+export async function refineTranscript(env, rawText) {
+  const text = (rawText || '').trim();
+  if (!text) return text;
+
+  const system = `أنت مدقّق لنصوص مُفرّغة آلياً من الصوت في سياق محاسبي عربي سعودي (شركة ناف القانونية، العملة ريال سعودي).
+النص التالي مُفرّغ آلياً وقد يحوي أخطاء تفريغ (كلمات متشابهة صوتياً، مصطلحات محاسبية مكتوبة خطأً، أرقام مكتوبة كلمات).
+مهمتك تصحيح النص بأقل تدخّل:
+- صحّح الكلمات المشوّهة والمصطلحات المحاسبية (قيد، مدين، دائن، فاتورة، ضريبة القيمة المضافة، إيجار، رواتب، سداد، مشتريات، الصندوق، الخزينة، المصروفات النثرية، تحويل).
+- حوّل الأرقام المكتوبة كلمات إلى ما يقابلها بوضوح إن كان جلياً (مثل: «ألفين» تبقى كما هي أو تُكتب 2000 إن ناسب السياق) لكن لا تخترع رقماً غير موجود.
+- ⛔ لا تُضِف أي معلومة غير موجودة، ولا تغيّر الأسماء أو المبالغ إلا إذا كانت مشوّهة بوضوح.
+- أعد النص المصحّح فقط، دون أي شرح أو مقدمة أو تنسيق.`;
+
+  try {
+    const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: env.CLAUDE_MODEL || 'claude-opus-4-8',
+        max_tokens: 1024,
+        system,
+        messages: [{ role: 'user', content: [{ type: 'text', text }] }],
+      }),
+    });
+    if (!res.ok) return text;
+    const data = await res.json();
+    const out = (data.content || [])
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n')
+      .trim();
+    return out || text;
+  } catch (_) {
+    return text;
+  }
+}
+
+/**
  * مطابقة اسم جهة اتصال مذكور مع قائمة جهات الاتصال الموجودة عبر Claude.
  * يتعامل مع الأسماء الجزئية/المختصرة/المعاد ترتيبها.
  * @param {string} mentionedName

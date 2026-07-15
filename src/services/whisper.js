@@ -33,6 +33,8 @@ export async function transcribeAudio(env, audioBuffer) {
     task: 'transcribe',
     language: 'ar',
     initial_prompt: env.WHISPER_PROMPT || DEFAULT_PROMPT,
+    vad_filter: true, // إزالة الصمت/الضوضاء لتحسين الدقة
+    beam_size: Number(env.WHISPER_BEAM_SIZE || 8), // بحث أوسع = دقة أعلى
   });
 
   const text = (response && response.text ? response.text : '').trim();
