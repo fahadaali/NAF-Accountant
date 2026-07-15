@@ -30,8 +30,14 @@ export async function postJournalEntryDraft(env, accounts, entries, description 
   const lineItems = entries.map((e) => {
     // amount موجب للمدين، سالب للدائن.
     const amount = Number(e.debit || 0) - Number(e.credit || 0);
+    const account = codeToWafeqId[e.account_code] || e.account_code;
+    if (!/^acc_/.test(account)) {
+      throw new Error(
+        `الحساب «${e.account_name || e.account_code}» (${e.account_code}) غير مربوط بوافق. شغّل المزامنة أو اختر حساباً مزامناً.`
+      );
+    }
     return {
-      account: codeToWafeqId[e.account_code] || e.account_code,
+      account,
       amount,
       // المبلغ بالعملة الأساسية للشركة. بما أن العملة نفسها الأساسية فالقيمة متطابقة.
       // (لو اختلفت العملات مستقبلاً، اضرب في سعر الصرف هنا.)

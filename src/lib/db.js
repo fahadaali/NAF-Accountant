@@ -80,7 +80,9 @@ export async function updateTransaction(db, id, fields) {
 }
 
 /**
- * سحب شجرة الحسابات النشطة.
+ * سحب شجرة الحسابات النشطة القابلة للترحيل إلى وافق فقط.
+ * نستبعد أي حساب بلا wafeq_account_id (مثل الحسابات التجريبية المزروعة)
+ * حتى لا يختارها Claude فيُرفض القيد في وافق.
  */
 export async function getActiveAccounts(db) {
   const { results } = await db
@@ -88,6 +90,8 @@ export async function getActiveAccounts(db) {
       `SELECT account_code, account_name, account_type, wafeq_account_id
        FROM chart_of_accounts
        WHERE is_active = 1
+         AND wafeq_account_id IS NOT NULL
+         AND wafeq_account_id != ''
        ORDER BY account_code ASC`
     )
     .all();
