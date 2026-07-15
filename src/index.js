@@ -27,11 +27,13 @@ app.use('/api/*', cors({
 app.get('/api/health', (c) => c.json({ ok: true }));
 
 // مسارات الـ API
+// ملاحظة: المسارات العامة (auth, telegram, reports, basecamp_oauth) تُسجّل قبل
+// لوحة التحكم، لأن وسيط حماية اللوحة (use '*') يُطبّق على ما يليه من مسارات /api.
 app.route('/api', authRoute);
 app.route('/api', telegramRoute);
 app.route('/api', reportsRoute);
-app.route('/api', dashboardRoute);
 app.route('/api', basecampOauthRoute);
+app.route('/api', dashboardRoute);
 
 // مسار API غير موجود → 404 JSON (لا تُخدم صفحة SPA لطلبات الـ API).
 app.all('/api/*', (c) => c.json({ ok: false, error: 'not found' }, 404));
