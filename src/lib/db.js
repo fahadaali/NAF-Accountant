@@ -104,13 +104,22 @@ export async function getActiveAccounts(db) {
 
 /**
  * سحب السياق المعلّق لمحادثة (أو null).
+ * السياق الأقدم من maxAgeMinutes يُعتبر منتهياً ويُحذف (يمنع تعليق سياق قديم).
  */
-export async function getConversationState(db, chatId) {
+export async function getConversationState(db, chatId, maxAgeMinutes = 30) {
   const row = await db
-    .prepare(`SELECT pending_json FROM conversation_state WHERE chat_id = ?`)
+    .prepare(`SELECT pending_json, updated_at FROM conversation_state WHERE chat_id = ?`)
     .bind(String(chatId))
     .first();
   if (!row || !row.pending_json) return null;
+
+  // انتهاء صلاحية السياق (updated_at مخزّن بتوقيت UTC).
+  const updatedMs = Date.parse((row.updated_at || '').replace(' ', 'T') + 'Z');
+  if (updatedMs && Date.now() - updatedMs > maxAgeMinutes * 60 * 1000) {
+    await clearConversationState(db, chatId);
+    return null;
+  }
+
   try {
     return JSON.parse(row.pending_json);
   } catch (_) {

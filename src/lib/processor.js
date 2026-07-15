@@ -285,19 +285,32 @@ export async function processTelegramUpdate(env, update) {
       await writeLog(env.DB, { transactionId: txId, action: 'image_saved_r2', status: 'success' });
     }
 
+    // ---- كلمة إعادة/إلغاء تمسح أي سياق عالق وتبدأ من جديد ----
+    const RESET_WORDS = ['إلغاء', 'الغاء', 'جديد', 'ابدأ من جديد', 'ابدا من جديد', 'إلغاء العملية', 'reset', 'cancel'];
+    if (finalText && RESET_WORDS.includes(finalText.trim())) {
+      await clearConversationState(env.DB, chatId);
+      await updateTransaction(env.DB, txId, { status: 'received' });
+      await sendTelegramMessage(env, chatId, '🔄 تم إلغاء أي عملية جارية. أرسل عمليتك الجديدة الآن.');
+      return;
+    }
+
     // ---- استرجاع سياق حوار سابق (إن وُجد) ----
     const prior = await getConversationState(env.DB, chatId);
     let priorContext = null;
     if (prior) {
       priorContext = prior.accumulatedText || null;
-      // إن كان هناك مرفق سابق ولم تُرسل صورة جديدة، أعِد تحميله من R2 لسياق الرؤية.
+      // إن كان هناك مرفق سابق ولم تُرسل صورة جديدة، أعِد تحميله من R2 مع التحقق من صلاحيته.
       if (!image && prior.mediaR2Key) {
         const obj = await env.MEDIA.get(prior.mediaR2Key);
         if (obj) {
           const buf = await obj.arrayBuffer();
-          image = { mediaType: prior.mediaType || 'image/jpeg', base64: arrayBufferToBase64(buf) };
-          mediaR2Key = prior.mediaR2Key;
-          mediaType = prior.mediaType;
+          const t = detectImageType(buf);
+          // نتجاهل الصورة المخزّنة إن كانت غير مدعومة/تالفة ونكمل بالنص فقط.
+          if (t && buf.byteLength <= MAX_IMAGE_BYTES) {
+            image = { mediaType: t, base64: arrayBufferToBase64(buf) };
+            mediaR2Key = prior.mediaR2Key;
+            mediaType = t;
+          }
         }
       }
     }
