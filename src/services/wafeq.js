@@ -183,6 +183,8 @@ export async function createBillDraft(env, opts) {
     contact: opts.contactId || null,
     currency,
     bill_date: opts.date,
+    bill_due_date: opts.dueDate || opts.date,
+    bill_number: opts.number || `PB-${Date.now()}`,
     line_items,
     ...(opts.attachmentIds && opts.attachmentIds.length
       ? { attachments: opts.attachmentIds }
@@ -232,6 +234,8 @@ export async function createInvoiceDraft(env, opts) {
     contact: opts.contactId || null,
     currency,
     invoice_date: opts.date,
+    invoice_due_date: opts.dueDate || opts.date,
+    invoice_number: opts.number || `INV-${Date.now()}`,
     line_items,
     ...(opts.attachmentIds && opts.attachmentIds.length
       ? { attachments: opts.attachmentIds }
