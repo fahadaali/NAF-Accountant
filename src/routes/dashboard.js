@@ -30,20 +30,71 @@ dashboard.use('*', async (c, next) => {
   return c.json({ ok: false, error: 'unauthorized' }, 401);
 });
 
-// ---- العمليات الأخيرة ----
+// ---- العمليات مع فلاتر وفرز ----
+// مرشّحات: status, source_type, q (بحث في النص)، from/to (تاريخ YYYY-MM-DD)
+// فرز: sort (created_at|id|status|source_type)، order (asc|desc)
 dashboard.get('/transactions', async (c) => {
-  const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200);
+  const limit = Math.min(parseInt(c.req.query('limit') || '100', 10), 500);
+
+  const where = [];
+  const binds = [];
+
+  const status = c.req.query('status');
+  if (status) { where.push('status = ?'); binds.push(status); }
+
+  const sourceType = c.req.query('source_type');
+  if (sourceType) { where.push('source_type = ?'); binds.push(sourceType); }
+
+  const q = (c.req.query('q') || '').trim();
+  if (q) { where.push('(raw_text LIKE ? OR wafeq_draft_id LIKE ?)'); binds.push(`%${q}%`, `%${q}%`); }
+
+  const from = c.req.query('from');
+  if (from) { where.push('created_at >= ?'); binds.push(from); }
+
+  const to = c.req.query('to');
+  if (to) { where.push('created_at <= ?'); binds.push(to + ' 23:59:59'); }
+
+  // فرز آمن عبر قائمة بيضاء.
+  const sortMap = { created_at: 'created_at', id: 'id', status: 'status', source_type: 'source_type' };
+  const sortCol = sortMap[c.req.query('sort')] || 'created_at';
+  const order = (c.req.query('order') || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  binds.push(limit);
+
   const { results } = await c.env.DB.prepare(
     `SELECT id, telegram_message_id, telegram_chat_id, source_type,
             raw_text, processed_json, wafeq_draft_id, status,
             error_message, created_at, updated_at
      FROM transactions
-     ORDER BY created_at DESC
+     ${whereSql}
+     ORDER BY ${sortCol} ${order}
      LIMIT ?`
   )
-    .bind(limit)
+    .bind(...binds)
     .all();
   return c.json({ ok: true, transactions: results || [] });
+});
+
+// ---- حذف عمليات محدّدة ----
+dashboard.post('/transactions/delete', async (c) => {
+  const { ids } = await c.req.json().catch(() => ({}));
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return c.json({ ok: false, error: 'لم تُحدّد أي عملية.' }, 400);
+  }
+  const clean = ids.map((n) => parseInt(n, 10)).filter((n) => !isNaN(n)).slice(0, 500);
+  if (clean.length === 0) return c.json({ ok: false, error: 'معرّفات غير صالحة.' }, 400);
+
+  const placeholders = clean.map(() => '?').join(',');
+  // حذف السجلّات المرتبطة أولاً ثم العمليات.
+  await c.env.DB.prepare(`DELETE FROM logs WHERE transaction_id IN (${placeholders})`)
+    .bind(...clean)
+    .run();
+  const res = await c.env.DB.prepare(`DELETE FROM transactions WHERE id IN (${placeholders})`)
+    .bind(...clean)
+    .run();
+
+  return c.json({ ok: true, deleted: res.meta.changes ?? clean.length });
 });
 
 // ---- إحصائيات موجزة ----

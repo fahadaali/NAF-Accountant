@@ -51,7 +51,16 @@ export const auth = {
 // ---- لوحة التحكم ----
 export const api = {
   stats: () => request('/stats'),
-  transactions: (limit = 50) => request(`/transactions?limit=${limit}`),
+  transactions: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    const s = qs.toString();
+    return request(`/transactions${s ? `?${s}` : ''}`);
+  },
+  deleteTransactions: (ids) =>
+    request('/transactions/delete', { method: 'POST', body: JSON.stringify({ ids }) }),
   accounts: () => request('/accounts'),
   addAccount: (body) => request('/accounts', { method: 'POST', body: JSON.stringify(body) }),
   syncAccounts: () => request('/accounts/sync', { method: 'POST' }),

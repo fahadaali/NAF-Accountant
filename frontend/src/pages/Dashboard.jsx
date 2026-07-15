@@ -18,7 +18,7 @@ export default function Dashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [s, t] = await Promise.all([api.stats(), api.transactions(8)]);
+        const [s, t] = await Promise.all([api.stats(), api.transactions({ limit: 8 })]);
         setStats(s);
         setRecent(t.transactions);
       } catch (e) {
