@@ -18,7 +18,7 @@
  * @param {Array} entries - أسطر القيد من Claude (account_code, debit, credit, ...).
  * @returns {Promise<{id: string, raw: object}>}
  */
-export async function postJournalEntryDraft(env, accounts, entries, description = 'قيد آلي — ناف لو') {
+export async function postJournalEntryDraft(env, accounts, entries, description = 'قيد آلي — ناف لو', date = null) {
   const currency = env.WAFEQ_CURRENCY || 'SAR';
 
   // خريطة رمز الحساب -> معرّف وافق
@@ -42,8 +42,8 @@ export async function postJournalEntryDraft(env, accounts, entries, description 
   });
 
   const payload = {
-    status: 'DRAFT', // <-- شرط حاسم: مسودة تتطلب مراجعة يدوية
-    date: new Date().toISOString().slice(0, 10),
+    status: 'DRAFT', // (وافق يتجاهله للقيود اليدوية ويرحّلها — راجع README)
+    date: date || new Date().toISOString().slice(0, 10),
     reference: description,
     currency,
     line_items: lineItems,
@@ -86,4 +86,165 @@ export async function getWafeqDraftSummary(env) {
   }
 
   return res.json();
+}
+
+// ============================================================================
+// جهات الاتصال (Contacts) — للبحث عن عميل/مورّد أو إنشائه.
+// ============================================================================
+
+/**
+ * يبحث عن جهة اتصال بالاسم، وإن لم توجد ينشئها. يُرجع معرّف وافق.
+ */
+export async function findOrCreateContact(env, name) {
+  const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
+  const headers = { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` };
+
+  // بحث
+  const searchRes = await fetch(
+    `${base}/contacts/?search=${encodeURIComponent(name)}&page_size=10`,
+    { headers }
+  );
+  if (searchRes.ok) {
+    const data = await searchRes.json();
+    const list = data.results || data.data || [];
+    const exact = list.find((c) => (c.name || '').trim() === name.trim()) || list[0];
+    if (exact && exact.id) return String(exact.id);
+  }
+
+  // إنشاء
+  const createRes = await fetch(`${base}/contacts/`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!createRes.ok) {
+    const body = await createRes.text();
+    throw new Error(`Wafeq contact create failed: ${createRes.status} ${body}`);
+  }
+  const created = await createRes.json();
+  return String(created.id || created.uuid || '');
+}
+
+// ============================================================================
+// المرفقات (Attachments) — رفع ملف وربطه بمستند.
+// ============================================================================
+
+/**
+ * يرفع ملفاً (صورة فاتورة) إلى وافق ويُرجع معرّفه لإرفاقه بالمستند.
+ * ملاحظة: صيغة نقطة النهاية تقديرية وتُضبط بالاختبار.
+ */
+export async function uploadAttachment(env, buffer, filename, contentType) {
+  const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
+  const form = new FormData();
+  form.append('file', new Blob([buffer], { type: contentType }), filename);
+
+  const res = await fetch(`${base}/attachments/`, {
+    method: 'POST',
+    headers: { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Wafeq attachment upload failed: ${res.status} ${body}`);
+  }
+  const data = await res.json();
+  return String(data.id || data.uuid || '');
+}
+
+// ============================================================================
+// فاتورة مشتريات (Bill) — مسار السداد/المشتريات.
+// ============================================================================
+
+/**
+ * إنشاء فاتورة مشتريات كمسودة.
+ * @param {object} opts { contactId, date, currency, lineItems, attachmentIds }
+ *   lineItems: [{ account, description, amount, taxRateId? }]
+ */
+export async function createBillDraft(env, opts) {
+  const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
+  const currency = opts.currency || env.WAFEQ_CURRENCY || 'SAR';
+
+  const line_items = (opts.lineItems || []).map((li) => ({
+    account: li.account,
+    description: li.description || '',
+    quantity: 1,
+    unit_amount: Number(li.amount || 0),
+    ...(li.taxRateId ? { tax_rate: li.taxRateId } : {}),
+  }));
+
+  const payload = {
+    status: 'DRAFT',
+    contact: opts.contactId || null,
+    currency,
+    bill_date: opts.date,
+    line_items,
+    ...(opts.attachmentIds && opts.attachmentIds.length
+      ? { attachments: opts.attachmentIds }
+      : {}),
+  };
+
+  const res = await fetch(`${base}/bills/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Api-Key ${env.WAFEQ_API_KEY}`,
+      'X-Wafeq-Idempotency-Key': crypto.randomUUID(),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Wafeq bill failed: ${res.status} ${body}`);
+  }
+  const data = await res.json();
+  return { id: String(data.id || data.uuid || ''), raw: data };
+}
+
+// ============================================================================
+// فاتورة بيع (Invoice) — مسار الوارد (دفعات/اشتراكات) + ضريبة القيمة المضافة.
+// ============================================================================
+
+/**
+ * إنشاء فاتورة بيع كمسودة مع ضريبة القيمة المضافة.
+ * @param {object} opts { contactId, date, currency, lineItems, taxRateId, attachmentIds }
+ *   lineItems: [{ account, description, amount }]
+ */
+export async function createInvoiceDraft(env, opts) {
+  const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
+  const currency = opts.currency || env.WAFEQ_CURRENCY || 'SAR';
+
+  const line_items = (opts.lineItems || []).map((li) => ({
+    account: li.account,
+    description: li.description || '',
+    quantity: 1,
+    unit_amount: Number(li.amount || 0),
+    ...(opts.taxRateId ? { tax_rate: opts.taxRateId } : {}),
+  }));
+
+  const payload = {
+    status: 'DRAFT',
+    contact: opts.contactId || null,
+    currency,
+    invoice_date: opts.date,
+    line_items,
+    ...(opts.attachmentIds && opts.attachmentIds.length
+      ? { attachments: opts.attachmentIds }
+      : {}),
+  };
+
+  const res = await fetch(`${base}/invoices/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Api-Key ${env.WAFEQ_API_KEY}`,
+      'X-Wafeq-Idempotency-Key': crypto.randomUUID(),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Wafeq invoice failed: ${res.status} ${body}`);
+  }
+  const data = await res.json();
+  return { id: String(data.id || data.uuid || ''), raw: data };
 }

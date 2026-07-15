@@ -93,3 +93,49 @@ export async function getActiveAccounts(db) {
     .all();
   return results || [];
 }
+
+// ----------------------------------------------------------------------------
+// حالة المحادثة (Conversation State) — للحوار التفاعلي عند نقص البيانات.
+// ----------------------------------------------------------------------------
+
+/**
+ * سحب السياق المعلّق لمحادثة (أو null).
+ */
+export async function getConversationState(db, chatId) {
+  const row = await db
+    .prepare(`SELECT pending_json FROM conversation_state WHERE chat_id = ?`)
+    .bind(String(chatId))
+    .first();
+  if (!row || !row.pending_json) return null;
+  try {
+    return JSON.parse(row.pending_json);
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * حفظ/تحديث السياق المعلّق لمحادثة.
+ */
+export async function setConversationState(db, chatId, context) {
+  await db
+    .prepare(
+      `INSERT INTO conversation_state (chat_id, pending_json, updated_at)
+       VALUES (?, ?, datetime('now'))
+       ON CONFLICT(chat_id) DO UPDATE SET
+          pending_json = excluded.pending_json,
+          updated_at = datetime('now')`
+    )
+    .bind(String(chatId), JSON.stringify(context))
+    .run();
+}
+
+/**
+ * مسح السياق المعلّق بعد اكتمال العملية أو إلغائها.
+ */
+export async function clearConversationState(db, chatId) {
+  await db
+    .prepare(`DELETE FROM conversation_state WHERE chat_id = ?`)
+    .bind(String(chatId))
+    .run();
+}
