@@ -1,100 +1,100 @@
 // ============================================================================
-// خدمة بيسكامب (Basecamp 3 API) — إرسال التقارير + تجديد التوكن تلقائياً
+// خدمة بيسكامب (Basecamp 3 API) — إرسال التقارير مع تجديد التوكن عند الحاجة
 // ============================================================================
 //
-// توكن وصول بيسكامب (Access Token) ينتهي خلال ~ساعتين، لذلك نستخدم
-// Refresh Token لتوليد توكن جديد عند كل استخدام (مناسب للتقارير المجدولة).
+// توكن الوصول (Access Token) في بيسكامب صالح لأسبوعين. لذلك نستخدمه مباشرة،
+// ولا نجدّده إلا إذا انتهى (رد 401) — وهذا أكثر متانة من التجديد في كل مرة.
 //
-// المتغيرات المطلوبة (تُضاف من لوحة Cloudflare بنوع Secret):
-//   الوضع الآلي (مُفضّل):
+// المتغيرات (تُضاف من لوحة Cloudflare بنوع Secret):
+//   BASECAMP_TOKEN            (توكن الوصول الحالي — يُستخدم مباشرة)
+//   للتجديد التلقائي عند انتهائه:
 //     BASECAMP_CLIENT_ID
 //     BASECAMP_CLIENT_SECRET
 //     BASECAMP_REFRESH_TOKEN
-//   الوضع اليدوي (بديل مؤقت — توكن ثابت ينتهي بسرعة):
-//     BASECAMP_TOKEN
-//
-//   في الحالتين:
+//   وفي كل الأحوال:
 //     BASECAMP_ACCOUNT_ID
 //     BASECAMP_PROJECT_ID
 //     BASECAMP_MESSAGE_BOARD_ID
 // ============================================================================
 
 const LAUNCHPAD_TOKEN_URL = 'https://launchpad.37signals.com/authorization/token';
+const USER_AGENT = 'NAF Accountant (fahad2ao@gmail.com)';
+
+function canRefresh(env) {
+  return !!(env.BASECAMP_CLIENT_ID && env.BASECAMP_CLIENT_SECRET && env.BASECAMP_REFRESH_TOKEN);
+}
 
 /**
- * الحصول على توكن وصول صالح.
- * - إذا توفّرت بيانات Refresh، نجدّد للحصول على توكن جديد.
- * - وإلا نعود للتوكن الثابت BASECAMP_TOKEN (للاختبار فقط).
+ * تجديد توكن الوصول عبر Refresh Token. يُرجع توكناً جديداً.
  */
-export async function getBasecampAccessToken(env) {
-  const canRefresh =
-    env.BASECAMP_CLIENT_ID && env.BASECAMP_CLIENT_SECRET && env.BASECAMP_REFRESH_TOKEN;
+export async function refreshAccessToken(env) {
+  const params = new URLSearchParams({
+    type: 'refresh',
+    refresh_token: env.BASECAMP_REFRESH_TOKEN,
+    client_id: env.BASECAMP_CLIENT_ID,
+    client_secret: env.BASECAMP_CLIENT_SECRET,
+  });
 
-  if (canRefresh) {
-    const params = new URLSearchParams({
-      type: 'refresh',
-      refresh_token: env.BASECAMP_REFRESH_TOKEN,
-      client_id: env.BASECAMP_CLIENT_ID,
-      client_secret: env.BASECAMP_CLIENT_SECRET,
-    });
+  const res = await fetch(`${LAUNCHPAD_TOKEN_URL}?${params.toString()}`, {
+    method: 'POST',
+    headers: { 'User-Agent': USER_AGENT },
+  });
 
-    const res = await fetch(`${LAUNCHPAD_TOKEN_URL}?${params.toString()}`, {
-      method: 'POST',
-      headers: { 'User-Agent': 'NAF Accountant (fahad2ao@gmail.com)' },
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Basecamp token refresh failed: ${res.status} ${body}`);
-    }
-
-    const data = await res.json();
-    if (!data.access_token) {
-      throw new Error('Basecamp token refresh returned no access_token');
-    }
-    return data.access_token;
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Basecamp token refresh failed: ${res.status} ${body}`);
   }
-
-  // الوضع البديل: توكن ثابت.
-  if (env.BASECAMP_TOKEN) return env.BASECAMP_TOKEN;
-
-  throw new Error(
-    'إعدادات بيسكامب ناقصة: أضِف BASECAMP_CLIENT_ID و BASECAMP_CLIENT_SECRET و BASECAMP_REFRESH_TOKEN (أو BASECAMP_TOKEN للاختبار).'
-  );
+  const data = await res.json();
+  if (!data.access_token) throw new Error('Basecamp token refresh returned no access_token');
+  return data.access_token;
 }
 
 /**
  * نشر رسالة على لوحة رسائل مشروع في بيسكامب.
- * @param {string} subject - عنوان الرسالة.
- * @param {string} contentHtml - محتوى الرسالة (HTML مسموح).
+ * يستخدم التوكن الحالي مباشرة، ويجدّده تلقائياً مرة واحدة عند انتهائه (401).
  */
 export async function postBasecampMessage(env, subject, contentHtml) {
-  const accessToken = await getBasecampAccessToken(env);
-
   const url =
     `https://3.basecampapi.com/${env.BASECAMP_ACCOUNT_ID}` +
     `/buckets/${env.BASECAMP_PROJECT_ID}` +
     `/message_boards/${env.BASECAMP_MESSAGE_BOARD_ID}/messages.json`;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      // بيسكامب يشترط User-Agent يحوي وسيلة تواصل.
-      'User-Agent': 'NAF Accountant (fahad2ao@gmail.com)',
-    },
-    body: JSON.stringify({
-      subject,
-      content: contentHtml,
-      status: 'active',
-    }),
-  });
+  const send = (token) =>
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'User-Agent': USER_AGENT,
+      },
+      body: JSON.stringify({ subject, content: contentHtml, status: 'active' }),
+    });
+
+  let token = env.BASECAMP_TOKEN;
+  let res;
+
+  if (token) {
+    // 1) جرّب التوكن الحالي مباشرة.
+    res = await send(token);
+    // 2) إن انتهى (401) وأمكن التجديد → جدّد وأعد المحاولة مرة واحدة.
+    if ((res.status === 401 || res.status === 403) && canRefresh(env)) {
+      token = await refreshAccessToken(env);
+      res = await send(token);
+    }
+  } else if (canRefresh(env)) {
+    // لا يوجد توكن مباشر → جدّد للحصول على واحد.
+    token = await refreshAccessToken(env);
+    res = await send(token);
+  } else {
+    throw new Error(
+      'إعدادات بيسكامب ناقصة: أضِف BASECAMP_TOKEN (توكن الوصول)، ويفضّل مع ' +
+        'BASECAMP_CLIENT_ID و BASECAMP_CLIENT_SECRET و BASECAMP_REFRESH_TOKEN للتجديد التلقائي.'
+    );
+  }
 
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Basecamp message failed: ${res.status} ${body}`);
   }
-
   return res.json();
 }

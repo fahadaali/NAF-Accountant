@@ -55,22 +55,37 @@ oauth.get('/basecamp/callback', async (c) => {
   );
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.refresh_token) {
+  if (!res.ok || !data.access_token) {
     return c.text(`فشل الحصول على التوكن: ${res.status} ${JSON.stringify(data)}`, 500);
   }
 
-  // نعرض refresh_token ليُحفظ يدوياً كـ Secret. لا نخزّنه في مكان عام.
+  // تهريب القيم لعرضها بأمان داخل خاصية HTML (منع كسر النسخ).
+  const esc = (s) =>
+    String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+  const accessToken = esc(data.access_token);
+  const refreshToken = esc(data.refresh_token || '');
+
+  // نعرض التوكنين ليُحفظا يدوياً كـ Secrets. لا نخزّنهما في مكان عام.
   const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
     <title>ربط بيسكامب</title>
     <style>body{font-family:system-ui;background:#f0f7f4;padding:40px;color:#052e2b}
-    .box{background:#fff;max-width:640px;margin:auto;padding:32px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.06)}
-    code{display:block;background:#052e2b;color:#4ade80;padding:16px;border-radius:12px;word-break:break-all;margin:16px 0;direction:ltr}
-    .warn{background:#fef2f2;color:#b91c1c;padding:12px;border-radius:12px;margin-top:16px}</style></head>
+    .box{background:#fff;max-width:680px;margin:auto;padding:32px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.06)}
+    label{display:block;font-weight:700;margin:18px 0 6px}
+    input{width:100%;box-sizing:border-box;background:#052e2b;color:#4ade80;padding:14px;border:0;border-radius:12px;direction:ltr;font-family:monospace;font-size:13px}
+    .warn{background:#fef2f2;color:#b91c1c;padding:12px;border-radius:12px;margin-top:18px}</style></head>
     <body><div class="box">
     <h2>✅ تم ربط بيسكامب بنجاح</h2>
-    <p>انسخ القيمة التالية وأضِفها في Cloudflare كـ <b>Secret</b> باسم <b>BASECAMP_REFRESH_TOKEN</b>:</p>
-    <code>${data.refresh_token}</code>
-    <div class="warn">⚠️ لأمانك: بعد حفظ التوكن، احذف مسار <b>/api/basecamp/*</b> من الكود أو عطّله.</div>
+    <p>انسخ القيمتين التاليتين وأضِفهما في Cloudflare بنوع <b>Secret</b> بالاسمين المذكورين:</p>
+
+    <label>BASECAMP_TOKEN (توكن الوصول — يُستخدم مباشرة)</label>
+    <input readonly onclick="this.select()" value="${accessToken}">
+
+    <label>BASECAMP_REFRESH_TOKEN (للتجديد التلقائي كل أسبوعين)</label>
+    <input readonly onclick="this.select()" value="${refreshToken}">
+
+    <div class="warn">⚠️ اضغط على الحقل لتحديده ثم انسخه. بعد حفظ القيمتين، يُفضّل تعطيل مسار
+    <b>/api/basecamp/*</b>. توكن الوصول صالح أسبوعين ويُجدَّد تلقائياً بعدها.</div>
     </div></body></html>`;
 
   return c.html(html);
