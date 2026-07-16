@@ -50,6 +50,20 @@ export default function Settings({ user, onLogout }) {
     }
   };
 
+  const runFinancial = async (period) => {
+    setReporting(true);
+    setMsg('');
+    setError('');
+    try {
+      const r = await api.sendFinancialReport(period);
+      setMsg(`تم إرسال التقرير المالي إلى بيسكامب — ${r.label}.`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setReporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
@@ -105,10 +119,25 @@ export default function Settings({ user, onLogout }) {
 
       {/* إجراءات */}
       <div className="card">
-        <h3 className="font-bold text-slate-800 mb-4">إجراءات</h3>
-        <button className="btn-primary" onClick={runReport} disabled={reporting}>
-          {reporting ? '⏳ جارٍ الإرسال…' : '📤 إرسال تقرير بيسكامب الآن'}
-        </button>
+        <h3 className="font-bold text-slate-800 mb-1">إجراءات</h3>
+        <p className="text-slate-500 text-sm mb-4">إرسال التقارير يدوياً إلى بيسكامب.</p>
+        <div className="flex flex-wrap gap-3">
+          <button className="btn-ghost" onClick={runReport} disabled={reporting}>
+            {reporting ? '⏳…' : '📤 ملخص المسودات'}
+          </button>
+          <button className="btn-primary" onClick={() => runFinancial('monthly')} disabled={reporting}>
+            {reporting ? '⏳…' : '📊 التقرير المالي الشهري'}
+          </button>
+          <button className="btn-ghost" onClick={() => runFinancial('quarterly')} disabled={reporting}>
+            📊 الربعي
+          </button>
+          <button className="btn-ghost" onClick={() => runFinancial('annual')} disabled={reporting}>
+            📊 السنوي
+          </button>
+        </div>
+        <p className="text-xs text-slate-400 mt-3">
+          آلياً: الشهري أول كل شهر، الربعي أول كل ربع، السنوي أول السنة.
+        </p>
       </div>
     </div>
   );

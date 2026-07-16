@@ -67,4 +67,5 @@ export const api = {
   logs: (limit = 100) => request(`/logs?limit=${limit}`),
   settingsStatus: () => request('/settings/status'),
   sendReport: () => request('/reports/basecamp'),
+  sendFinancialReport: (period) => request(`/reports/financial?period=${period}`),
 };

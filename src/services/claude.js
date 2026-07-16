@@ -277,3 +277,59 @@ ${numbered}`;
     return { decision: 'new', index: 0, candidates: [] };
   }
 }
+
+/**
+ * تنسيق بيانات تقرير مالي (JSON من وافق) إلى HTML عربي أنيق عبر Claude.
+ * مرن مع اختلاف بنية البيانات. لا يخترع أرقاماً.
+ * @param {string} periodLabel - وصف الفترة (مثل «يوليو 2026»).
+ * @param {object} pnl - بيانات قائمة الدخل.
+ * @param {object} trialBalance - بيانات ميزان المراجعة.
+ * @returns {Promise<string>} محتوى HTML للتقرير.
+ */
+export async function formatFinancialReport(env, periodLabel, pnl, trialBalance) {
+  const system = `أنت محاسب قانوني تُعِدّ تقريراً مالياً بالعربية لشركة ناف القانونية (SAR).
+ستستلم بيانات JSON خام لتقريرين من نظام وافق: قائمة الدخل (الأرباح والخسائر) وميزان المراجعة.
+مهمتك: توليد تقرير HTML عربي (RTL) أنيق ومنظّم يعرض البيانات في جداول واضحة، مع عناوين ومجاميع.
+
+قواعد صارمة:
+- استخدم الأرقام كما هي في البيانات فقط. ⛔ لا تخترع أو تُقدّر أي رقم.
+- إن كان قسم فارغاً، اذكر «لا توجد بيانات».
+- أخرج HTML فقط (وسوم <h2>,<h3>,<table>,<tr>,<td>,<p> بسيطة) بدون <html> أو <body> أو <style> أو أي شرح خارج الـ HTML.
+- نسّق المبالغ برقمين عشريين مع «ر.س».`;
+
+  const user = `الفترة: ${periodLabel}
+
+# بيانات قائمة الدخل (JSON):
+${JSON.stringify(pnl).slice(0, 12000)}
+
+# بيانات ميزان المراجعة (JSON):
+${JSON.stringify(trialBalance).slice(0, 12000)}`;
+
+  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
+      max_tokens: 4096,
+      system,
+      messages: [{ role: 'user', content: [{ type: 'text', text: user }] }],
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Claude report format failed: ${res.status} ${body}`);
+  }
+  const data = await res.json();
+  const html = (data.content || [])
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n')
+    .trim();
+  if (!html) throw new Error('Claude لم يُنتج محتوى للتقرير');
+  return html;
+}

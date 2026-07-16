@@ -7,7 +7,10 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
 import telegramRoute from './routes/telegram.js';
-import reportsRoute, { generateAndSendReport } from './routes/reports.js';
+import reportsRoute, {
+  generateAndSendReport,
+  generateAndSendFinancialReport,
+} from './routes/reports.js';
 import dashboardRoute from './routes/dashboard.js';
 import basecampOauthRoute from './routes/basecamp_oauth.js';
 import authRoute from './routes/auth.js';
@@ -59,41 +62,36 @@ export default {
   //   "0 6 1 * *"  (أول الشهر) → التقرير الشهري إلى بيسكامب.
   // ------------------------------------------------------------------
   async scheduled(event, env, ctx) {
-    // المزامنة الليلية لشجرة الحسابات.
-    if (event.cron === '0 22 * * *') {
+    const runSafe = (action, fn) =>
       ctx.waitUntil(
         (async () => {
           try {
-            const result = await syncChartOfAccounts(env);
-            console.log('Nightly accounts sync done:', result);
+            const result = await fn();
+            console.log(`${action} done:`, result);
           } catch (err) {
-            console.error('Nightly accounts sync failed:', err);
+            console.error(`${action} failed:`, err);
             await writeLog(env.DB, {
-              action: 'cron_accounts_sync',
+              action,
               status: 'error',
               errorDetails: err.message || String(err),
             });
           }
         })()
       );
-      return;
-    }
 
-    // التقرير الشهري إلى بيسكامب (أي جدولة أخرى، افتراضياً أول الشهر).
-    ctx.waitUntil(
-      (async () => {
-        try {
-          const result = await generateAndSendReport(env);
-          console.log('Scheduled Basecamp report sent:', result);
-        } catch (err) {
-          console.error('Scheduled report failed:', err);
-          await writeLog(env.DB, {
-            action: 'cron_basecamp_report',
-            status: 'error',
-            errorDetails: err.message || String(err),
-          });
-        }
-      })()
-    );
+    switch (event.cron) {
+      case '0 22 * * *': // كل ليلة — مزامنة شجرة الحسابات
+        return runSafe('cron_accounts_sync', () => syncChartOfAccounts(env));
+      case '0 6 1 * *': // أول الشهر — ملخص المسودات المعلّقة
+        return runSafe('cron_basecamp_report', () => generateAndSendReport(env));
+      case '0 7 1 * *': // أول الشهر — التقرير المالي الشهري
+        return runSafe('cron_financial_monthly', () => generateAndSendFinancialReport(env, 'monthly'));
+      case '0 8 1 1,4,7,10 *': // أول كل ربع — التقرير المالي الربعي
+        return runSafe('cron_financial_quarterly', () => generateAndSendFinancialReport(env, 'quarterly'));
+      case '0 9 1 1 *': // أول السنة — التقرير المالي السنوي
+        return runSafe('cron_financial_annual', () => generateAndSendFinancialReport(env, 'annual'));
+      default:
+        return runSafe('cron_basecamp_report', () => generateAndSendReport(env));
+    }
   },
 };
