@@ -41,7 +41,7 @@ async function fetchReport(env, path, params) {
 
 /** قائمة الدخل (الأرباح والخسائر) لفترة. */
 export function getProfitAndLoss(env, dateAfter, dateBefore) {
-  return fetchReport(env, 'reports/profit_and_loss', {
+  return fetchReport(env, 'reports/profit-and-loss', {
     currency: env.WAFEQ_CURRENCY || 'SAR',
     date_after: dateAfter,
     date_before: dateBefore,
@@ -50,7 +50,7 @@ export function getProfitAndLoss(env, dateAfter, dateBefore) {
 
 /** ميزان المراجعة لفترة. */
 export function getTrialBalance(env, dateAfter, dateBefore) {
-  return fetchReport(env, 'reports/trial_balance', {
+  return fetchReport(env, 'reports/trial-balance', {
     currency: env.WAFEQ_CURRENCY || 'SAR',
     date_after: dateAfter,
     date_before: dateBefore,
