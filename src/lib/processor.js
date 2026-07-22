@@ -394,12 +394,24 @@ export async function processTelegramUpdate(env, update) {
       return;
     }
 
-    // ---- حلّ جهة الاتصال (للفواتير) — مطابقة ذكية أو سؤال عند التعدد ----
+    // ---- حلّ جهة الاتصال (للفواتير) — مطابقة ذكية أو سؤال عند النقص/التعدد ----
     let contactId = null;
-    if (
-      (result.type === 'purchase_bill' || result.type === 'sales_invoice') &&
-      result.contact_name
-    ) {
+    if (result.type === 'purchase_bill' || result.type === 'sales_invoice') {
+      // المورّد/العميل إلزامي في وافق — إن لم يُذكر فاسأل عنه.
+      if (!result.contact_name) {
+        const who = result.type === 'purchase_bill' ? 'المورّد' : 'العميل';
+        const accumulated =
+          (priorContext ? priorContext + '\n---\n' : '') + (finalText || '(صورة مرفقة)');
+        await setConversationState(env.DB, chatId, {
+          accumulatedText: accumulated,
+          mediaR2Key,
+          mediaType,
+        });
+        await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
+        await sendTelegramMessage(env, chatId, `❓ من أي ${who}؟ الرجاء ذكر اسم ${who} لإتمام الفاتورة.`);
+        return;
+      }
+
       const r = await resolveContact(env, result.contact_name);
       if (r.status === 'ambiguous') {
         const optionsText = r.candidates.map((c, i) => `${i + 1}) ${c.name}`).join('\n');
