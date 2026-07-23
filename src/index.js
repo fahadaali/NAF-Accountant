@@ -82,14 +82,25 @@ export default {
     switch (event.cron) {
       case '0 22 * * *': // كل ليلة — مزامنة شجرة الحسابات
         return runSafe('cron_accounts_sync', () => syncChartOfAccounts(env));
+
       case '0 6 1 * *': // أول الشهر — ملخص المسودات المعلّقة
         return runSafe('cron_basecamp_report', () => generateAndSendReport(env));
-      case '0 7 1 * *': // أول الشهر — التقرير المالي الشهري
-        return runSafe('cron_financial_monthly', () => generateAndSendFinancialReport(env, 'monthly'));
-      case '0 8 1 1,4,7,10 *': // أول كل ربع — التقرير المالي الربعي
-        return runSafe('cron_financial_quarterly', () => generateAndSendFinancialReport(env, 'quarterly'));
-      case '0 9 1 1 *': // أول السنة — التقرير المالي السنوي
-        return runSafe('cron_financial_annual', () => generateAndSendFinancialReport(env, 'annual'));
+
+      case '0 7 1 * *': {
+        // أول كل شهر — التقارير المالية (المنطق يحدّد النوع لتقليل مهام Cron):
+        const month = new Date().getUTCMonth(); // 0-based
+        runSafe('cron_financial_monthly', () => generateAndSendFinancialReport(env, 'monthly'));
+        if (month % 3 === 0) {
+          // يناير/أبريل/يوليو/أكتوبر → بداية ربع جديد → تقرير الربع السابق
+          runSafe('cron_financial_quarterly', () => generateAndSendFinancialReport(env, 'quarterly'));
+        }
+        if (month === 0) {
+          // يناير → تقرير السنة السابقة
+          runSafe('cron_financial_annual', () => generateAndSendFinancialReport(env, 'annual'));
+        }
+        return;
+      }
+
       default:
         return runSafe('cron_basecamp_report', () => generateAndSendReport(env));
     }
