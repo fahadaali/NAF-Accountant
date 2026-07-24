@@ -5,6 +5,7 @@
 
 import { Hono } from 'hono';
 import { syncChartOfAccounts } from '../services/sync.js';
+import { pickProvider } from '../services/transcription.js';
 import { authenticate } from '../lib/auth.js';
 
 const dashboard = new Hono();
@@ -156,6 +157,7 @@ dashboard.get('/settings/status', async (c) => {
   const mask = (v) => (v ? true : false);
   return c.json({
     ok: true,
+    asrProvider: pickProvider(env), // مزوّد تحويل الصوت النشط
     keys: {
       TELEGRAM_BOT_TOKEN: mask(env.TELEGRAM_BOT_TOKEN),
       CLAUDE_API_KEY: mask(env.CLAUDE_API_KEY),
@@ -167,6 +169,9 @@ dashboard.get('/settings/status', async (c) => {
       BASECAMP_CLIENT_ID: mask(env.BASECAMP_CLIENT_ID),
       BASECAMP_CLIENT_SECRET: mask(env.BASECAMP_CLIENT_SECRET),
       BASECAMP_REFRESH_TOKEN: mask(env.BASECAMP_REFRESH_TOKEN),
+      // تحويل الصوت إلى نص (اختياري — لرفع الدقة):
+      ELEVENLABS_API_KEY: mask(env.ELEVENLABS_API_KEY),
+      OPENAI_API_KEY: mask(env.OPENAI_API_KEY),
       // بيسكامب — التوكن الثابت (بديل اختباري):
       BASECAMP_TOKEN: mask(env.BASECAMP_TOKEN),
       BASECAMP_ACCOUNT_ID: mask(env.BASECAMP_ACCOUNT_ID),

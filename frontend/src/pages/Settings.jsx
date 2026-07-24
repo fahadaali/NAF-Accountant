@@ -14,10 +14,19 @@ const KEY_META = [
   { key: 'BASECAMP_ACCOUNT_ID', label: 'بيسكامب — Account ID', hint: 'BASECAMP_ACCOUNT_ID' },
   { key: 'BASECAMP_PROJECT_ID', label: 'بيسكامب — Project ID', hint: 'BASECAMP_PROJECT_ID' },
   { key: 'BASECAMP_MESSAGE_BOARD_ID', label: 'بيسكامب — Message Board ID', hint: 'BASECAMP_MESSAGE_BOARD_ID' },
+  { key: 'ELEVENLABS_API_KEY', label: 'ElevenLabs (تفريغ صوتي عالي الدقة)', hint: 'ELEVENLABS_API_KEY' },
+  { key: 'OPENAI_API_KEY', label: 'OpenAI (تفريغ صوتي بديل)', hint: 'OPENAI_API_KEY' },
 ];
+
+const ASR_LABELS = {
+  elevenlabs: { name: 'ElevenLabs Scribe', note: 'أعلى دقة للعربية ✅', cls: 'bg-green-100 text-green-700' },
+  openai: { name: 'OpenAI', note: 'دقة عالية ✅', cls: 'bg-green-100 text-green-700' },
+  cloudflare: { name: 'Cloudflare Whisper', note: 'دقة محدودة للعربية — أضِف مفتاح ElevenLabs لرفعها', cls: 'bg-amber-100 text-amber-700' },
+};
 
 export default function Settings({ user, onLogout }) {
   const [status, setStatus] = useState(null);
+  const [asr, setAsr] = useState(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [reporting, setReporting] = useState(false);
@@ -26,6 +35,7 @@ export default function Settings({ user, onLogout }) {
     try {
       const r = await api.settingsStatus();
       setStatus(r.keys);
+      setAsr(r.asrProvider || null);
       setError('');
     } catch (e) {
       setError(e.message);
@@ -87,6 +97,30 @@ export default function Settings({ user, onLogout }) {
           <button className="btn-ghost" onClick={onLogout}>🚪 تسجيل الخروج</button>
         </div>
       </div>
+
+      {/* مزوّد تحويل الصوت */}
+      {asr && (
+        <div className="card">
+          <h3 className="font-bold text-slate-800 mb-1">تحويل الصوت إلى نص</h3>
+          <div className="flex items-center justify-between mt-3">
+            <div>
+              <div className="font-semibold text-slate-700">
+                {ASR_LABELS[asr]?.name || asr}
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">{ASR_LABELS[asr]?.note || ''}</div>
+            </div>
+            <span className={`badge ${ASR_LABELS[asr]?.cls || 'bg-slate-100 text-slate-600'}`}>
+              نشط
+            </span>
+          </div>
+          {asr === 'cloudflare' && (
+            <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+              لرفع الدقة لأعلى مستوى: أضِف <code className="bg-slate-100 px-1 rounded" dir="ltr">ELEVENLABS_API_KEY</code> كـ
+              Secret في Cloudflare، وسينتقل النظام إليه تلقائياً.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* حالة مفاتيح الربط */}
       <div className="card">

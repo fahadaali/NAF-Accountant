@@ -13,7 +13,7 @@ import {
   clearConversationState,
 } from './db.js';
 import { sendTelegramMessage, downloadTelegramFile } from '../services/telegram.js';
-import { transcribeAudio } from '../services/whisper.js';
+import { transcribeAudio } from '../services/transcription.js';
 import { analyzeTransaction, refineTranscript } from '../services/claude.js';
 import {
   postJournalEntryDraft,
@@ -252,11 +252,16 @@ export async function processTelegramUpdate(env, update) {
         httpMetadata: { contentType: audio.mime_type || 'audio/ogg' },
       });
       await updateTransaction(env.DB, txId, { mediaR2Key, status: 'transcribed' });
-      const rawTranscript = await transcribeAudio(env, buffer);
+      const rawTranscript = await transcribeAudio(env, buffer, audio.mime_type || 'audio/ogg');
       // تصحيح أخطاء التفريغ عبر Claude في السياق المحاسبي.
       finalText = await refineTranscript(env, rawTranscript);
       await updateTransaction(env.DB, txId, { rawText: finalText });
-      await writeLog(env.DB, { transactionId: txId, action: 'whisper_transcribe', status: 'success' });
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: 'transcribe',
+        status: 'success',
+        errorDetails: `raw="${rawTranscript.slice(0, 120)}"`,
+      });
     }
 
     // ---- معالجة الصورة (فاتورة) ----
