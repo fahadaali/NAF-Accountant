@@ -7,6 +7,7 @@ const STATUS_OPTIONS = [
   { v: 'posted', label: 'مُرحّلة/مسودة' },
   { v: 'awaiting_info', label: 'بانتظار معلومات' },
   { v: 'analyzed', label: 'مُحلّلة' },
+  { v: 'deleted', label: 'محذوفة من وافق' },
   { v: 'failed', label: 'فشلت' },
   { v: 'received', label: 'مستلمة' },
 ];

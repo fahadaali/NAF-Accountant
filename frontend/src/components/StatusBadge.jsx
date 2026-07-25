@@ -4,6 +4,7 @@ const MAP = {
   analyzed: { label: 'مُحلّلة', cls: 'bg-amber-100 text-amber-700' },
   awaiting_info: { label: 'بانتظار معلومات', cls: 'bg-orange-100 text-orange-700' },
   posted: { label: 'مُرحّلة/مسودة', cls: 'bg-green-100 text-green-700' },
+  deleted: { label: 'محذوفة من وافق', cls: 'bg-slate-200 text-slate-600' },
   failed: { label: 'فشلت', cls: 'bg-red-100 text-red-700' },
 };
 

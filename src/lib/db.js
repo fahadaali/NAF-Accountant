@@ -98,6 +98,32 @@ export async function getActiveAccounts(db) {
   return results || [];
 }
 
+/**
+ * آخر عملية مُرحّلة بنجاح لمحادثة معيّنة (هدف التعديل/الحذف).
+ * @returns {Promise<null | {id:number, wafeqId:string, result:object}>}
+ */
+export async function getLastPostedTransaction(db, chatId) {
+  const row = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, processed_json
+       FROM transactions
+       WHERE telegram_chat_id = ? AND status = 'posted' AND wafeq_draft_id IS NOT NULL
+       ORDER BY id DESC LIMIT 1`
+    )
+    .bind(String(chatId))
+    .first();
+  if (!row || !row.processed_json) return null;
+  try {
+    return {
+      id: row.id,
+      wafeqId: row.wafeq_draft_id,
+      result: JSON.parse(row.processed_json),
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 // ----------------------------------------------------------------------------
 // حالة المحادثة (Conversation State) — للحوار التفاعلي عند نقص البيانات.
 // ----------------------------------------------------------------------------

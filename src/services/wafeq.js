@@ -10,6 +10,34 @@
 //     مزامنة شجرة الحسابات من وافق أولاً لتعبئة wafeq_account_id.
 // ============================================================================
 
+/** مسار مستند وافق حسب نوع العملية. */
+const DOC_PATHS = {
+  manual_journal: 'manual-journals',
+  purchase_bill: 'bills',
+  sales_invoice: 'invoices',
+};
+
+/**
+ * حذف مستند من وافق (قيد يومية / فاتورة مشتريات / فاتورة بيع).
+ * @param {string} type - manual_journal | purchase_bill | sales_invoice
+ * @param {string} id   - معرّف المستند في وافق.
+ */
+export async function deleteDocument(env, type, id) {
+  const path = DOC_PATHS[type];
+  if (!path) throw new Error(`نوع مستند غير معروف للحذف: ${type}`);
+
+  const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
+  const res = await fetch(`${base}/${path}/${encodeURIComponent(id)}/`, {
+    method: 'DELETE',
+    headers: { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` },
+  });
+
+  // 204/200 نجاح، و404 نعتبره محذوفاً مسبقاً.
+  if (res.ok || res.status === 404) return true;
+  const body = await res.text();
+  throw new Error(`Wafeq delete ${path} failed: ${res.status} ${body.slice(0, 300)}`);
+}
+
 /**
  * تحويل أسطر القيد القادمة من Claude إلى صيغة وافق وإرسالها كمسودة.
  * شرط حاسم: حالة القيد "DRAFT" لتتطلب مراجعة يدوية.

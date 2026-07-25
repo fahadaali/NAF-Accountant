@@ -334,3 +334,136 @@ ${JSON.stringify(trialBalance).slice(0, 12000)}`;
   if (!html) throw new Error('Claude لم يُنتج محتوى للتقرير');
   return html;
 }
+
+/** استدعاء Claude وإرجاع النص فقط (مساعد داخلي). */
+async function callClaude(env, system, userText, maxTokens = 2048) {
+  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: [{ type: 'text', text: userText }] }],
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Claude API failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return (data.content || [])
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n')
+    .trim();
+}
+
+/**
+ * تحديد نيّة الرسالة: عملية جديدة أم تعديل/حذف لآخر عملية مُرحّلة.
+ * @param {string} text - رسالة المستخدم.
+ * @param {object} lastResult - نتيجة آخر عملية مُرحّلة (للسياق).
+ * @returns {Promise<{intent:'new'|'edit'|'delete', instruction:string}>}
+ */
+export async function classifyFollowUp(env, text, lastResult) {
+  const summary = {
+    type: lastResult.type,
+    date: lastResult.date,
+    contact_name: lastResult.contact_name,
+    summary: lastResult.summary,
+  };
+
+  const system = `أنت مساعد يحدّد نيّة رسالة المستخدم في نظام محاسبي عربي.
+لدى المستخدم عملية مُرحّلة سابقة في وافق، ثم أرسل رسالة جديدة.
+حدّد إن كانت الرسالة:
+- "edit"   : تعديل على العملية السابقة (تغيير المبلغ، الضريبة، الحساب، المورّد/العميل، التاريخ، نوع العملية، الوصف...).
+- "delete" : طلب حذف/إلغاء العملية السابقة.
+- "new"    : عملية مالية جديدة مستقلة تماماً.
+
+أمثلة:
+- "عدل المبلغ إلى 600" → edit
+- "الصحيح 750 مب 500" → edit
+- "خله بدون ضريبة" → edit
+- "غير المورّد إلى جرير" → edit
+- "احذف القيد" / "الغِ الفاتورة" → delete
+- "شريت أدوات بـ200 من جرير" → new
+- "دفعت إيجار 3000" → new
+
+أرجع JSON فقط: { "intent": "new"|"edit"|"delete", "instruction": "وصف التعديل المطلوب بالعربية أو نص فارغ" }
+لا تضف أي شرح خارج JSON.`;
+
+  const user = `# العملية السابقة:
+${JSON.stringify(summary)}
+
+# رسالة المستخدم الجديدة:
+${text}`;
+
+  try {
+    const out = await callClaude(env, system, user, 400);
+    const parsed = extractJson(out);
+    const intent = ['new', 'edit', 'delete'].includes(parsed.intent) ? parsed.intent : 'new';
+    return { intent, instruction: parsed.instruction || text };
+  } catch (_) {
+    // عند أي فشل، اعتبرها عملية جديدة (الأكثر أماناً — لا نحذف/نعدّل بالخطأ).
+    return { intent: 'new', instruction: '' };
+  }
+}
+
+/**
+ * تطبيق تعديل على عملية سابقة وإنتاج نتيجة كاملة مصحّحة (نفس صيغة analyzeTransaction).
+ * @param {object} opts { accounts, defaultBank, vatPercent, previous, instruction }
+ */
+export async function applyEdit(env, opts) {
+  const { accounts, defaultBank, vatPercent, previous, instruction } = opts;
+  const accountsList = accounts
+    .map((a) => `- ${a.account_code} | ${a.account_name} (${a.account_type})`)
+    .join('\n');
+  const bankLine = defaultBank
+    ? `${defaultBank.account_code} | ${defaultBank.account_name}`
+    : '(غير محدّد)';
+
+  const system = `أنت محاسب قانوني خبير في شركة ناف القانونية (السعودية، الريال SAR).
+لديك عملية محاسبية سابقة، وطلب تعديل عليها. مهمتك إنتاج نسخة كاملة معدّلة من العملية.
+
+# شجرة الحسابات المتاحة (استخدم رموزها حصرياً):
+${accountsList}
+
+# الحساب البنكي الافتراضي: ${bankLine}
+
+# قواعد:
+- طبّق التعديل المطلوب فقط، وأبقِ بقية الحقول كما هي.
+- إن غُيّر المبلغ، أعِد حساب الضريبة (${vatPercent}% لفاتورة البيع) والتوازن (للقيد اليدوي: مجموع المدين = مجموع الدائن).
+- إن طُلب "بدون ضريبة" لفاتورة بيع، اجعل vat_percent = 0.
+- يمكن تغيير نوع العملية (type) إذا كان التعديل يقتضيه.
+- المورّد/العميل (contact_name) إلزامي للفواتير.
+- ⛔ لا تسأل عن شيء — أنتج أفضل نسخة معدّلة. اضبط "status":"ready" دائماً.
+
+# أرجع JSON صحيحاً فقط بنفس الصيغة التالية (بدون Markdown أو شرح):
+{
+  "status": "ready",
+  "question": null,
+  "type": "manual_journal" | "purchase_bill" | "sales_invoice",
+  "date": "YYYY-MM-DD",
+  "contact_name": "الاسم أو null",
+  "summary": "وصف موجز بالعربية",
+  "manual_journal": { "entries": [ { "account_code": "..", "account_name": "..", "debit": 0, "credit": 0, "description": ".." } ] },
+  "bill": { "line_items": [ { "account_code": "..", "account_name": "..", "description": "..", "amount": 0 } ] },
+  "invoice": { "line_items": [ { "account_code": "..", "account_name": "..", "description": "..", "amount": 0 } ], "vat_percent": ${vatPercent} }
+}
+املأ فقط الكائن المطابق لـ type واترك الآخرين بمصفوفات فارغة.`;
+
+  const user = `# العملية السابقة (JSON):
+${JSON.stringify(previous)}
+
+# التعديل المطلوب:
+${instruction}`;
+
+  const out = await callClaude(env, system, user, 2048);
+  const result = extractJson(out);
+  if (!result || !result.type) throw new Error('تعذّر إنتاج النسخة المعدّلة من العملية');
+  result.status = 'ready';
+  return result;
+}
