@@ -88,17 +88,21 @@ async function viaOpenAI(env, buffer, mimeType) {
 
 /**
  * Cloudflare Workers AI — الافتراضي.
+ * النموذج whisper-large-v3-turbo هو الأعلى المتاح على Cloudflare (لا يوجد أكبر منه).
  * ملاحظات مهمة للدقة:
  *  - لا نفعّل vad_filter: قد يقتطع الكلام في المقاطع القصيرة/الهادئة فيخرج فارغاً.
  *  - التوجيه الأولي قصير جداً: التوجيه الطويل يسبب هلوسة ومخرجات غير مرتبطة.
+ *  - beam_size أعلى من الافتراضي (5) = بحث أوسع ودقة أفضل، مقابل بطء بسيط.
  */
 async function viaCloudflare(env, buffer) {
   const model = env.WHISPER_MODEL || '@cf/openai/whisper-large-v3-turbo';
+  const beam = Math.min(Math.max(Number(env.WHISPER_BEAM_SIZE || 10), 1), 20);
   const response = await env.AI.run(model, {
     audio: bufferToBase64(buffer),
     task: 'transcribe',
     language: 'ar',
     initial_prompt: env.WHISPER_PROMPT || SHORT_PROMPT,
+    beam_size: beam,
   });
   return (response && response.text ? response.text : '').trim();
 }
