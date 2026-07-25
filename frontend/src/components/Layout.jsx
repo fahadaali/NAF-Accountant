@@ -3,11 +3,15 @@ import { NavLink } from 'react-router-dom';
 const links = [
   { to: '/', label: 'لوحة التحكم', icon: '📊', end: true },
   { to: '/transactions', label: 'العمليات', icon: '🧾' },
+  { to: '/analytics', label: 'التحليلات', icon: '📈' },
   { to: '/accounts', label: 'شجرة الحسابات', icon: '🌳' },
+  { to: '/recurring', label: 'العمليات المتكرّرة', icon: '🔁', adminOnly: true },
+  { to: '/team', label: 'الفريق والصلاحيات', icon: '👥', adminOnly: true },
+  { to: '/logs', label: 'سجلّ النظام', icon: '📋' },
   { to: '/settings', label: 'الإعدادات', icon: '⚙️' },
 ];
 
-export default function Layout({ children, user, onLogout }) {
+export default function Layout({ children, user, onLogout, isAdmin }) {
 
   return (
     <div className="min-h-screen flex">
@@ -18,7 +22,7 @@ export default function Layout({ children, user, onLogout }) {
           <p className="text-naf-100/70 text-sm mt-1">المحاسب الذكي</p>
         </div>
         <nav className="flex-1 p-3 space-y-1">
-          {links.map((l) => (
+          {links.filter((l) => !l.adminOnly || isAdmin).map((l) => (
             <NavLink
               key={l.to}
               to={l.to}

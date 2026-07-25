@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { api } from '../lib/api.js';
+import { api, downloadTransactionsCsv } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
+import MediaViewer from '../components/MediaViewer.jsx';
 
 const STATUS_OPTIONS = [
   { v: '', label: 'كل الحالات' },
@@ -47,7 +48,7 @@ function JsonPreview({ json }) {
 
 const DEFAULT_FILTERS = { status: '', source_type: '', q: '', from: '', to: '', sort: 'created_at', order: 'desc' };
 
-export default function Transactions() {
+export default function Transactions({ isAdmin }) {
   const [rows, setRows] = useState([]);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [selected, setSelected] = useState(new Set());
@@ -110,11 +111,19 @@ export default function Transactions() {
           <p className="text-slate-500 mt-1">فرز، تصفية، وحذف العمليات</p>
         </div>
         <div className="flex items-center gap-2">
-          {selected.size > 0 && (
+          {isAdmin && selected.size > 0 && (
             <button className="btn bg-red-600 text-white hover:bg-red-700" onClick={deleteSelected} disabled={deleting}>
               🗑️ حذف المحدّد ({selected.size})
             </button>
           )}
+          <button
+            className="btn-ghost"
+            onClick={() =>
+              downloadTransactionsCsv(filters).catch((e) => setError(e.message))
+            }
+          >
+            ⬇️ تصدير CSV
+          </button>
           <button className="btn-ghost" onClick={load}>🔄 تحديث</button>
         </div>
       </div>
@@ -179,12 +188,15 @@ export default function Transactions() {
             <table className="w-full text-right">
               <thead>
                 <tr className="text-slate-400 text-sm border-b border-slate-100">
-                  <th className="py-3 w-8">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} />
-                  </th>
+                  {isAdmin && (
+                    <th className="py-3 w-8">
+                      <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+                    </th>
+                  )}
                   <th className="py-3 font-semibold">#</th>
                   <th className="py-3 font-semibold">المصدر</th>
                   <th className="py-3 font-semibold">النص الأصلي</th>
+                  <th className="py-3 font-semibold">المرفق</th>
                   <th className="py-3 font-semibold">القيد</th>
                   <th className="py-3 font-semibold">وافق</th>
                   <th className="py-3 font-semibold">الحالة</th>
@@ -194,9 +206,11 @@ export default function Transactions() {
               <tbody>
                 {rows.map((t) => (
                   <tr key={t.id} className={`border-b border-slate-50 align-top hover:bg-slate-50 ${selected.has(t.id) ? 'bg-naf-50' : ''}`}>
-                    <td className="py-3">
-                      <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
-                    </td>
+                    {isAdmin && (
+                      <td className="py-3">
+                        <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
+                      </td>
+                    )}
                     <td className="py-3 text-slate-600">{t.id}</td>
                     <td className="py-3 whitespace-nowrap">
                       {t.source_type === 'voice' ? '🎙️' : t.source_type === 'image' ? '🖼️' : '💬'}
@@ -205,6 +219,7 @@ export default function Transactions() {
                       <div className="max-w-xs truncate" title={t.raw_text || ''}>{t.raw_text || '—'}</div>
                       {t.error_message && <div className="text-red-500 text-xs mt-1">⚠️ {t.error_message}</div>}
                     </td>
+                    <td className="py-3"><MediaViewer mediaKey={t.media_r2_key} /></td>
                     <td className="py-3"><JsonPreview json={t.processed_json} /></td>
                     <td className="py-3 text-slate-500 text-sm">{t.wafeq_draft_id ? `#${t.wafeq_draft_id}` : '—'}</td>
                     <td className="py-3"><StatusBadge status={t.status} /></td>

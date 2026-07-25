@@ -11,7 +11,7 @@ const TYPE_LABELS = {
 
 const EMPTY = { account_code: '', account_name: '', account_type: 'expense' };
 
-export default function Accounts() {
+export default function Accounts({ isAdmin }) {
   const [accounts, setAccounts] = useState([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -65,16 +65,18 @@ export default function Accounts() {
           <h2 className="text-2xl font-black text-slate-800">شجرة الحسابات</h2>
           <p className="text-slate-500 mt-1">دليل الحسابات المستخدم في توجيه القيود</p>
         </div>
-        <button className="btn-primary" onClick={sync} disabled={syncing}>
-          {syncing ? '⏳ جارٍ المزامنة…' : '🔄 مزامنة من وافق'}
-        </button>
+        {isAdmin && (
+          <button className="btn-primary" onClick={sync} disabled={syncing}>
+            {syncing ? '⏳ جارٍ المزامنة…' : '🔄 مزامنة من وافق'}
+          </button>
+        )}
       </div>
 
       {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
       {msg && <div className="card border-green-200 bg-green-50 text-green-700">{msg}</div>}
 
-      {/* نموذج إضافة حساب */}
-      <div className="card">
+      {/* نموذج إضافة حساب — للمسؤول فقط */}
+      <div className="card" style={{ display: isAdmin ? undefined : 'none' }}>
         <h3 className="font-bold text-slate-800 mb-4">إضافة / تعديل حساب</h3>
         <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <input

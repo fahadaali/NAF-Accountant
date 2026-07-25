@@ -44,6 +44,9 @@ ${bankLine}
 - التاريخ: إن ذُكر تاريخ صريح أو نسبي ("أمس"، "الثلاثاء الماضي"، "قبل يومين") فحوّله إلى YYYY-MM-DD بناءً على تاريخ الرسالة. وإن لم يُذكر تاريخ فاستخدم تاريخ الرسالة.
 - قيم القيد اليدوي يجب أن تتوازن (مجموع المدين = مجموع الدائن).
 - لفاتورة البيع: احسب الضريبة ${vatPercent}% على قيمة البنود.
+- لفاتورة المشتريات: اضبط "vat_percent" = ${vatPercent} إذا كانت الفاتورة تحتوي ضريبة قيمة مضافة
+  (وهو الأصل لمعظم المشتريات من منشآت مسجّلة)، واضبطها 0 إذا ذُكر صراحةً «بدون ضريبة»
+  أو كان المورّد غير مسجّل في الضريبة.
 - المورّد (لفاتورة المشتريات) والعميل (لفاتورة البيع) حقلٌ إلزامي في وافق (contact_name).
 
 # البيانات الناقصة (اسأل عن الجوهري المفقود فقط):
@@ -68,7 +71,8 @@ ${bankLine}
   "bill": {
     "line_items": [
       { "account_code": "..", "account_name": "..", "description": "..", "amount": 0 }
-    ]
+    ],
+    "vat_percent": ${vatPercent}
   },
   "invoice": {
     "line_items": [
@@ -465,7 +469,7 @@ ${accountsList}
   "contact_name": "الاسم أو null",
   "summary": "وصف موجز بالعربية",
   "manual_journal": { "entries": [ { "account_code": "..", "account_name": "..", "debit": 0, "credit": 0, "description": ".." } ] },
-  "bill": { "line_items": [ { "account_code": "..", "account_name": "..", "description": "..", "amount": 0 } ] },
+  "bill": { "line_items": [ { "account_code": "..", "account_name": "..", "description": "..", "amount": 0 } ], "vat_percent": ${vatPercent} },
   "invoice": { "line_items": [ { "account_code": "..", "account_name": "..", "description": "..", "amount": 0 } ], "vat_percent": ${vatPercent} }
 }
 املأ فقط الكائن المطابق لـ type واترك الآخرين بمصفوفات فارغة.`;

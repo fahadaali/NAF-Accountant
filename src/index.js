@@ -14,7 +14,10 @@ import reportsRoute, {
 import dashboardRoute from './routes/dashboard.js';
 import basecampOauthRoute from './routes/basecamp_oauth.js';
 import authRoute from './routes/auth.js';
+import adminRoute from './routes/admin.js';
 import { syncChartOfAccounts } from './services/sync.js';
+import { runDueRecurring } from './services/recurring.js';
+import { notifyAdmins } from './services/telegram.js';
 import { writeLog } from './lib/db.js';
 
 const app = new Hono();
@@ -36,6 +39,7 @@ app.route('/api', authRoute);
 app.route('/api', telegramRoute);
 app.route('/api', reportsRoute);
 app.route('/api', basecampOauthRoute);
+app.route('/api', adminRoute);
 app.route('/api', dashboardRoute);
 
 // مسار API غير موجود → 404 JSON (لا تُخدم صفحة SPA لطلبات الـ API).
@@ -62,47 +66,61 @@ export default {
   //   "0 6 1 * *"  (أول الشهر) → التقرير الشهري إلى بيسكامب.
   // ------------------------------------------------------------------
   async scheduled(event, env, ctx) {
-    const runSafe = (action, fn) =>
+    const runSafe = (action, label, fn) =>
       ctx.waitUntil(
         (async () => {
           try {
             const result = await fn();
             console.log(`${action} done:`, result);
           } catch (err) {
+            const msg = err.message || String(err);
             console.error(`${action} failed:`, err);
-            await writeLog(env.DB, {
-              action,
-              status: 'error',
-              errorDetails: err.message || String(err),
-            });
+            await writeLog(env.DB, { action, status: 'error', errorDetails: msg });
+            // تنبيه المسؤولين عبر تليجرام عند فشل مهمة مجدولة.
+            await notifyAdmins(
+              env,
+              `🚨 <b>فشل مهمة مجدولة</b>\n\n📌 ${label}\n❌ ${msg}\n\nراجع سجلّات اللوحة للتفاصيل.`
+            );
           }
         })()
       );
 
     switch (event.cron) {
-      case '0 22 * * *': // كل ليلة — مزامنة شجرة الحسابات
-        return runSafe('cron_accounts_sync', () => syncChartOfAccounts(env));
+      case '0 22 * * *': // كل ليلة — مزامنة الحسابات + العمليات المتكرّرة المستحقّة
+        runSafe('cron_accounts_sync', 'مزامنة شجرة الحسابات', () => syncChartOfAccounts(env));
+        runSafe('cron_recurring', 'تنفيذ العمليات المتكرّرة', () => runDueRecurring(env));
+        return;
 
       case '0 6 1 * *': // أول الشهر — ملخص المسودات المعلّقة
-        return runSafe('cron_basecamp_report', () => generateAndSendReport(env));
+        return runSafe('cron_basecamp_report', 'ملخص المسودات إلى بيسكامب', () =>
+          generateAndSendReport(env)
+        );
 
       case '0 7 1 * *': {
         // أول كل شهر — التقارير المالية (المنطق يحدّد النوع لتقليل مهام Cron):
         const month = new Date().getUTCMonth(); // 0-based
-        runSafe('cron_financial_monthly', () => generateAndSendFinancialReport(env, 'monthly'));
+        runSafe('cron_financial_monthly', 'التقرير المالي الشهري', () =>
+          generateAndSendFinancialReport(env, 'monthly')
+        );
         if (month % 3 === 0) {
           // يناير/أبريل/يوليو/أكتوبر → بداية ربع جديد → تقرير الربع السابق
-          runSafe('cron_financial_quarterly', () => generateAndSendFinancialReport(env, 'quarterly'));
+          runSafe('cron_financial_quarterly', 'التقرير المالي الربعي', () =>
+            generateAndSendFinancialReport(env, 'quarterly')
+          );
         }
         if (month === 0) {
           // يناير → تقرير السنة السابقة
-          runSafe('cron_financial_annual', () => generateAndSendFinancialReport(env, 'annual'));
+          runSafe('cron_financial_annual', 'التقرير المالي السنوي', () =>
+            generateAndSendFinancialReport(env, 'annual')
+          );
         }
         return;
       }
 
       default:
-        return runSafe('cron_basecamp_report', () => generateAndSendReport(env));
+        return runSafe('cron_basecamp_report', 'ملخص المسودات إلى بيسكامب', () =>
+          generateAndSendReport(env)
+        );
     }
   },
 };
