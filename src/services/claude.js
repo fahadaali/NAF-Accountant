@@ -363,52 +363,67 @@ async function callClaude(env, system, userText, maxTokens = 2048) {
 }
 
 /**
- * تحديد نيّة الرسالة: عملية جديدة أم تعديل/حذف لآخر عملية مُرحّلة.
+ * تحديد نيّة الرسالة (جديدة/تعديل/حذف) والهدف المقصود.
  * @param {string} text - رسالة المستخدم.
- * @param {object} lastResult - نتيجة آخر عملية مُرحّلة (للسياق).
- * @returns {Promise<{intent:'new'|'edit'|'delete', instruction:string}>}
+ * @param {Array} recent - آخر العمليات المُرحّلة [{wafeqId, result}] للسياق.
+ * @returns {Promise<{intent:'new'|'edit'|'delete', instruction:string, target:object}>}
  */
-export async function classifyFollowUp(env, text, lastResult) {
-  const summary = {
-    type: lastResult.type,
-    date: lastResult.date,
-    contact_name: lastResult.contact_name,
-    summary: lastResult.summary,
-  };
+export async function classifyFollowUp(env, text, recent) {
+  const list = recent
+    .map((t, i) => {
+      const pos = i === 0 ? 'الأخيرة' : i === 1 ? 'قبل الأخيرة' : `رقم ${i + 1} من الآخر`;
+      return `${i + 1}. [${pos}] ${t.result.type} | ${t.result.summary || ''} | ${t.result.contact_name || '—'} | ${t.result.date || ''} | معرّف: ${t.wafeqId}`;
+    })
+    .join('\n');
 
-  const system = `أنت مساعد يحدّد نيّة رسالة المستخدم في نظام محاسبي عربي.
-لدى المستخدم عملية مُرحّلة سابقة في وافق، ثم أرسل رسالة جديدة.
-حدّد إن كانت الرسالة:
-- "edit"   : تعديل على العملية السابقة (تغيير المبلغ، الضريبة، الحساب، المورّد/العميل، التاريخ، نوع العملية، الوصف...).
-- "delete" : طلب حذف/إلغاء العملية السابقة.
-- "new"    : عملية مالية جديدة مستقلة تماماً.
+  const system = `أنت مساعد يحدّد نيّة رسالة المستخدم في نظام محاسبي عربي، والعملية المقصودة.
 
-أمثلة:
-- "عدل المبلغ إلى 600" → edit
-- "الصحيح 750 مب 500" → edit
-- "خله بدون ضريبة" → edit
-- "غير المورّد إلى جرير" → edit
-- "احذف القيد" / "الغِ الفاتورة" → delete
-- "شريت أدوات بـ200 من جرير" → new
-- "دفعت إيجار 3000" → new
+# النوايا:
+- "edit"   : تعديل عملية سابقة (المبلغ، الضريبة، الحساب، المورّد/العميل، التاريخ، نوع العملية...).
+- "delete" : حذف/إلغاء عملية سابقة (أو عدة عمليات).
+- "new"    : عملية مالية جديدة مستقلة.
 
-أرجع JSON فقط: { "intent": "new"|"edit"|"delete", "instruction": "وصف التعديل المطلوب بالعربية أو نص فارغ" }
+# الهدف (target) — حدّد كيف أشار المستخدم للعملية:
+- { "mode": "last" }                    : لم يحدّد، أو قال "الأخيرة"/"القيد"/"الفاتورة".
+- { "mode": "nth", "n": 2 }             : "قبل الأخيرة" (n=2)، "الثالثة من الآخر" (n=3)، وهكذا.
+- { "mode": "id", "id": "mjou_xxx" }    : ذكر رقم/معرّف المسودة صراحةً.
+- { "mode": "search", "query": "جرير" } : أشار بالاسم أو الوصف ("فاتورة جرير").
+- { "mode": "all_drafts" }              : طلب شاملاً لكل المسودات ("احذف جميع المسودات").
+
+# أمثلة:
+- "عدل المبلغ إلى 600"                → edit,  target: last
+- "خله بدون ضريبة"                    → edit,  target: last
+- "عدل المسودة قبل الأخيرة المبلغ 900" → edit,  target: nth n=2
+- "احذف القيد"                         → delete, target: last
+- "احذف المسودة mjou_abc123"           → delete, target: id
+- "احذف فاتورة جرير"                   → delete, target: search query="جرير"
+- "احذف جميع المسودات في وافق"          → delete, target: all_drafts
+- "شريت أدوات بـ200 من جرير"           → new
+
+أرجع JSON فقط:
+{ "intent": "new"|"edit"|"delete", "instruction": "وصف التعديل بالعربية أو نص فارغ", "target": { "mode": "...", "n": 1, "id": "", "query": "" } }
 لا تضف أي شرح خارج JSON.`;
 
-  const user = `# العملية السابقة:
-${JSON.stringify(summary)}
+  const user = `# آخر العمليات المُرحّلة (الأحدث أولاً):
+${list || '(لا يوجد)'}
 
-# رسالة المستخدم الجديدة:
+# رسالة المستخدم:
 ${text}`;
 
   try {
-    const out = await callClaude(env, system, user, 400);
+    const out = await callClaude(env, system, user, 600);
     const parsed = extractJson(out);
     const intent = ['new', 'edit', 'delete'].includes(parsed.intent) ? parsed.intent : 'new';
-    return { intent, instruction: parsed.instruction || text };
+    const t = parsed.target || {};
+    const mode = ['last', 'nth', 'id', 'search', 'all_drafts'].includes(t.mode) ? t.mode : 'last';
+    return {
+      intent,
+      instruction: parsed.instruction || text,
+      target: { mode, n: Number(t.n) || 1, id: t.id || '', query: t.query || '' },
+    };
   } catch (_) {
     // عند أي فشل، اعتبرها عملية جديدة (الأكثر أماناً — لا نحذف/نعدّل بالخطأ).
-    return { intent: 'new', instruction: '' };
+    return { intent: 'new', instruction: '', target: { mode: 'last' } };
   }
 }
 

@@ -11,7 +11,10 @@ import {
   getConversationState,
   setConversationState,
   clearConversationState,
-  getLastPostedTransaction,
+  getPostedTransactionByOffset,
+  getPostedTransactionByWafeqId,
+  searchPostedTransactions,
+  listPostedTransactions,
 } from './db.js';
 import { sendTelegramMessage, downloadTelegramFile } from '../services/telegram.js';
 import { transcribeAudio } from '../services/transcription.js';
@@ -28,6 +31,7 @@ import {
   createContact,
   uploadAttachment,
   deleteDocument,
+  getWafeqDraftSummary,
 } from '../services/wafeq.js';
 import { resolveContact } from '../services/contacts.js';
 
@@ -71,6 +75,39 @@ function detectImageType(buffer) {
 function messageDateISO(unixSeconds) {
   const ms = (unixSeconds ? unixSeconds : Math.floor(Date.now() / 1000)) * 1000;
   return new Date(ms + 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * تحديد العملية المستهدفة من وصف الاستهداف.
+ * @returns {Promise<{ok:true, target:object} | {ok:false, reason:string, options?:Array}>}
+ */
+async function resolveTarget(env, chatId, spec) {
+  const mode = spec?.mode || 'last';
+
+  if (mode === 'id' && spec.id) {
+    const t = await getPostedTransactionByWafeqId(env.DB, chatId, spec.id);
+    return t ? { ok: true, target: t } : { ok: false, reason: `لم أجد عملية بالمعرّف «${spec.id}».` };
+  }
+
+  if (mode === 'search' && spec.query) {
+    const found = await searchPostedTransactions(env.DB, chatId, spec.query, 5);
+    if (found.length === 0) return { ok: false, reason: `لم أجد عملية تطابق «${spec.query}».` };
+    if (found.length > 1) return { ok: false, reason: 'multiple', options: found };
+    return { ok: true, target: found[0] };
+  }
+
+  const n = mode === 'nth' ? spec.n || 1 : 1;
+  const t = await getPostedTransactionByOffset(env.DB, chatId, n);
+  return t
+    ? { ok: true, target: t }
+    : { ok: false, reason: n > 1 ? `لا توجد عملية رقم ${n} من الآخر.` : 'لا توجد عملية سابقة.' };
+}
+
+/** سطر وصفي موجز لعملية. */
+function targetLabel(t) {
+  return `${describeType(t.result.type)} — ${t.result.summary || ''}${
+    t.result.contact_name ? ` (${t.result.contact_name})` : ''
+  }\n🧾 ${t.wafeqId}`;
 }
 
 /** وصف عربي لنوع العملية. */
@@ -231,6 +268,68 @@ async function finalizeAndPost(env, ctx) {
   await sendTelegramMessage(env, chatId, (prefix || '') + confirm);
 }
 
+/**
+ * تنفيذ تعديل على عملية مُرحّلة: إنتاج نسخة معدّلة، حذف القديمة، ترحيل الجديدة.
+ */
+async function performEdit(env, { txId, chatId, messageId, chosen, instruction }) {
+  const accounts = await getActiveAccounts(env.DB);
+  const bankCode = env.DEFAULT_BANK_ACCOUNT_CODE || null;
+  const bank = bankCode ? accounts.find((a) => a.account_code === bankCode) || null : null;
+
+  const edited = await applyEdit(env, {
+    accounts,
+    defaultBank: bank,
+    vatPercent: Number(env.VAT_PERCENT || 15),
+    previous: chosen.result,
+    instruction,
+  });
+
+  // جهة الاتصال للفواتير.
+  let contactId = null;
+  if ((edited.type === 'purchase_bill' || edited.type === 'sales_invoice') && edited.contact_name) {
+    const r = await resolveContact(env, edited.contact_name);
+    contactId = r.contactId;
+  }
+
+  // احذف المستند القديم أولاً لتجنّب التكرار في وافق.
+  try {
+    await deleteDocument(env, chosen.result.type, chosen.wafeqId);
+    await updateTransaction(env.DB, chosen.id, { status: 'deleted' });
+  } catch (e) {
+    await writeLog(env.DB, {
+      transactionId: chosen.id,
+      action: 'wafeq_delete_on_edit',
+      status: 'error',
+      errorDetails: e.message,
+    });
+    await updateTransaction(env.DB, txId, { status: 'failed', errorMessage: e.message });
+    await sendTelegramMessage(
+      env,
+      chatId,
+      `⚠️ تعذّر حذف العملية القديمة من وافق (${e.message}).\nلن أنشئ نسخة جديدة لتجنّب التكرار — عدّلها يدوياً في وافق.`
+    );
+    return;
+  }
+
+  await updateTransaction(env.DB, txId, {
+    processedJson: JSON.stringify(edited),
+    status: 'analyzed',
+  });
+  await writeLog(env.DB, { transactionId: txId, action: 'apply_edit', status: 'success' });
+
+  await finalizeAndPost(env, {
+    txId,
+    chatId,
+    result: edited,
+    accounts,
+    messageId,
+    contactId,
+    mediaR2Key: null,
+    mediaType: null,
+    prefix: '✏️ <b>تم تعديل العملية</b> (حُذفت النسخة السابقة وأُنشئت محدّثة)\n\n',
+  });
+}
+
 // ---------------------------------------------------------------------------
 // المعالجة الرئيسية لرسالة تليجرام.
 // ---------------------------------------------------------------------------
@@ -324,24 +423,102 @@ export async function processTelegramUpdate(env, update) {
     if (pendingState && pendingState.kind === 'confirm_delete') {
       const answer = (finalText || '').trim();
       await clearConversationState(env.DB, chatId);
-      if (/^(نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
-        await deleteDocument(env, pendingState.docType, pendingState.wafeqId);
-        await updateTransaction(env.DB, pendingState.targetTxId, { status: 'deleted' });
+
+      if (!/^(نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
+        await updateTransaction(env.DB, txId, { status: 'posted' });
+        await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الحذف. لم يُحذف شيء.');
+        return;
+      }
+
+      // --- حذف جماعي ---
+      if (Array.isArray(pendingState.bulk)) {
+        let done = 0;
+        const failed = [];
+        for (const d of pendingState.bulk) {
+          try {
+            await deleteDocument(env, d.docType, d.id);
+            await env.DB.prepare(
+              `UPDATE transactions SET status='deleted', updated_at=datetime('now')
+               WHERE wafeq_draft_id = ?`
+            )
+              .bind(d.id)
+              .run();
+            done++;
+          } catch (e) {
+            failed.push(`${d.id}: ${e.message}`);
+          }
+        }
         await updateTransaction(env.DB, txId, { status: 'posted' });
         await writeLog(env.DB, {
-          transactionId: pendingState.targetTxId,
-          action: 'wafeq_delete',
-          status: 'success',
+          transactionId: txId,
+          action: 'wafeq_bulk_delete',
+          status: failed.length ? 'error' : 'success',
+          errorDetails: `deleted=${done} failed=${failed.length}`,
         });
         await sendTelegramMessage(
           env,
           chatId,
-          `🗑️ <b>تم حذف العملية من وافق</b>\n\n${pendingState.label || ''}`
+          `🗑️ <b>تم الحذف الجماعي</b>\n\n✅ حُذفت: ${done}` +
+            (failed.length ? `\n⚠️ فشلت: ${failed.length}\n${failed.slice(0, 5).join('\n')}` : '')
         );
-      } else {
-        await updateTransaction(env.DB, txId, { status: 'posted' });
-        await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الحذف. العملية باقية كما هي.');
+        return;
       }
+
+      // --- حذف مستند واحد ---
+      await deleteDocument(env, pendingState.docType, pendingState.wafeqId);
+      await updateTransaction(env.DB, pendingState.targetTxId, { status: 'deleted' });
+      await updateTransaction(env.DB, txId, { status: 'posted' });
+      await writeLog(env.DB, {
+        transactionId: pendingState.targetTxId,
+        action: 'wafeq_delete',
+        status: 'success',
+      });
+      await sendTelegramMessage(
+        env,
+        chatId,
+        `🗑️ <b>تم حذف العملية من وافق</b>\n\n${pendingState.label || ''}`
+      );
+      return;
+    }
+
+    // ---- اختيار العملية المستهدفة (رداً على سؤال التوضيح) ----
+    if (pendingState && pendingState.kind === 'target_choice') {
+      const options = pendingState.options || [];
+      const num = parseInt((finalText || '').trim(), 10);
+      await clearConversationState(env.DB, chatId);
+
+      if (isNaN(num) || num < 1 || num > options.length) {
+        await updateTransaction(env.DB, txId, { status: 'posted' });
+        await sendTelegramMessage(env, chatId, '✔️ تم الإلغاء (رقم غير صحيح). أعد المحاولة.');
+        return;
+      }
+      const chosen = options[num - 1];
+
+      if (pendingState.intent === 'delete') {
+        const label = targetLabel(chosen);
+        await setConversationState(env.DB, chatId, {
+          kind: 'confirm_delete',
+          docType: chosen.result.type,
+          wafeqId: chosen.wafeqId,
+          targetTxId: chosen.id,
+          label,
+        });
+        await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
+        await sendTelegramMessage(
+          env,
+          chatId,
+          `⚠️ <b>تأكيد الحذف</b>\n\nسيتم حذف:\n${label}\n\nأرسل «نعم» للتأكيد.`
+        );
+        return;
+      }
+
+      await performEdit(env, {
+        txId,
+        chatId,
+        messageId,
+        chosen,
+        instruction: pendingState.instruction || '',
+      });
       return;
     }
 
@@ -349,91 +526,94 @@ export async function processTelegramUpdate(env, update) {
     // نتجاهله إن كان هناك حوار معلّق (استكمال بيانات/اختيار جهة اتصال)،
     // حتى لا يُفسَّر ردّ المستخدم على سؤال سابق كطلب تعديل.
     if (finalText && !image && !pendingState) {
-      const last = await getLastPostedTransaction(env.DB, chatId);
-      if (last && last.result && last.result.type) {
-        const { intent, instruction } = await classifyFollowUp(env, finalText, last.result);
+      const recent = await listPostedTransactions(env.DB, chatId, 10);
+      if (recent.length > 0) {
+        const { intent, instruction, target } = await classifyFollowUp(env, finalText, recent);
 
-        // --- حذف: نطلب تأكيداً أولاً (إجراء لا رجعة فيه) ---
-        if (intent === 'delete') {
-          const label = `${describeType(last.result.type)} — ${last.result.summary || ''}\n🧾 ${last.wafeqId}`;
+        // ============ حذف جماعي: كل المسودات في وافق ============
+        if (intent === 'delete' && target.mode === 'all_drafts') {
+          const { count, items } = await getWafeqDraftSummary(env);
+          if (count === 0) {
+            await updateTransaction(env.DB, txId, { status: 'posted' });
+            await sendTelegramMessage(env, chatId, 'ℹ️ لا توجد مسودات في وافق للحذف.');
+            return;
+          }
+          const preview = items
+            .slice(0, 10)
+            .map((d) => `• ${d.type} ${d.number || d.id}`)
+            .join('\n');
           await setConversationState(env.DB, chatId, {
             kind: 'confirm_delete',
-            docType: last.result.type,
-            wafeqId: last.wafeqId,
-            targetTxId: last.id,
-            label,
+            bulk: items.map((d) => ({ docType: d.docType, id: d.id })),
+            label: `${count} مسودة`,
           });
           await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
           await sendTelegramMessage(
             env,
             chatId,
-            `⚠️ <b>تأكيد الحذف</b>\n\nسيتم حذف:\n${label}\n\nأرسل «نعم» للتأكيد، أو أي شيء آخر للإلغاء.`
+            `⚠️ <b>تأكيد حذف جماعي</b>\n\nسيتم حذف <b>${count}</b> مسودة من وافق:\n${preview}` +
+              `${count > 10 ? `\n… و${count - 10} غيرها` : ''}\n\n` +
+              `⛔ لا رجعة في هذا الإجراء. أرسل «نعم» للتأكيد، أو أي شيء آخر للإلغاء.`
           );
           return;
         }
 
-        // --- تعديل: نُنتج نسخة معدّلة، نحذف القديمة، ونرحّل الجديدة ---
-        if (intent === 'edit') {
-          const accountsForEdit = await getActiveAccounts(env.DB);
-          const bankCode = env.DEFAULT_BANK_ACCOUNT_CODE || null;
-          const bank = bankCode
-            ? accountsForEdit.find((a) => a.account_code === bankCode) || null
-            : null;
+        if (intent === 'delete' || intent === 'edit') {
+          // ---- حدّد العملية المستهدفة ----
+          const res = await resolveTarget(env, chatId, target);
 
-          const edited = await applyEdit(env, {
-            accounts: accountsForEdit,
-            defaultBank: bank,
-            vatPercent: Number(env.VAT_PERCENT || 15),
-            previous: last.result,
-            instruction: instruction || finalText,
-          });
-
-          // جهة الاتصال للفواتير.
-          let editContactId = null;
-          if (
-            (edited.type === 'purchase_bill' || edited.type === 'sales_invoice') &&
-            edited.contact_name
-          ) {
-            const r = await resolveContact(env, edited.contact_name);
-            editContactId = r.contactId;
-          }
-
-          // احذف المستند القديم أولاً لتجنّب التكرار في وافق.
-          try {
-            await deleteDocument(env, last.result.type, last.wafeqId);
-            await updateTransaction(env.DB, last.id, { status: 'deleted' });
-          } catch (e) {
-            await writeLog(env.DB, {
-              transactionId: last.id,
-              action: 'wafeq_delete_on_edit',
-              status: 'error',
-              errorDetails: e.message,
+          if (!res.ok && res.reason === 'multiple') {
+            const optionsText = res.options
+              .map((t, i) => `${i + 1}) ${describeType(t.result.type)} — ${t.result.summary || ''} — ${t.wafeqId}`)
+              .join('\n');
+            await setConversationState(env.DB, chatId, {
+              kind: 'target_choice',
+              intent,
+              instruction,
+              options: res.options,
             });
+            await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
             await sendTelegramMessage(
               env,
               chatId,
-              `⚠️ تعذّر حذف العملية القديمة من وافق (${e.message}).\nلن أنشئ نسخة جديدة لتجنّب التكرار — عدّلها يدوياً في وافق.`
+              `❓ وجدت أكثر من عملية مطابقة. أيّها تقصد؟\n\n${optionsText}\n\nأرسل الرقم.`
             );
-            await updateTransaction(env.DB, txId, { status: 'failed', errorMessage: e.message });
+            return;
+          }
+          if (!res.ok) {
+            await updateTransaction(env.DB, txId, { status: 'failed', errorMessage: res.reason });
+            await sendTelegramMessage(env, chatId, `⚠️ ${res.reason}`);
             return;
           }
 
-          await updateTransaction(env.DB, txId, {
-            processedJson: JSON.stringify(edited),
-            status: 'analyzed',
-          });
-          await writeLog(env.DB, { transactionId: txId, action: 'apply_edit', status: 'success' });
+          const chosen = res.target;
 
-          await finalizeAndPost(env, {
+          // ---- حذف مستند واحد (بتأكيد) ----
+          if (intent === 'delete') {
+            const label = targetLabel(chosen);
+            await setConversationState(env.DB, chatId, {
+              kind: 'confirm_delete',
+              docType: chosen.result.type,
+              wafeqId: chosen.wafeqId,
+              targetTxId: chosen.id,
+              label,
+            });
+            await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
+            await sendTelegramMessage(
+              env,
+              chatId,
+              `⚠️ <b>تأكيد الحذف</b>\n\nسيتم حذف:\n${label}\n\nأرسل «نعم» للتأكيد، أو أي شيء آخر للإلغاء.`
+            );
+            return;
+          }
+
+          // ---- تعديل ----
+          await performEdit(env, {
             txId,
             chatId,
-            result: edited,
-            accounts: accountsForEdit,
             messageId,
-            contactId: editContactId,
-            mediaR2Key: null,
-            mediaType: null,
-            prefix: '✏️ <b>تم تعديل العملية</b> (حُذفت النسخة السابقة وأُنشئت محدّثة)\n\n',
+            chosen,
+            instruction: instruction || finalText,
           });
           return;
         }

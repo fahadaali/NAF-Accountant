@@ -114,7 +114,7 @@ export async function getWafeqDraftSummary(env) {
   const headers = { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` };
   const items = [];
 
-  async function pull(path, label) {
+  async function pull(path, label, docType) {
     try {
       const res = await fetch(`${base}/${path}/?status=DRAFT&page_size=100`, { headers });
       if (!res.ok) return;
@@ -123,6 +123,7 @@ export async function getWafeqDraftSummary(env) {
       for (const d of list) {
         items.push({
           type: label,
+          docType, // المفتاح الداخلي (لعمليات الحذف)
           id: String(d.id || d.uuid || ''),
           number: d.bill_number || d.invoice_number || '',
           date: d.bill_date || d.invoice_date || d.date || '',
@@ -133,8 +134,8 @@ export async function getWafeqDraftSummary(env) {
     }
   }
 
-  await pull('bills', 'فاتورة مشتريات');
-  await pull('invoices', 'فاتورة بيع');
+  await pull('bills', 'فاتورة مشتريات', 'purchase_bill');
+  await pull('invoices', 'فاتورة بيع', 'sales_invoice');
 
   return { count: items.length, items };
 }

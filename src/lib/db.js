@@ -98,20 +98,8 @@ export async function getActiveAccounts(db) {
   return results || [];
 }
 
-/**
- * آخر عملية مُرحّلة بنجاح لمحادثة معيّنة (هدف التعديل/الحذف).
- * @returns {Promise<null | {id:number, wafeqId:string, result:object}>}
- */
-export async function getLastPostedTransaction(db, chatId) {
-  const row = await db
-    .prepare(
-      `SELECT id, wafeq_draft_id, processed_json
-       FROM transactions
-       WHERE telegram_chat_id = ? AND status = 'posted' AND wafeq_draft_id IS NOT NULL
-       ORDER BY id DESC LIMIT 1`
-    )
-    .bind(String(chatId))
-    .first();
+/** تحويل صف عملية إلى كائن هدف موحّد. */
+function toTarget(row) {
   if (!row || !row.processed_json) return null;
   try {
     return {
@@ -122,6 +110,62 @@ export async function getLastPostedTransaction(db, chatId) {
   } catch (_) {
     return null;
   }
+}
+
+const POSTED_WHERE = `telegram_chat_id = ? AND status = 'posted' AND wafeq_draft_id IS NOT NULL`;
+
+/**
+ * العملية المُرحّلة رقم n من الآخر (1 = الأخيرة، 2 = قبل الأخيرة...).
+ * @returns {Promise<null | {id:number, wafeqId:string, result:object}>}
+ */
+export async function getPostedTransactionByOffset(db, chatId, n = 1) {
+  const offset = Math.max(0, (Number(n) || 1) - 1);
+  const row = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+       WHERE ${POSTED_WHERE} ORDER BY id DESC LIMIT 1 OFFSET ?`
+    )
+    .bind(String(chatId), offset)
+    .first();
+  return toTarget(row);
+}
+
+/** عملية مُرحّلة بمعرّف وافق (يقبل تطابقاً جزئياً لتسهيل الكتابة). */
+export async function getPostedTransactionByWafeqId(db, chatId, wafeqId) {
+  const row = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+       WHERE ${POSTED_WHERE} AND wafeq_draft_id LIKE ?
+       ORDER BY id DESC LIMIT 1`
+    )
+    .bind(String(chatId), `%${wafeqId}%`)
+    .first();
+  return toTarget(row);
+}
+
+/** بحث في العمليات المُرحّلة بالنص (الوصف/جهة الاتصال/النص الأصلي). */
+export async function searchPostedTransactions(db, chatId, query, limit = 5) {
+  const { results } = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+       WHERE ${POSTED_WHERE} AND (raw_text LIKE ? OR processed_json LIKE ?)
+       ORDER BY id DESC LIMIT ?`
+    )
+    .bind(String(chatId), `%${query}%`, `%${query}%`, limit)
+    .all();
+  return (results || []).map(toTarget).filter(Boolean);
+}
+
+/** قائمة آخر العمليات المُرحّلة (لعرض خيارات الاستهداف). */
+export async function listPostedTransactions(db, chatId, limit = 10) {
+  const { results } = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+       WHERE ${POSTED_WHERE} ORDER BY id DESC LIMIT ?`
+    )
+    .bind(String(chatId), limit)
+    .all();
+  return (results || []).map(toTarget).filter(Boolean);
 }
 
 // ----------------------------------------------------------------------------
