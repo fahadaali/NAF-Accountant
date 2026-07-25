@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 
 const links = [
   { to: '/', label: 'لوحة التحكم', icon: '📊', end: true },
@@ -7,15 +7,14 @@ const links = [
   { to: '/settings', label: 'الإعدادات', icon: '⚙️' },
 ];
 
-export default function Layout({ children }) {
-  const navigate = useNavigate();
+export default function Layout({ children, user, onLogout }) {
 
   return (
     <div className="min-h-screen flex">
       {/* الشريط الجانبي */}
       <aside className="w-64 bg-naf-900 text-white flex-shrink-0 flex flex-col">
         <div className="p-6 border-b border-white/10">
-          <h1 className="text-2xl font-black">ناف لو</h1>
+          <h1 className="text-2xl font-black">ناف القانونية</h1>
           <p className="text-naf-100/70 text-sm mt-1">المحاسب الذكي</p>
         </div>
         <nav className="flex-1 p-3 space-y-1">
@@ -51,12 +50,12 @@ export default function Layout({ children }) {
               day: 'numeric',
             })}
           </div>
-          <button
-            className="btn-ghost text-sm"
-            onClick={() => navigate('/settings')}
-          >
-            🔑 مفاتيح الربط
-          </button>
+          <div className="flex items-center gap-3">
+            {user && <span className="text-slate-600 text-sm" dir="ltr">{user.email}</span>}
+            <button className="btn-ghost text-sm" onClick={onLogout}>
+              🚪 خروج
+            </button>
+          </div>
         </header>
         <div className="p-8">{children}</div>
       </main>

@@ -80,7 +80,9 @@ export async function updateTransaction(db, id, fields) {
 }
 
 /**
- * سحب شجرة الحسابات النشطة.
+ * سحب شجرة الحسابات النشطة القابلة للترحيل إلى وافق فقط.
+ * نستبعد أي حساب بلا wafeq_account_id (مثل الحسابات التجريبية المزروعة)
+ * حتى لا يختارها Claude فيُرفض القيد في وافق.
  */
 export async function getActiveAccounts(db) {
   const { results } = await db
@@ -88,8 +90,135 @@ export async function getActiveAccounts(db) {
       `SELECT account_code, account_name, account_type, wafeq_account_id
        FROM chart_of_accounts
        WHERE is_active = 1
+         AND wafeq_account_id IS NOT NULL
+         AND wafeq_account_id != ''
        ORDER BY account_code ASC`
     )
     .all();
   return results || [];
+}
+
+/** تحويل صف عملية إلى كائن هدف موحّد. */
+function toTarget(row) {
+  if (!row || !row.processed_json) return null;
+  try {
+    return {
+      id: row.id,
+      wafeqId: row.wafeq_draft_id,
+      result: JSON.parse(row.processed_json),
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+const POSTED_WHERE = `telegram_chat_id = ? AND status = 'posted' AND wafeq_draft_id IS NOT NULL`;
+
+/**
+ * العملية المُرحّلة رقم n من الآخر (1 = الأخيرة، 2 = قبل الأخيرة...).
+ * @returns {Promise<null | {id:number, wafeqId:string, result:object}>}
+ */
+export async function getPostedTransactionByOffset(db, chatId, n = 1) {
+  const offset = Math.max(0, (Number(n) || 1) - 1);
+  const row = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+       WHERE ${POSTED_WHERE} ORDER BY id DESC LIMIT 1 OFFSET ?`
+    )
+    .bind(String(chatId), offset)
+    .first();
+  return toTarget(row);
+}
+
+/** عملية مُرحّلة بمعرّف وافق (يقبل تطابقاً جزئياً لتسهيل الكتابة). */
+export async function getPostedTransactionByWafeqId(db, chatId, wafeqId) {
+  const row = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+       WHERE ${POSTED_WHERE} AND wafeq_draft_id LIKE ?
+       ORDER BY id DESC LIMIT 1`
+    )
+    .bind(String(chatId), `%${wafeqId}%`)
+    .first();
+  return toTarget(row);
+}
+
+/** بحث في العمليات المُرحّلة بالنص (الوصف/جهة الاتصال/النص الأصلي). */
+export async function searchPostedTransactions(db, chatId, query, limit = 5) {
+  const { results } = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+       WHERE ${POSTED_WHERE} AND (raw_text LIKE ? OR processed_json LIKE ?)
+       ORDER BY id DESC LIMIT ?`
+    )
+    .bind(String(chatId), `%${query}%`, `%${query}%`, limit)
+    .all();
+  return (results || []).map(toTarget).filter(Boolean);
+}
+
+/** قائمة آخر العمليات المُرحّلة (لعرض خيارات الاستهداف). */
+export async function listPostedTransactions(db, chatId, limit = 10) {
+  const { results } = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+       WHERE ${POSTED_WHERE} ORDER BY id DESC LIMIT ?`
+    )
+    .bind(String(chatId), limit)
+    .all();
+  return (results || []).map(toTarget).filter(Boolean);
+}
+
+// ----------------------------------------------------------------------------
+// حالة المحادثة (Conversation State) — للحوار التفاعلي عند نقص البيانات.
+// ----------------------------------------------------------------------------
+
+/**
+ * سحب السياق المعلّق لمحادثة (أو null).
+ * السياق الأقدم من maxAgeMinutes يُعتبر منتهياً ويُحذف (يمنع تعليق سياق قديم).
+ */
+export async function getConversationState(db, chatId, maxAgeMinutes = 30) {
+  const row = await db
+    .prepare(`SELECT pending_json, updated_at FROM conversation_state WHERE chat_id = ?`)
+    .bind(String(chatId))
+    .first();
+  if (!row || !row.pending_json) return null;
+
+  // انتهاء صلاحية السياق (updated_at مخزّن بتوقيت UTC).
+  const updatedMs = Date.parse((row.updated_at || '').replace(' ', 'T') + 'Z');
+  if (updatedMs && Date.now() - updatedMs > maxAgeMinutes * 60 * 1000) {
+    await clearConversationState(db, chatId);
+    return null;
+  }
+
+  try {
+    return JSON.parse(row.pending_json);
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * حفظ/تحديث السياق المعلّق لمحادثة.
+ */
+export async function setConversationState(db, chatId, context) {
+  await db
+    .prepare(
+      `INSERT INTO conversation_state (chat_id, pending_json, updated_at)
+       VALUES (?, ?, datetime('now'))
+       ON CONFLICT(chat_id) DO UPDATE SET
+          pending_json = excluded.pending_json,
+          updated_at = datetime('now')`
+    )
+    .bind(String(chatId), JSON.stringify(context))
+    .run();
+}
+
+/**
+ * مسح السياق المعلّق بعد اكتمال العملية أو إلغائها.
+ */
+export async function clearConversationState(db, chatId) {
+  await db
+    .prepare(`DELETE FROM conversation_state WHERE chat_id = ?`)
+    .bind(String(chatId))
+    .run();
 }

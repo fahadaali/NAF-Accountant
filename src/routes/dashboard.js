@@ -4,33 +4,87 @@
 // ============================================================================
 
 import { Hono } from 'hono';
+import { syncChartOfAccounts } from '../services/sync.js';
+import { pickProvider } from '../services/transcription.js';
+import { authenticate } from '../lib/auth.js';
 
 const dashboard = new Hono();
 
 // ---- وسيط الحماية ----
+// يقبل: (1) رمز جلسة مستخدم صالح (تسجيل الدخول)، أو
+//        (2) DASHBOARD_API_KEY (للاستخدام الآلي مثل curl والمزامنة).
 dashboard.use('*', async (c, next) => {
-  const auth = c.req.header('Authorization') || '';
-  const token = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!c.env.DASHBOARD_API_KEY || token !== c.env.DASHBOARD_API_KEY) {
-    return c.json({ ok: false, error: 'unauthorized' }, 401);
-  }
+  const who = await authenticate(c);
+  if (!who) return c.json({ ok: false, error: 'unauthorized' }, 401);
+  if (who.email) c.set('user', who);
   await next();
 });
 
-// ---- العمليات الأخيرة ----
+// ---- العمليات مع فلاتر وفرز ----
+// مرشّحات: status, source_type, q (بحث في النص)، from/to (تاريخ YYYY-MM-DD)
+// فرز: sort (created_at|id|status|source_type)، order (asc|desc)
 dashboard.get('/transactions', async (c) => {
-  const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200);
+  const limit = Math.min(parseInt(c.req.query('limit') || '100', 10), 500);
+
+  const where = [];
+  const binds = [];
+
+  const status = c.req.query('status');
+  if (status) { where.push('status = ?'); binds.push(status); }
+
+  const sourceType = c.req.query('source_type');
+  if (sourceType) { where.push('source_type = ?'); binds.push(sourceType); }
+
+  const q = (c.req.query('q') || '').trim();
+  if (q) { where.push('(raw_text LIKE ? OR wafeq_draft_id LIKE ?)'); binds.push(`%${q}%`, `%${q}%`); }
+
+  const from = c.req.query('from');
+  if (from) { where.push('created_at >= ?'); binds.push(from); }
+
+  const to = c.req.query('to');
+  if (to) { where.push('created_at <= ?'); binds.push(to + ' 23:59:59'); }
+
+  // فرز آمن عبر قائمة بيضاء.
+  const sortMap = { created_at: 'created_at', id: 'id', status: 'status', source_type: 'source_type' };
+  const sortCol = sortMap[c.req.query('sort')] || 'created_at';
+  const order = (c.req.query('order') || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  binds.push(limit);
+
   const { results } = await c.env.DB.prepare(
     `SELECT id, telegram_message_id, telegram_chat_id, source_type,
             raw_text, processed_json, wafeq_draft_id, status,
             error_message, created_at, updated_at
      FROM transactions
-     ORDER BY created_at DESC
+     ${whereSql}
+     ORDER BY ${sortCol} ${order}
      LIMIT ?`
   )
-    .bind(limit)
+    .bind(...binds)
     .all();
   return c.json({ ok: true, transactions: results || [] });
+});
+
+// ---- حذف عمليات محدّدة ----
+dashboard.post('/transactions/delete', async (c) => {
+  const { ids } = await c.req.json().catch(() => ({}));
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return c.json({ ok: false, error: 'لم تُحدّد أي عملية.' }, 400);
+  }
+  const clean = ids.map((n) => parseInt(n, 10)).filter((n) => !isNaN(n)).slice(0, 500);
+  if (clean.length === 0) return c.json({ ok: false, error: 'معرّفات غير صالحة.' }, 400);
+
+  const placeholders = clean.map(() => '?').join(',');
+  // حذف السجلّات المرتبطة أولاً ثم العمليات.
+  await c.env.DB.prepare(`DELETE FROM logs WHERE transaction_id IN (${placeholders})`)
+    .bind(...clean)
+    .run();
+  const res = await c.env.DB.prepare(`DELETE FROM transactions WHERE id IN (${placeholders})`)
+    .bind(...clean)
+    .run();
+
+  return c.json({ ok: true, deleted: res.meta.changes ?? clean.length });
 });
 
 // ---- إحصائيات موجزة ----
@@ -75,36 +129,10 @@ dashboard.post('/accounts', async (c) => {
   return c.json({ ok: true });
 });
 
-// ---- مزامنة شجرة الحسابات من وافق ----
+// ---- مزامنة شجرة الحسابات من وافق (يدوياً) ----
 dashboard.post('/accounts/sync', async (c) => {
   try {
-    const res = await fetch(
-      `${c.env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1'}/accounts/`,
-      { headers: { Authorization: `Api-Key ${c.env.WAFEQ_API_KEY}` } }
-    );
-    if (!res.ok) throw new Error(`Wafeq accounts fetch failed: ${res.status}`);
-    const data = await res.json();
-    const list = data.results || data.data || [];
-
-    let synced = 0;
-    for (const acc of list) {
-      const code = acc.account_number || acc.code || acc.reference || String(acc.id);
-      const name = acc.name || acc.account_name || '';
-      const type = (acc.type || acc.account_type || 'expense').toLowerCase();
-      const wid = String(acc.id || acc.uuid || '');
-      if (!code || !name) continue;
-      await c.env.DB.prepare(
-        `INSERT INTO chart_of_accounts (account_code, account_name, account_type, wafeq_account_id)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(account_code) DO UPDATE SET
-            account_name = excluded.account_name,
-            wafeq_account_id = excluded.wafeq_account_id,
-            updated_at = datetime('now')`
-      )
-        .bind(code, name, type, wid)
-        .run();
-      synced++;
-    }
+    const { synced } = await syncChartOfAccounts(c.env);
     return c.json({ ok: true, synced });
   } catch (err) {
     return c.json({ ok: false, error: err.message }, 500);
@@ -129,12 +157,26 @@ dashboard.get('/settings/status', async (c) => {
   const mask = (v) => (v ? true : false);
   return c.json({
     ok: true,
+    asrProvider: pickProvider(env), // مزوّد تحويل الصوت النشط
     keys: {
       TELEGRAM_BOT_TOKEN: mask(env.TELEGRAM_BOT_TOKEN),
       CLAUDE_API_KEY: mask(env.CLAUDE_API_KEY),
       WAFEQ_API_KEY: mask(env.WAFEQ_API_KEY),
-      BASECAMP_TOKEN: mask(env.BASECAMP_TOKEN),
       AUTHORIZED_CHAT_IDS: mask(env.AUTHORIZED_CHAT_IDS),
+      DEFAULT_BANK_ACCOUNT_CODE: mask(env.DEFAULT_BANK_ACCOUNT_CODE),
+      VAT_TAX_RATE_ID: mask(env.VAT_TAX_RATE_ID),
+      // بيسكامب — التجديد التلقائي:
+      BASECAMP_CLIENT_ID: mask(env.BASECAMP_CLIENT_ID),
+      BASECAMP_CLIENT_SECRET: mask(env.BASECAMP_CLIENT_SECRET),
+      BASECAMP_REFRESH_TOKEN: mask(env.BASECAMP_REFRESH_TOKEN),
+      // تحويل الصوت إلى نص (اختياري — لرفع الدقة):
+      ELEVENLABS_API_KEY: mask(env.ELEVENLABS_API_KEY),
+      OPENAI_API_KEY: mask(env.OPENAI_API_KEY),
+      // بيسكامب — التوكن الثابت (بديل اختباري):
+      BASECAMP_TOKEN: mask(env.BASECAMP_TOKEN),
+      BASECAMP_ACCOUNT_ID: mask(env.BASECAMP_ACCOUNT_ID),
+      BASECAMP_PROJECT_ID: mask(env.BASECAMP_PROJECT_ID),
+      BASECAMP_MESSAGE_BOARD_ID: mask(env.BASECAMP_MESSAGE_BOARD_ID),
     },
   });
 });
