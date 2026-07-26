@@ -10,7 +10,7 @@ export default function Login({ onAuthed }) {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
 
-  // عند الفتح: هل يوجد مستخدمون؟ إن لا: وضع إنشاء المسؤول الأول.
+  // عند الفتح: هل يوجد مستخدمون؟ وإلا وضع إنشاء المسؤول الأول.
   useEffect(() => {
     (async () => {
       try {
