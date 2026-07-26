@@ -7,6 +7,7 @@ import { Input } from '../naf/ui/input.jsx';
 import { Card } from '../naf/ui/card.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
+import { Badge } from '../naf/ui/badge.jsx';
 
 const EMPTY_USER = { email: '', password: '', role: 'user' };
 const EMPTY_CHAT = { chat_id: '', label: '', is_admin: 0 };
@@ -131,9 +132,9 @@ export default function Team() {
                     </select>
                   </TableCell>
                   <TableCell>
-                    <span className={`badge ${u.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
+                    <Badge variant={u.is_active ? 'success' : 'default'}>
                       {u.is_active ? 'نشط' : 'معطّل'}
-                    </span>
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <Button variant="link" size="sm"
@@ -220,9 +221,9 @@ export default function Team() {
                     <TableCell className="text-foreground">{ch.label || '—'}</TableCell>
                     <TableCell>{ch.is_admin ? <span className="inline-flex items-center gap-2"><Bell size={16} /> نعم</span> : '—'}</TableCell>
                     <TableCell>
-                      <span className={`badge ${ch.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
+                      <Badge variant={ch.is_active ? 'success' : 'default'}>
                         {ch.is_active ? 'مصرّح' : 'موقوف'}
-                      </span>
+                      </Badge>
                     </TableCell>
                     <TableCell className="flex gap-3">
                       <Button variant="link" size="sm"

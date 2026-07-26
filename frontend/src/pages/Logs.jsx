@@ -6,12 +6,9 @@ import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
 import { Card } from '../naf/ui/card.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
+import { Badge } from '../naf/ui/badge.jsx';
 
-const STATUS_STYLE = {
-  success: 'bg-success/10 text-success',
-  error: 'bg-destructive/10 text-destructive',
-  info: 'bg-muted text-muted-foreground',
-};
+const STATUS_VARIANT = { success: 'success', error: 'destructive', info: 'default' };
 
 const ACTION_AR = {
   transcribe: 'تفريغ صوتي',
@@ -104,9 +101,9 @@ export default function Logs() {
                     </TableCell>
                     <TableCell className="text-foreground">{ACTION_AR[l.action] || l.action}</TableCell>
                     <TableCell>
-                      <span className={`badge ${STATUS_STYLE[l.status] || STATUS_STYLE.info}`}>
+                      <Badge variant={STATUS_VARIANT[l.status] || 'default'}>
                         {l.status === 'success' ? 'نجح' : l.status === 'error' ? 'خطأ' : 'معلومة'}
-                      </span>
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">{l.transaction_id || '—'}</TableCell>
                     <TableCell className="text-foreground text-sm max-w-md break-words">

@@ -1,11 +1,11 @@
 From 724a553ec8662da13d3112db7e74f78649884fb5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 26 Jul 2026 10:57:46 +0000
-Subject: [PATCH] =?UTF-8?q?feat(rules):=20=D8=AA=D8=B3=D8=AC=D9=8A=D9=84?=
- =?UTF-8?q?=20=D9=85=D9=81=D8=A7=D9=87=D9=8A=D9=85=20=D8=A7=D9=84=D9=85?=
- =?UTF-8?q?=D8=AD=D8=A7=D8=B3=D8=A8=D8=A9=20=E2=80=94=20=D8=A3=D9=8A=D9=82?=
- =?UTF-8?q?=D9=88=D9=86=D8=A7=D8=AA=20=D9=88=D9=85=D8=B5=D8=B7=D9=84=D8=AD?=
- =?UTF-8?q?=D8=A7=D8=AA=20=D9=88=D8=AD=D8=A7=D9=84=D8=A7=D8=AA?=
+Subject: [PATCH 1/2] =?UTF-8?q?feat(rules):=20=D8=AA=D8=B3=D8=AC=D9=8A?=
+ =?UTF-8?q?=D9=84=20=D9=85=D9=81=D8=A7=D9=87=D9=8A=D9=85=20=D8=A7=D9=84?=
+ =?UTF-8?q?=D9=85=D8=AD=D8=A7=D8=B3=D8=A8=D8=A9=20=E2=80=94=20=D8=A3=D9=8A?=
+ =?UTF-8?q?=D9=82=D9=88=D9=86=D8=A7=D8=AA=20=D9=88=D9=85=D8=B5=D8=B7=D9=84?=
+ =?UTF-8?q?=D8=AD=D8=A7=D8=AA=20=D9=88=D8=AD=D8=A7=D9=84=D8=A7=D8=AA?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -193,6 +193,228 @@ index 31ca82a..74260bb 100644
  
  ### التأكيدات
  
+-- 
+2.43.0
+
+
+From 99bdd81e4abf1ada9fe6e16066aee5b8efc85543 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 26 Jul 2026 17:49:08 +0000
+Subject: [PATCH 2/2] =?UTF-8?q?fix(theme)!:=20=D8=A5=D8=B9=D8=A7=D8=AF?=
+ =?UTF-8?q?=D8=A9=20=D8=A8=D9=86=D8=A7=D8=A1=20=D9=84=D9=88=D8=AD=D8=A9=20?=
+ =?UTF-8?q?=D8=A7=D9=84=D8=B1=D8=B3=D9=88=D9=85=20=D8=A7=D9=84=D8=AE=D9=85?=
+ =?UTF-8?q?=D8=B3=20=D8=A8=D8=A7=D9=84=D9=82=D9=8A=D8=A7=D8=B3=20+=20?=
+ =?UTF-8?q?=D8=B9=D9=86=D8=B5=D8=B1=20=D8=B4=D8=A7=D8=B1=D8=A9?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+لوحة الرسوم كانت تسقط في فحوص البيانات في الوضعين:
+
+الفاتح — chart-5 عند إضاءة 0.221 (أسود عملياً) خارج النطاق، وثلاثة
+ألوان تحت أرضية التشبّع 0.10 فتُقرأ رمادية، و chart-4 و chart-5 على
+مدرجَي لون متجاورين (259 و247) فلا يفترقان.
+
+الداكن — chart-4 و chart-5 منسوخان من الفاتح بلا تفتيح: تباين 2.2
+و 1.57 مقابل السطح، وΔE بينهما 7.8 بنظر سليم والحدّ 15. رُصد أثره
+فعلاً في منصة المحاسبة: شارة «حقوق ملكية» غير مقروءة في الوضع الداكن.
+
+الخمسة الآن على مدارج متباعدة — ذهبي 80، أزرق 240، أخضر 155،
+بنفسجي 300، أحمر 20 — بإضاءة كل وضع وتشبّع فوق الأرضية. تجتاز
+الفحوص الخمسة كلها في الوضعين: النطاق، التشبّع، فصل عمى الألوان،
+أرضية النظر السليم، والتباين مع السطح.
+
+كسر محتمل: أي منصة تعتمد على قيم chart-* الحالية سيتغيّر مظهر رسومها.
+لون الهوية --primary لم يُمسّ.
+
+وعنصر `badge`: كل منصة كانت تكتب صنف شارة محلياً، وهو أول ما يختلف
+بين المنصات. يضبط العنصر التخفيف والمقاس والفجوة ومقاس الأيقونة.
+---
+ CLAUDE.md                 |  2 +-
+ naf-icons.md              |  2 ++
+ naf-theme.css             | 35 ++++++++++++++++++-------
+ registry.json             | 21 ++++++++++++++-
+ registry/naf/ui/badge.tsx | 55 +++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 103 insertions(+), 12 deletions(-)
+ create mode 100644 registry/naf/ui/badge.tsx
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 4e9d96c..e9251f4 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -135,7 +135,7 @@ bg-primary  text-primary-foreground  hover:bg-primary/90
+ - Never communicate meaning by colour alone — pair status colours with an icon and a label.
+ - Light and dark must both work. Test both.
+ 
+-**Status badges are tinted, not solid.** A status badge uses the status token at `/10` for its background and the token itself for its text and icon — `bg-warning/10 text-warning`. Solid fills are for actions the user takes, not for states the system reports; a screen listing twenty rows of solid badges reads as twenty buttons. The one exception is `destructive` on a row the user is about to lose, where the weight is the point.
++**Status badges are tinted, not solid.** Use the `badge` component from the registry — do not hand-roll a badge class. It takes the status token at `/10` for its background and the token itself for its text and icon. Solid fills are for actions the user takes, not for states the system reports; a screen listing twenty rows of solid badges reads as twenty buttons. The one exception is `destructive` on a row the user is about to lose, where the weight is the point.
+ 
+ Tints come from the token, never from a palette step. `bg-green-100 text-green-700` is the same mistake as a hex value: it survives a change of identity, and it should not.
+ 
+diff --git a/naf-icons.md b/naf-icons.md
+index 0bd478f..50064eb 100644
+--- a/naf-icons.md
++++ b/naf-icons.md
+@@ -113,6 +113,8 @@
+ 
+ **إلزامي:** لا تعتمد على اللون وحده. كل حالة أيقونة **و**نص، لأن نحو ٨٪ من الرجال لا يميّزون الأحمر عن الأخضر.
+ 
++عنصر `badge` في السجلّ يفرض هذا شكلاً: يضبط مقاس الأيقونة والفجوة، ويأخذ لونه من رمز الحالة. لا تكتب صنف شارة محلياً.
++
+ ---
+ 
+ ## التنقّل
+diff --git a/naf-theme.css b/naf-theme.css
+index facfe62..3fd21c4 100644
+--- a/naf-theme.css
++++ b/naf-theme.css
+@@ -50,11 +50,21 @@
+   /* [مُصحَّح] تبع الأساسي الجديد ليبقى حلقة التركيز مطابقة للزر */
+   --ring: oklch(0.5700 0.0904 80.9413);
+ 
+-  --chart-1: oklch(0.5700 0.0904 80.9413);
+-  --chart-2: oklch(0.5640 0.1200 240.0000);
+-  --chart-3: oklch(0.5540 0.1200 155.0000);
+-  --chart-4: oklch(0.5016 0.0849 259.4902);
+-  --chart-5: oklch(0.2210 0.0253 246.6492);
++  /* [مُصحَّح] لوحة الرسوم الخمس — أُعيدت بقياس لا بالعين.
++     كان chart-5 عند إضاءة 0.221 (أسود عملياً)، وكان chart-4 و chart-5
++     على مدرجَي لون متجاورين (259 و247) فلا يفترقان: ΔE 7.8 حتى بنظر
++     سليم، والحدّ 15. وثلاثة منها تحت أرضية التشبّع 0.10 فتُقرأ رمادية.
++
++     المدارج الآن خمسة متباعدة — ذهبي 80، أزرق 240، أخضر 155،
++     بنفسجي 300، أحمر 20 — بإضاءة داخل النطاق وتشبّع فوق الأرضية.
++     تجتاز الخمسة كلها فحوص التشبّع وعمى الألوان والتباين في الوضعين.
++
++     ملحوظة: chart-1 ليس لون الهوية. --primary لم يُمسّ. */
++  --chart-1: oklch(0.5500 0.1100 80.0000);
++  --chart-2: oklch(0.5400 0.1400 240.0000);
++  --chart-3: oklch(0.5500 0.1500 155.0000);
++  --chart-4: oklch(0.5200 0.1700 300.0000);
++  --chart-5: oklch(0.5500 0.1600 20.0000);
+ 
+   --sidebar: oklch(0.9030 0.0046 258.3257);
+   --sidebar-foreground: oklch(0.2210 0.0253 246.6492);
+@@ -141,11 +151,16 @@
+   --input: oklch(0.3843 0.0301 269.7337);
+   --ring: oklch(0.7300 0.0904 80.9413);
+ 
+-  --chart-1: oklch(0.7300 0.0904 80.9413);
+-  --chart-2: oklch(0.7300 0.1100 240.0000);
+-  --chart-3: oklch(0.7200 0.1300 155.0000);
+-  --chart-4: oklch(0.5016 0.0849 259.4902);
+-  --chart-5: oklch(0.4241 0.0952 264.0306);
++  /* [مُصحَّح] chart-4 و chart-5 كانا منسوخين من الوضع الفاتح بلا تفتيح،
++     فيبقيان داكنَين على سطح داكن: تباين 2.2 و 1.57 مقابل السطح.
++     ورُصد أثره فعلاً — شارة «حقوق ملكية» غير مقروءة في منصة المحاسبة.
++
++     الخمسة الآن بنفس مدارج الوضع الفاتح، بإضاءة الوضع الداكن. */
++  --chart-1: oklch(0.6600 0.1100 80.0000);
++  --chart-2: oklch(0.6400 0.1400 240.0000);
++  --chart-3: oklch(0.6500 0.1500 155.0000);
++  --chart-4: oklch(0.6200 0.1600 300.0000);
++  --chart-5: oklch(0.6300 0.1500 20.0000);
+ 
+   --sidebar: oklch(0.3100 0.0283 267.7408);
+   --sidebar-foreground: oklch(0.9219 0 0);
+diff --git a/registry.json b/registry.json
+index d82562e..1672159 100644
+--- a/registry.json
++++ b/registry.json
+@@ -343,6 +343,25 @@
+         }
+       ]
+     },
++    {
++      "name": "badge",
++      "type": "registry:ui",
++      "title": "شارة",
++      "description": "شارة حالة بخلفية مخفّفة من رمزها. تُبلّغ ولا تُنقَر، ولا تعتمد على اللون وحده.",
++      "dependencies": [
++        "@radix-ui/react-slot",
++        "class-variance-authority"
++      ],
++      "registryDependencies": [
++        "utils"
++      ],
++      "files": [
++        {
++          "path": "registry/naf/ui/badge.tsx",
++          "type": "registry:ui"
++        }
++      ]
++    },
+     {
+       "name": "table",
+       "type": "registry:ui",
+@@ -359,4 +378,4 @@
+       ]
+     }
+   ]
+-}
++}
+\ No newline at end of file
+diff --git a/registry/naf/ui/badge.tsx b/registry/naf/ui/badge.tsx
+new file mode 100644
+index 0000000..2a2c197
+--- /dev/null
++++ b/registry/naf/ui/badge.tsx
+@@ -0,0 +1,55 @@
++import * as React from "react"
++import { Slot } from "@radix-ui/react-slot"
++import { cva, type VariantProps } from "class-variance-authority"
++
++import { cn } from "@/registry/naf/lib/utils"
++
++// الشارة تُبلّغ عن حالة، ولا تُنقَر. ما يُنقَر زرّ.
++//
++// الخلفية مخفّفة من رمز الحالة عند /10 والنصّ والأيقونة من الرمز نفسه.
++// المصمت للأفعال لا للحالات: جدول بعشرين صفاً من الشارات المصمتة يُقرأ
++// كعشرين زرّاً. والاستثناء الوحيد `destructive` على صفّ يوشك المستخدم
++// أن يفقده، حيث الثقل هو المقصود.
++//
++// إلزامي: لا تعتمد على اللون وحده — كل شارة حالة أيقونة ونصّ معاً.
++const badgeVariants = cva(
++  cn(
++    "inline-flex items-center gap-1.5 whitespace-nowrap",
++    "rounded-full px-3 py-1 text-xs font-semibold",
++    "[&_svg]:size-4 [&_svg]:shrink-0"
++  ),
++  {
++    variants: {
++      variant: {
++        default: "bg-muted text-muted-foreground",
++        info: "bg-info/10 text-info",
++        success: "bg-success/10 text-success",
++        warning: "bg-warning/10 text-warning",
++        destructive: "bg-destructive/10 text-destructive",
++        solid: "bg-destructive text-destructive-foreground",
++        outline: "border border-border text-foreground",
++      },
++    },
++    defaultVariants: {
++      variant: "default",
++    },
++  }
++)
++
++export interface BadgeProps
++  extends React.HTMLAttributes<HTMLSpanElement>,
++    VariantProps<typeof badgeVariants> {
++  asChild?: boolean
++}
++
++const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
++  ({ className, variant, asChild = false, ...props }, ref) => {
++    const Comp = asChild ? Slot : "span"
++    return (
++      <Comp ref={ref} className={cn(badgeVariants({ variant }), className)} {...props} />
++    )
++  }
++)
++Badge.displayName = "Badge"
++
++export { Badge, badgeVariants }
 -- 
 2.43.0
 

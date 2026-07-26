@@ -4,6 +4,7 @@ import { LogOut, LoaderCircle, CircleCheck, CircleSlash, Send, ChartColumn, Circ
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
 import { Card } from '../naf/ui/card.jsx';
+import { Badge } from '../naf/ui/badge.jsx';
 
 const KEY_META = [
   { key: 'TELEGRAM_BOT_TOKEN', label: 'مفتاح بوت تليجرام', hint: 'TELEGRAM_BOT_TOKEN' },
@@ -23,9 +24,9 @@ const KEY_META = [
 ];
 
 const ASR_LABELS = {
-  elevenlabs: { name: 'ElevenLabs Scribe', note: 'أعلى دقة للعربية', cls: 'bg-success/10 text-success' },
-  openai: { name: 'OpenAI', note: 'دقة عالية', cls: 'bg-success/10 text-success' },
-  cloudflare: { name: 'Cloudflare Whisper', note: 'دقة محدودة للعربية — أضِف مفتاح ElevenLabs لرفعها', cls: 'bg-warning/10 text-warning' },
+  elevenlabs: { name: 'ElevenLabs Scribe', note: 'أعلى دقة للعربية', variant: 'success' },
+  openai: { name: 'OpenAI', note: 'دقة عالية', variant: 'success' },
+  cloudflare: { name: 'Cloudflare Whisper', note: 'دقة محدودة للعربية — أضِف مفتاح ElevenLabs لرفعها', variant: 'warning' },
 };
 
 export default function Settings({ user, onLogout }) {
@@ -113,9 +114,9 @@ export default function Settings({ user, onLogout }) {
               </div>
               <div className="text-xs text-muted-foreground mt-1">{ASR_LABELS[asr]?.note || ''}</div>
             </div>
-            <span className={`badge ${ASR_LABELS[asr]?.cls || 'bg-muted text-muted-foreground'}`}>
+            <Badge variant={ASR_LABELS[asr]?.variant || 'default'}>
               نشط
-            </span>
+            </Badge>
           </div>
           {asr === 'cloudflare' && (
             <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
@@ -143,11 +144,11 @@ export default function Settings({ user, onLogout }) {
                   <code className="text-xs text-muted-foreground" dir="ltr">{k.hint}</code>
                 </div>
                 {status == null ? (
-                  <span className="badge bg-muted text-muted-foreground">غير معروف</span>
+                  <Badge>غير معروف</Badge>
                 ) : ok ? (
-                  <span className="badge gap-1.5 bg-success/10 text-success"><CircleCheck size={16} aria-hidden="true" /> مُهيّأ</span>
+                  <Badge variant="success"><CircleCheck size={16} aria-hidden="true" /> مُهيّأ</Badge>
                 ) : (
-                  <span className="badge gap-1.5 bg-destructive/10 text-destructive"><CircleSlash size={16} aria-hidden="true" /> غير مُهيّأ</span>
+                  <Badge variant="destructive"><CircleSlash size={16} aria-hidden="true" /> غير مُهيّأ</Badge>
                 )}
               </div>
             );

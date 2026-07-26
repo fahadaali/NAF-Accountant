@@ -8,6 +8,7 @@ import { Input } from '../naf/ui/input.jsx';
 import { Card } from '../naf/ui/card.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
+import { Badge } from '../naf/ui/badge.jsx';
 
 const TYPE_AR = {
   manual_journal: 'قيد يومية',
@@ -161,9 +162,9 @@ export default function Recurring() {
                     <TableCell className="text-foreground">{r.day_of_month}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{r.last_run_ym || 'لم يُنفّذ بعد'}</TableCell>
                     <TableCell>
-                      <span className={`badge ${r.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
+                      <Badge variant={r.is_active ? 'success' : 'default'}>
                         {r.is_active ? 'مفعّل' : 'موقوف'}
-                      </span>
+                      </Badge>
                     </TableCell>
                     <TableCell className="flex gap-3">
                       <Button variant="link" size="sm"
