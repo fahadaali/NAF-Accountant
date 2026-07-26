@@ -1,4 +1,5 @@
 import { fmtDate } from '../lib/format.js';
+import { Button } from '../naf/ui/button.jsx';
 import { NavLink } from 'react-router-dom';
 import {
   LogOut, LayoutDashboard, ReceiptText, TrendingUp, ListTree,
@@ -59,9 +60,9 @@ export default function Layout({ children, user, onLogout, isAdmin }) {
           </div>
           <div className="flex items-center gap-3 min-w-0">
             {user && <span className="text-foreground text-sm truncate hidden sm:inline" dir="ltr">{user.email}</span>}
-            <button className="btn-ghost text-sm" onClick={onLogout}>
+            <Button variant="ghost" className="text-sm" onClick={onLogout}>
               <LogOut size={20} className="rtl:-scale-x-100" aria-hidden="true" /> خروج
-            </button>
+            </Button>
           </div>
         </header>
 

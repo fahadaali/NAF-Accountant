@@ -2,13 +2,22 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import { RefreshCw, LoaderCircle, CircleAlert, CircleCheck } from 'lucide-react';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
+import { Button } from '../naf/ui/button.jsx';
+import { Input } from '../naf/ui/input.jsx';
+import { Card } from '../naf/ui/card.jsx';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
 
-// نوع الحساب تصنيف لا حالة، فيأخذ رموز الرسوم (chart-*) المخصّصة
-// للفئات، لا رموز الحالة. والخلفية مخفّفة من الرمز نفسه (CLAUDE.md §6).
+// نوع الحساب تصنيف لا حالة، فيأخذ رموز الرسوم (chart-*) لا رموز الحالة،
+// والخلفية مخفّفة من الرمز نفسه (CLAUDE.md §6).
+//
+// لكن chart-4 و chart-5 لا يُفتّحان في الوضع الداكن كما يفعل 1 و2 و3،
+// فيصيران داكنين على سطح داكن — رأيتُ «حقوق ملكية» غير مقروءة بالفعل.
+// لذلك الفئتان الباقيتان على warning و muted، والمعنى محمول بالتسمية
+// لا باللون أصلاً. الأصل أن تُعالَج في الثيم — مُدرَج في audit/report.md.
 const TYPE_LABELS = {
   asset: { label: 'أصل', cls: 'bg-chart-2/10 text-chart-2' },
-  liability: { label: 'خصم', cls: 'bg-chart-4/10 text-chart-4' },
-  equity: { label: 'حقوق ملكية', cls: 'bg-chart-5/10 text-chart-5' },
+  liability: { label: 'خصم', cls: 'bg-warning/10 text-warning' },
+  equity: { label: 'حقوق ملكية', cls: 'bg-muted text-muted-foreground' },
   revenue: { label: 'إيراد', cls: 'bg-chart-3/10 text-chart-3' },
   expense: { label: 'مصروف', cls: 'bg-chart-1/10 text-chart-1' },
 };
@@ -70,11 +79,11 @@ export default function Accounts({ isAdmin }) {
           <p className="text-muted-foreground mt-1">دليل الحسابات المستخدم في توجيه القيود</p>
         </div>
         {isAdmin && (
-          <button className="btn-primary" onClick={sync} disabled={syncing}>
+          <Button onClick={sync} disabled={syncing}>
             {syncing
               ? <><LoaderCircle size={20} className="animate-spin" aria-hidden="true" /> جارٍ المزامنة</>
               : <><RefreshCw size={20} aria-hidden="true" /> مزامنة من وافق</>}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -82,18 +91,16 @@ export default function Accounts({ isAdmin }) {
       {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
       {/* نموذج إضافة حساب — للمسؤول فقط */}
-      <div className="card" style={{ display: isAdmin ? undefined : 'none' }}>
+      <Card className="p-6" style={{ display: isAdmin ? undefined : 'none' }}>
         <h3 className="font-bold text-foreground mb-4">إضافة / تعديل حساب</h3>
         <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <input
-            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+          <Input
             placeholder="رمز الحساب"
             value={form.account_code}
             onChange={(e) => setForm({ ...form, account_code: e.target.value })}
             required
           />
-          <input
-            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+          <Input
             placeholder="اسم الحساب"
             value={form.account_name}
             onChange={(e) => setForm({ ...form, account_name: e.target.value })}
@@ -108,46 +115,44 @@ export default function Accounts({ isAdmin }) {
               <option key={k} value={k}>{v.label}</option>
             ))}
           </select>
-          <button className="btn-primary justify-center" type="submit">حفظ</button>
+          <Button className="justify-center" type="submit">حفظ</Button>
         </form>
-      </div>
+      </Card>
 
       {/* جدول الحسابات */}
-      <div className="card">
-        <div className="overflow-x-auto">
-          <table className="w-full text-end">
-            <thead>
-              <tr className="text-muted-foreground text-sm border-b border-border">
-                <th className="py-3 font-semibold">الرمز</th>
-                <th className="py-3 font-semibold">اسم الحساب</th>
-                <th className="py-3 font-semibold">النوع</th>
-                <th className="py-3 font-semibold">معرّف وافق</th>
-                <th className="py-3 font-semibold">الحالة</th>
-              </tr>
-            </thead>
-            <tbody>
+      <Card className="p-6">
+                  <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الرمز</TableHead>
+                <TableHead>اسم الحساب</TableHead>
+                <TableHead>النوع</TableHead>
+                <TableHead>معرّف وافق</TableHead>
+                <TableHead>الحالة</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {accounts.map((a) => {
                 const t = TYPE_LABELS[a.account_type] || { label: a.account_type, cls: 'bg-muted text-muted-foreground' };
                 return (
-                  <tr key={a.id} className="border-b border-border hover:bg-background">
-                    <td className="py-3 font-mono text-foreground">{a.account_code}</td>
-                    <td className="py-3 text-foreground font-semibold">{a.account_name}</td>
-                    <td className="py-3"><span className={`badge ${t.cls}`}>{t.label}</span></td>
-                    <td className="py-3 text-muted-foreground text-sm">{a.wafeq_account_id || '— غير مزامن'}</td>
-                    <td className="py-3">
+                  <TableRow key={a.id}>
+                    <TableCell className="font-mono text-foreground">{a.account_code}</TableCell>
+                    <TableCell className="text-foreground font-semibold">{a.account_name}</TableCell>
+                    <TableCell><span className={`badge ${t.cls}`}>{t.label}</span></TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{a.wafeq_account_id || '— غير مزامن'}</TableCell>
+                    <TableCell>
                       {a.is_active ? (
                         <span className="badge bg-success/10 text-success">نشط</span>
                       ) : (
                         <span className="badge bg-muted text-muted-foreground">معطّل</span>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </TableBody>
+          </Table>
+      </Card>
     </div>
   );
 }

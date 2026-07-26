@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import { LogOut, LoaderCircle, CircleCheck, CircleSlash, Send, ChartColumn, CircleAlert } from 'lucide-react';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
+import { Button } from '../naf/ui/button.jsx';
+import { Card } from '../naf/ui/card.jsx';
 
 const KEY_META = [
   { key: 'TELEGRAM_BOT_TOKEN', label: 'مفتاح بوت تليجرام', hint: 'TELEGRAM_BOT_TOKEN' },
@@ -87,7 +89,7 @@ export default function Settings({ user, onLogout }) {
       {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
       {/* الحساب */}
-      <div className="card">
+      <Card className="p-6">
         <h3 className="font-bold text-foreground mb-1">الحساب</h3>
         <div className="flex items-center justify-between mt-3">
           <div>
@@ -96,13 +98,13 @@ export default function Settings({ user, onLogout }) {
               الصلاحية: {user?.role === 'admin' ? 'مسؤول' : 'مستخدم'}
             </div>
           </div>
-          <button className="btn-ghost" onClick={onLogout}><LogOut size={20} className="rtl:-scale-x-100" /> تسجيل الخروج</button>
+          <Button variant="ghost" onClick={onLogout}><LogOut size={20} className="rtl:-scale-x-100" /> تسجيل الخروج</Button>
         </div>
-      </div>
+      </Card>
 
       {/* مزوّد تحويل الصوت */}
       {asr && (
-        <div className="card">
+        <Card className="p-6">
           <h3 className="font-bold text-foreground mb-1">تحويل الصوت إلى نص</h3>
           <div className="flex items-center justify-between mt-3">
             <div>
@@ -121,11 +123,11 @@ export default function Settings({ user, onLogout }) {
               Secret في Cloudflare، وسينتقل النظام إليه تلقائياً.
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       {/* حالة مفاتيح الربط */}
-      <div className="card">
+      <Card className="p-6">
         <h3 className="font-bold text-foreground mb-1">حالة مفاتيح الربط</h3>
         <p className="text-muted-foreground text-sm mb-4">
           المفاتيح الحساسة تُخزَّن بشكل مشفّر في Cloudflare Secrets ولا تظهر قيمها هنا — فقط حالة توفرها.
@@ -151,34 +153,34 @@ export default function Settings({ user, onLogout }) {
             );
           })}
         </div>
-      </div>
+      </Card>
 
       {/* إجراءات */}
-      <div className="card">
+      <Card className="p-6">
         <h3 className="font-bold text-foreground mb-1">إجراءات</h3>
         <p className="text-muted-foreground text-sm mb-4">إرسال التقارير يدوياً إلى بيسكامب.</p>
         <div className="flex flex-wrap gap-3">
-          <button className="btn-ghost" onClick={runReport} disabled={reporting}>
+          <Button variant="ghost" onClick={runReport} disabled={reporting}>
             {reporting
               ? <><LoaderCircle size={20} className="animate-spin" aria-hidden="true" /> جارٍ الإرسال</>
               : <><Send size={20} className="rtl:-scale-x-100" aria-hidden="true" /> ملخص المسودات</>}
-          </button>
-          <button className="btn-primary" onClick={() => runFinancial('monthly')} disabled={reporting}>
+          </Button>
+          <Button onClick={() => runFinancial('monthly')} disabled={reporting}>
             {reporting
               ? <><LoaderCircle size={20} className="animate-spin" aria-hidden="true" /> جارٍ الإرسال</>
               : <><ChartColumn size={20} aria-hidden="true" /> التقرير المالي الشهري</>}
-          </button>
-          <button className="btn-ghost" onClick={() => runFinancial('quarterly')} disabled={reporting}>
+          </Button>
+          <Button variant="ghost" onClick={() => runFinancial('quarterly')} disabled={reporting}>
             <ChartColumn size={20} aria-hidden="true" /> الربعي
-          </button>
-          <button className="btn-ghost" onClick={() => runFinancial('annual')} disabled={reporting}>
+          </Button>
+          <Button variant="ghost" onClick={() => runFinancial('annual')} disabled={reporting}>
             <ChartColumn size={20} aria-hidden="true" /> السنوي
-          </button>
+          </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-3">
           آلياً: الشهري أول كل شهر، الربعي أول كل ربع، السنوي أول السنة.
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

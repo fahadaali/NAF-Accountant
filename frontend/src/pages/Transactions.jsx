@@ -6,6 +6,11 @@ import MediaViewer from '../components/MediaViewer.jsx';
 import SourceIcon from '../components/SourceIcon.jsx';
 import { fmtDateTime } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
+import { Button } from '../naf/ui/button.jsx';
+import { Input } from '../naf/ui/input.jsx';
+import { Card } from '../naf/ui/card.jsx';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
+import ConfirmDialog from '../components/ConfirmDialog.jsx';
 
 const STATUS_OPTIONS = [
   { v: '', label: 'كل الحالات' },
@@ -40,9 +45,9 @@ function JsonPreview({ json }) {
   try { parsed = JSON.parse(json); } catch { parsed = null; }
   return (
     <div>
-      <button className="text-primary text-sm hover:underline" onClick={() => setOpen((o) => !o)}>
+      <Button variant="link" size="sm" className="px-0" onClick={() => setOpen((o) => !o)}>
         {open ? 'إخفاء' : 'عرض'}
-      </button>
+      </Button>
       {open && (
         <pre className="mt-2 bg-muted text-foreground text-xs p-3 rounded-lg overflow-x-auto max-w-md" dir="ltr">
           {JSON.stringify(parsed || json, null, 2)}
@@ -62,6 +67,7 @@ export default function Transactions({ isAdmin }) {
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,7 +101,6 @@ export default function Transactions({ isAdmin }) {
 
   const deleteSelected = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`حذف ${selected.size} عملية نهائياً؟ لا يمكن التراجع.`)) return;
     setDeleting(true);
     setMsg('');
     try {
@@ -111,6 +116,14 @@ export default function Transactions({ isAdmin }) {
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="حذف العمليات المحدّدة"
+        description={`ستُحذف ${selected.size} عملية من سجلّ المنصة. لا يمكن التراجع عن هذا. القيود المرحّلة في وافق لا تتأثر.`}
+        actionLabel="حذف"
+        onConfirm={deleteSelected}
+      />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground">العمليات</h2>
@@ -118,19 +131,18 @@ export default function Transactions({ isAdmin }) {
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && selected.size > 0 && (
-            <button className="btn bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={deleteSelected} disabled={deleting}>
+            <Button variant="destructive" onClick={() => setConfirmOpen(true)} disabled={deleting}>
               <Trash2 size={20} /> حذف المحدّد ({selected.size})
-            </button>
+            </Button>
           )}
-          <button
-            className="btn-ghost"
+          <Button variant="ghost"
             onClick={() =>
               downloadTransactionsCsv(filters).catch((e) => setError(e.message))
             }
           >
             <FileOutput size={20} /> تصدير CSV
-          </button>
-          <button className="btn-ghost" onClick={load}><RefreshCw size={20} /> تحديث</button>
+          </Button>
+          <Button variant="ghost" onClick={load}><RefreshCw size={20} /> تحديث</Button>
         </div>
       </div>
 
@@ -138,7 +150,7 @@ export default function Transactions({ isAdmin }) {
       {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
       {/* المرشّحات */}
-      <div className="card">
+      <Card className="p-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* أيقونة البحث داخل الحقل — الإيموجي لا تصلح داخل placeholder */}
           <div className="relative">
@@ -148,8 +160,8 @@ export default function Transactions({ isAdmin }) {
               className="pointer-events-none absolute inset-inline-start-3 top-1/2 -translate-y-1/2 text-muted-foreground"
               style={{ insetInlineStart: '0.75rem' }}
             />
-            <input
-              className="w-full border border-border rounded-lg ps-10 pe-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            <Input
+              className="w-full ps-10"
               placeholder="بحث في النص أو رقم وافق"
               value={filters.q}
               onChange={(e) => setF('q', e.target.value)}
@@ -169,8 +181,8 @@ export default function Transactions({ isAdmin }) {
               {SORT_OPTIONS.map((o) => <option key={o.v} value={o.v}>فرز: {o.label}</option>)}
             </select>
             {/* سهم الفرز رأسي — لا يُقلب في RTL (naf-icons.md) */}
-            <button
-              className="btn-ghost px-3"
+            <Button variant="ghost"
+              className="px-3"
               onClick={toggleOrder}
               title={filters.order === 'desc' ? 'فرز تنازلي' : 'فرز تصاعدي'}
               aria-label={filters.order === 'desc' ? 'فرز تنازلي' : 'فرز تصاعدي'}
@@ -178,26 +190,26 @@ export default function Transactions({ isAdmin }) {
               {filters.order === 'desc'
                 ? <ArrowDownWideNarrow size={20} aria-hidden="true" />
                 : <ArrowUpNarrowWide size={20} aria-hidden="true" />}
-            </button>
+            </Button>
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">من تاريخ</label>
-            <input type="date" className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            <Input type="date" className="w-full"
               value={filters.from} onChange={(e) => setF('from', e.target.value)} />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">إلى تاريخ</label>
-            <input type="date" className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            <Input type="date" className="w-full"
               value={filters.to} onChange={(e) => setF('to', e.target.value)} />
           </div>
           <div className="flex items-end">
-            <button className="btn-ghost w-full justify-center" onClick={resetFilters}>مسح المرشّحات</button>
+            <Button variant="ghost" className="w-full justify-center" onClick={resetFilters}>مسح المرشّحات</Button>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* الجدول */}
-      <div className="card">
+      <Card className="p-6">
         <div className="flex items-center justify-between mb-3 text-sm text-muted-foreground">
           <span>النتائج: {rows.length}</span>
           {selected.size > 0 && <span>محدّد: {selected.size}</span>}
@@ -207,57 +219,55 @@ export default function Transactions({ isAdmin }) {
         ) : rows.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">لا عمليات تطابق المرشّحات. وسّع المدى أو امسح المرشّحات.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-end">
-              <thead>
-                <tr className="text-muted-foreground text-sm border-b border-border">
+                      <Table>
+              <TableHeader>
+                <TableRow>
                   {isAdmin && (
-                    <th className="py-3 w-8">
+                    <TableHead className="w-8">
                       <input type="checkbox" checked={allChecked} onChange={toggleAll} />
-                    </th>
+                    </TableHead>
                   )}
-                  <th className="py-3 font-semibold">#</th>
-                  <th className="py-3 font-semibold">المصدر</th>
-                  <th className="py-3 font-semibold">النص الأصلي</th>
-                  <th className="py-3 font-semibold">المرفق</th>
-                  <th className="py-3 font-semibold">القيد</th>
-                  <th className="py-3 font-semibold">وافق</th>
-                  <th className="py-3 font-semibold">الحالة</th>
-                  <th className="py-3 font-semibold">التاريخ</th>
-                </tr>
-              </thead>
-              <tbody>
+                  <TableHead>#</TableHead>
+                  <TableHead>المصدر</TableHead>
+                  <TableHead>النص الأصلي</TableHead>
+                  <TableHead>المرفق</TableHead>
+                  <TableHead>القيد</TableHead>
+                  <TableHead>وافق</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead>التاريخ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {rows.map((t) => (
-                  <tr key={t.id} className={`border-b border-border align-top hover:bg-background ${selected.has(t.id) ? 'bg-accent' : ''}`}>
+                  <TableRow key={t.id} className="align-top" data-state={selected.has(t.id) ? 'bg-accent' : '' ? "selected" : undefined}>
                     {isAdmin && (
-                      <td className="py-3">
+                      <TableCell>
                         <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
-                      </td>
+                      </TableCell>
                     )}
-                    <td className="py-3 text-foreground">{t.id}</td>
-                    <td className="py-3 whitespace-nowrap">
+                    <TableCell className="text-foreground">{t.id}</TableCell>
+                    <TableCell className="whitespace-nowrap">
                       <SourceIcon type={t.source_type} />
-                    </td>
-                    <td className="py-3 text-foreground">
+                    </TableCell>
+                    <TableCell className="text-foreground">
                       <div className="max-w-xs truncate" title={t.raw_text || ''}>{t.raw_text || '—'}</div>
                       {t.error_message && <div className="text-destructive text-xs mt-1"><CircleAlert size={16} className="inline" aria-hidden="true" /> {t.error_message}</div>}
-                    </td>
-                    <td className="py-3"><MediaViewer mediaKey={t.media_r2_key} /></td>
-                    <td className="py-3"><JsonPreview json={t.processed_json} /></td>
-                    <td className="py-3 text-muted-foreground text-sm">
+                    </TableCell>
+                    <TableCell><MediaViewer mediaKey={t.media_r2_key} /></TableCell>
+                    <TableCell><JsonPreview json={t.processed_json} /></TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
                       {t.wafeq_draft_id ? <span dir="ltr">#{t.wafeq_draft_id}</span> : '—'}
-                    </td>
-                    <td className="py-3"><StatusBadge status={t.status} /></td>
-                    <td className="py-3 text-muted-foreground text-sm whitespace-nowrap">
+                    </TableCell>
+                    <TableCell><StatusBadge status={t.status} /></TableCell>
+                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                       {fmtDateTime(t.created_at)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

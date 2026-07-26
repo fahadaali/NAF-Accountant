@@ -3,6 +3,11 @@ import { api } from '../lib/api.js';
 import { fmtAmount, CURRENCY } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { CircleAlert, CircleCheck } from 'lucide-react';
+import { Button } from '../naf/ui/button.jsx';
+import { Input } from '../naf/ui/input.jsx';
+import { Card } from '../naf/ui/card.jsx';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
+import ConfirmDialog from '../components/ConfirmDialog.jsx';
 
 const TYPE_AR = {
   manual_journal: 'قيد يومية',
@@ -31,6 +36,7 @@ export default function Recurring() {
   const [transactions, setTransactions] = useState([]);
   const [form, setForm] = useState({ transaction_id: '', label: '', day_of_month: 1 });
   const [msg, setMsg] = useState('');
+  const [pending, setPending] = useState(null);
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -62,6 +68,16 @@ export default function Recurring() {
 
   return (
     <div className="space-y-6">
+      {pending && (
+        <ConfirmDialog
+          open={!!pending}
+          onOpenChange={(v) => !v && setPending(null)}
+          title="حذف القالب"
+          description={`سيتوقّف إنشاء العملية المتكرّرة «${pending.label}» شهرياً. العمليات التي أُنشئت من قبل تبقى كما هي.`}
+          actionLabel="حذف"
+          onConfirm={() => run(() => api.deleteRecurring(pending.id), 'تم الحذف.')}
+        />
+      )}
       <div>
         <h2 className="text-2xl font-bold text-foreground">العمليات المتكرّرة</h2>
         <p className="text-muted-foreground mt-1">
@@ -72,7 +88,7 @@ export default function Recurring() {
       {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
       {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
-      <div className="card">
+      <Card className="p-6">
         <h3 className="font-bold text-foreground mb-1">إنشاء قالب متكرّر</h3>
         <p className="text-muted-foreground text-sm mb-4">
           اختر عملية سابقة لتُستنسخ شهرياً — يُستخدم نفس الحسابات والمبالغ والمورّد، ويتغيّر التاريخ فقط.
@@ -100,60 +116,58 @@ export default function Recurring() {
               </option>
             ))}
           </select>
-          <input
+          <Input
             required placeholder="الاسم (مثال: إيجار المكتب)"
-            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={form.label}
             onChange={(e) => setForm({ ...form, label: e.target.value })}
           />
           <div className="flex gap-2">
-            <input
+            <Input
               type="number" min="1" max="28" required title="يوم التنفيذ من الشهر"
-              className="w-20 border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+              className="w-20"
               value={form.day_of_month}
               onChange={(e) => setForm({ ...form, day_of_month: e.target.value })}
             />
-            <button className="btn-primary flex-1 justify-center" type="submit">إضافة</button>
+            <Button className="flex-1 justify-center" type="submit">إضافة</Button>
           </div>
         </form>
         <p className="text-xs text-muted-foreground mt-2">يوم التنفيذ من ١ إلى ٢٨ (لضمان وجوده في كل الشهور).</p>
-      </div>
+      </Card>
 
-      <div className="card">
-        <div className="overflow-x-auto">
-          <table className="w-full text-end">
-            <thead>
-              <tr className="text-muted-foreground text-sm border-b border-border">
-                <th className="py-2 font-semibold">الاسم</th>
-                <th className="py-2 font-semibold">التفاصيل</th>
-                <th className="py-2 font-semibold">يوم التنفيذ</th>
-                <th className="py-2 font-semibold">آخر تنفيذ</th>
-                <th className="py-2 font-semibold">الحالة</th>
-                <th className="py-2 font-semibold">إجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
+      <Card className="p-6">
+                  <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الاسم</TableHead>
+                <TableHead>التفاصيل</TableHead>
+                <TableHead>يوم التنفيذ</TableHead>
+                <TableHead>آخر تنفيذ</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead>إجراءات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="py-8 text-center text-muted-foreground">
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                     لم تُضِف أي عملية متكرّرة بعد. ابدأ بإضافة أول عملية.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 rows.map((r) => (
-                  <tr key={r.id} className="border-b border-border hover:bg-background">
-                    <td className="py-3 font-semibold text-foreground">{r.label}</td>
-                    <td className="py-3 text-foreground text-sm">{templateSummary(r.template_json)}</td>
-                    <td className="py-3 text-foreground">{r.day_of_month}</td>
-                    <td className="py-3 text-muted-foreground text-sm">{r.last_run_ym || 'لم يُنفّذ بعد'}</td>
-                    <td className="py-3">
+                  <TableRow key={r.id}>
+                    <TableCell className="font-semibold text-foreground">{r.label}</TableCell>
+                    <TableCell className="text-foreground text-sm">{templateSummary(r.template_json)}</TableCell>
+                    <TableCell className="text-foreground">{r.day_of_month}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{r.last_run_ym || 'لم يُنفّذ بعد'}</TableCell>
+                    <TableCell>
                       <span className={`badge ${r.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
                         {r.is_active ? 'مفعّل' : 'موقوف'}
                       </span>
-                    </td>
-                    <td className="py-3 flex gap-3">
-                      <button
-                        className="text-sm text-primary hover:underline"
+                    </TableCell>
+                    <TableCell className="flex gap-3">
+                      <Button variant="link" size="sm"
+                        className="px-0"
                         onClick={() =>
                           run(
                             () => api.updateRecurring({ id: r.id, is_active: !r.is_active }),
@@ -162,24 +176,20 @@ export default function Recurring() {
                         }
                       >
                         {r.is_active ? 'إيقاف' : 'تفعيل'}
-                      </button>
-                      <button
-                        className="text-sm text-destructive hover:underline"
-                        onClick={() => {
-                          if (confirm(`حذف القالب «${r.label}»؟`))
-                            run(() => api.deleteRecurring(r.id), 'تم الحذف.');
-                        }}
+                      </Button>
+                      <Button variant="link" size="sm"
+                        className="px-0 text-destructive"
+                        onClick={() => setPending(r)}
                       >
                         حذف
-                      </button>
-                    </td>
-                  </tr>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </TableBody>
+          </Table>
+      </Card>
     </div>
   );
 }

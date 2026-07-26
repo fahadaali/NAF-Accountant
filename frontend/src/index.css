@@ -23,24 +23,11 @@
   }
 }
 
+/* لم يبقَ من الأصناف المحلية إلا .badge: السجلّ لا يحوي عنصر شارة
+   حتى v1.1.1. البطاقة والزرّ والحقل والجدول والتنبيه صارت من naf/ui.
+   حين تُضاف شارة إلى السجلّ يُحذف هذا الصنف. */
 @layer components {
-  .card {
-    @apply bg-card rounded-xl shadow-sm border border-border p-6;
-  }
-  /* في v4 لا يجوز @apply على صنف مكوّن آخر، فتُضمَّن أنماط .btn في كل نوع.
-     المخرج البصري مطابق تماماً لما كان في v3. */
-  .btn {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition;
-  }
-  .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition;
-    @apply bg-primary text-primary-foreground hover:bg-primary/90;
-  }
-  .btn-ghost {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition;
-    @apply bg-muted text-foreground hover:bg-muted/70;
-  }
   .badge {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
+    @apply inline-flex items-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold;
   }
 }

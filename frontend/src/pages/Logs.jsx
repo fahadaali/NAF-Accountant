@@ -3,6 +3,9 @@ import { api } from '../lib/api.js';
 import { TriangleAlert, RefreshCw, CircleAlert } from 'lucide-react';
 import { fmtDateTime } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
+import { Button } from '../naf/ui/button.jsx';
+import { Card } from '../naf/ui/card.jsx';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
 
 const STATUS_STYLE = {
   success: 'bg-success/10 text-success',
@@ -65,58 +68,56 @@ export default function Logs() {
           <p className="text-muted-foreground mt-1">تتبّع العمليات والأخطاء لتشخيص المشاكل</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            className={onlyErrors ? 'btn bg-destructive text-destructive-foreground' : 'btn-ghost'}
+          <Button
+            variant={onlyErrors ? 'destructive' : 'ghost'}
             onClick={() => setOnlyErrors((v) => !v)}
           >
             <TriangleAlert size={20} /> الأخطاء فقط ({errorCount})
-          </button>
-          <button className="btn-ghost" onClick={load}><RefreshCw size={20} /> تحديث</button>
+          </Button>
+          <Button variant="ghost" onClick={load}><RefreshCw size={20} /> تحديث</Button>
         </div>
       </div>
 
       {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
 
-      <div className="card">
+      <Card className="p-6">
         {loading ? (
           <p className="text-muted-foreground text-center py-8">جارٍ التحميل…</p>
         ) : shown.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">السجلّ فارغ. تظهر هنا أحداث النظام أولاً بأول.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-end">
-              <thead>
-                <tr className="text-muted-foreground text-sm border-b border-border">
-                  <th className="py-3 font-semibold">الوقت</th>
-                  <th className="py-3 font-semibold">الإجراء</th>
-                  <th className="py-3 font-semibold">الحالة</th>
-                  <th className="py-3 font-semibold">العملية</th>
-                  <th className="py-3 font-semibold">التفاصيل</th>
-                </tr>
-              </thead>
-              <tbody>
+                      <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>الوقت</TableHead>
+                  <TableHead>الإجراء</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead>العملية</TableHead>
+                  <TableHead>التفاصيل</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {shown.map((l) => (
-                  <tr key={l.id} className="border-b border-border align-top hover:bg-background">
-                    <td className="py-3 text-muted-foreground text-sm whitespace-nowrap">
+                  <TableRow key={l.id} className="align-top">
+                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                       {fmtDateTime(l.timestamp)}
-                    </td>
-                    <td className="py-3 text-foreground">{ACTION_AR[l.action] || l.action}</td>
-                    <td className="py-3">
+                    </TableCell>
+                    <TableCell className="text-foreground">{ACTION_AR[l.action] || l.action}</TableCell>
+                    <TableCell>
                       <span className={`badge ${STATUS_STYLE[l.status] || STATUS_STYLE.info}`}>
                         {l.status === 'success' ? 'نجح' : l.status === 'error' ? 'خطأ' : 'معلومة'}
                       </span>
-                    </td>
-                    <td className="py-3 text-muted-foreground text-sm">{l.transaction_id || '—'}</td>
-                    <td className="py-3 text-foreground text-sm max-w-md break-words">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{l.transaction_id || '—'}</TableCell>
+                    <TableCell className="text-foreground text-sm max-w-md break-words">
                       {l.error_details || '—'}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

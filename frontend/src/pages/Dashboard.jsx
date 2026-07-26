@@ -5,6 +5,8 @@ import SourceIcon from '../components/SourceIcon.jsx';
 import { Inbox, FilePen, Bot, CircleAlert } from 'lucide-react';
 import { fmtDateTime } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
+import { Card } from '../naf/ui/card.jsx';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
 
 // الأيقونات والألوان من السجلّ: naf-icons.md — والخلفية مخفّفة من الرمز
 // نفسه (CLAUDE.md §6) لا من درجة لوحة.
@@ -61,7 +63,7 @@ export default function Dashboard() {
       {/* البطاقات الإحصائية */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {STAT_CARDS.map((c) => (
-          <div key={c.key} className="card flex items-center gap-4">
+          <Card key={c.key} className="p-6 flex items-center gap-4">
             <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${c.color}`}>
               <c.Icon size={24} aria-hidden="true" />
             </div>
@@ -69,46 +71,44 @@ export default function Dashboard() {
               <div className="text-3xl font-bold text-foreground">{countFor(c.key)}</div>
               <div className="text-muted-foreground text-sm">{c.label}</div>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 
       {/* أحدث العمليات */}
-      <div className="card">
+      <Card className="p-6">
         <h3 className="text-lg font-bold text-foreground mb-4">أحدث العمليات</h3>
         {recent.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">لم تصل أي عملية بعد. أرسل أول عملية من بوت تليجرام.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-end">
-              <thead>
-                <tr className="text-muted-foreground text-sm border-b border-border">
-                  <th className="py-3 font-semibold">#</th>
-                  <th className="py-3 font-semibold">المصدر</th>
-                  <th className="py-3 font-semibold">النص</th>
-                  <th className="py-3 font-semibold">الحالة</th>
-                  <th className="py-3 font-semibold">التاريخ</th>
-                </tr>
-              </thead>
-              <tbody>
+                      <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>#</TableHead>
+                  <TableHead>المصدر</TableHead>
+                  <TableHead>النص</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead>التاريخ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {recent.map((t) => (
-                  <tr key={t.id} className="border-b border-border hover:bg-background">
-                    <td className="py-3 text-foreground">{t.id}</td>
-                    <td className="py-3">
+                  <TableRow key={t.id}>
+                    <TableCell className="text-foreground">{t.id}</TableCell>
+                    <TableCell>
                       <SourceIcon type={t.source_type} withLabel />
-                    </td>
-                    <td className="py-3 text-foreground max-w-xs truncate">{t.raw_text || '—'}</td>
-                    <td className="py-3"><StatusBadge status={t.status} /></td>
-                    <td className="py-3 text-muted-foreground text-sm">
+                    </TableCell>
+                    <TableCell className="text-foreground max-w-xs truncate">{t.raw_text || '—'}</TableCell>
+                    <TableCell><StatusBadge status={t.status} /></TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
                       {fmtDateTime(t.created_at)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

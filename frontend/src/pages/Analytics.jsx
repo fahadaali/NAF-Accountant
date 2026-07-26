@@ -4,6 +4,8 @@ import { fmtNumber, fmtAmount, CURRENCY } from '../lib/format.js';
 import Money from '../components/Money.jsx';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { CircleAlert } from 'lucide-react';
+import { Card } from '../naf/ui/card.jsx';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
 
 // ألوان الرسوم من رموز الثيم — لا قيم مباشرة (CLAUDE.md §1).
 // chart-2 (أزرق) + chart-3 (أخضر): الزوج اجتاز كل فحوص مدقّق dataviz
@@ -28,7 +30,7 @@ function monthLabel(ym) {
 function BarList({ title, data, empty }) {
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
-    <div className="card">
+    <Card className="p-6">
       <h3 className="font-bold text-foreground mb-4">{title}</h3>
       {data.length === 0 ? (
         <p className="text-muted-foreground text-center py-8">{empty}</p>
@@ -50,7 +52,7 @@ function BarList({ title, data, empty }) {
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -58,10 +60,10 @@ function BarList({ title, data, empty }) {
 function TrendChart({ data }) {
   if (data.length === 0) {
     return (
-      <div className="card">
+      <Card className="p-6">
         <h3 className="font-bold text-foreground mb-4">الاتجاه الشهري</h3>
         <p className="text-muted-foreground text-center py-8">تظهر الرسوم بعد أول شهر مكتمل من العمليات.</p>
-      </div>
+      </Card>
     );
   }
 
@@ -79,7 +81,7 @@ function TrendChart({ data }) {
   const last = data[data.length - 1];
 
   return (
-    <div className="card">
+    <Card className="p-6">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
         <h3 className="font-bold text-foreground">الاتجاه الشهري</h3>
         {/* الأسطورة: الهوية لا تعتمد على اللون وحده */}
@@ -139,7 +141,7 @@ function TrendChart({ data }) {
         <span>آخر شهر — إيرادات: <Money value={last.revenue} className="text-foreground font-bold" /></span>
         <span>مصروفات: <Money value={last.expenses} className="text-foreground font-bold" /></span>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -204,33 +206,31 @@ export default function Analytics() {
 
           {/* عرض جدولي — الهوية والقيم متاحة دون الاعتماد على اللون */}
           {(data?.monthly || []).length > 0 && (
-            <div className="card">
+            <Card className="p-6">
               <h3 className="font-bold text-foreground mb-4">البيانات (عرض جدولي)</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-end">
-                  <thead>
-                    <tr className="text-muted-foreground text-sm border-b border-border">
-                      <th className="py-2 font-semibold">الشهر</th>
-                      <th className="py-2 font-semibold">الإيرادات</th>
-                      <th className="py-2 font-semibold">المصروفات</th>
-                      <th className="py-2 font-semibold">الصافي</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                              <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>الشهر</TableHead>
+                      <TableHead>الإيرادات</TableHead>
+                      <TableHead>المصروفات</TableHead>
+                      <TableHead>الصافي</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {data.monthly.map((m) => (
-                      <tr key={m.month} className="border-b border-border">
-                        <td className="py-2 text-foreground">{monthLabel(m.month)}</td>
-                        <td className="py-2 tabular-nums text-foreground">{fmt(m.revenue)}</td>
-                        <td className="py-2 tabular-nums text-foreground">{fmt(m.expenses)}</td>
-                        <td className="py-2 tabular-nums font-semibold text-foreground">
+                      <TableRow key={m.month}>
+                        <TableCell className="text-foreground">{monthLabel(m.month)}</TableCell>
+                        <TableCell className="tabular-nums text-foreground">{fmt(m.revenue)}</TableCell>
+                        <TableCell className="tabular-nums text-foreground">{fmt(m.expenses)}</TableCell>
+                        <TableCell className="tabular-nums font-semibold text-foreground">
                           {fmt(m.revenue - m.expenses)}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  </TableBody>
+                </Table>
+            </Card>
           )}
         </>
       )}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchMediaUrl } from '../lib/api.js';
 import { Mic, Image } from 'lucide-react';
+import { Button } from '../naf/ui/button.jsx';
 
 /**
  * عرض مرفق العملية (تسجيل صوتي أو صورة فاتورة) المخزّن في R2.
@@ -39,8 +40,8 @@ export default function MediaViewer({ mediaKey }) {
 
   return (
     <div>
-      <button
-        className="text-primary text-sm hover:underline inline-flex items-center gap-2"
+      <Button
+        variant="link" size="sm" className="px-0"
         onClick={() => setOpen((o) => !o)}
       >
         {open ? (
@@ -50,7 +51,7 @@ export default function MediaViewer({ mediaKey }) {
         ) : (
           <><Image size={16} aria-hidden="true" /> عرض</>
         )}
-      </button>
+      </Button>
       {open && (
         <div className="mt-2">
           {loading && <span className="text-muted-foreground text-xs">جارٍ التحميل…</span>}

@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import { Bell, CircleAlert, CircleCheck } from 'lucide-react';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
+import { Button } from '../naf/ui/button.jsx';
+import { Input } from '../naf/ui/input.jsx';
+import { Card } from '../naf/ui/card.jsx';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
+import ConfirmDialog from '../components/ConfirmDialog.jsx';
 
 const EMPTY_USER = { email: '', password: '', role: 'user' };
 const EMPTY_CHAT = { chat_id: '', label: '', is_admin: 0 };
@@ -12,6 +17,7 @@ export default function Team() {
   const [userForm, setUserForm] = useState(EMPTY_USER);
   const [chatForm, setChatForm] = useState(EMPTY_CHAT);
   const [msg, setMsg] = useState('');
+  const [pendingChat, setPendingChat] = useState(null);
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -43,6 +49,16 @@ export default function Team() {
 
   return (
     <div className="space-y-6">
+      {pendingChat && (
+        <ConfirmDialog
+          open={!!pendingChat}
+          onOpenChange={(v) => !v && setPendingChat(null)}
+          title="حذف المحادثة"
+          description={`لن يستقبل النظام عمليات من المحادثة ${pendingChat.chat_id} بعد الحذف.`}
+          actionLabel="حذف"
+          onConfirm={() => run(() => api.deleteChat(pendingChat.chat_id), 'تم الحذف.')}
+        />
+      )}
       <div>
         <h2 className="text-2xl font-bold text-foreground">الفريق والصلاحيات</h2>
         <p className="text-muted-foreground mt-1">مستخدمو اللوحة، ومحادثات تليجرام المصرّح لها</p>
@@ -52,7 +68,7 @@ export default function Team() {
       {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
       {/* ============ مستخدمو اللوحة ============ */}
-      <div className="card">
+      <Card className="p-6">
         <h3 className="font-bold text-foreground mb-1">مستخدمو لوحة التحكم</h3>
         <p className="text-muted-foreground text-sm mb-4">
           «مسؤول» يملك كل الصلاحيات · «مستخدم» يطّلع فقط دون تعديل أو حذف.
@@ -68,15 +84,13 @@ export default function Team() {
             }, 'تمت إضافة المستخدم.');
           }}
         >
-          <input
+          <Input
             type="email" dir="ltr" required placeholder="البريد الإلكتروني"
-            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={userForm.email}
             onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
           />
-          <input
+          <Input
             type="password" dir="ltr" required placeholder="كلمة المرور (8+)"
-            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={userForm.password}
             onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
           />
@@ -88,24 +102,23 @@ export default function Team() {
             <option value="user">مستخدم (اطّلاع)</option>
             <option value="admin">مسؤول</option>
           </select>
-          <button className="btn-primary justify-center" type="submit">إضافة</button>
+          <Button className="justify-center" type="submit">إضافة</Button>
         </form>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-end">
-            <thead>
-              <tr className="text-muted-foreground text-sm border-b border-border">
-                <th className="py-2 font-semibold">البريد</th>
-                <th className="py-2 font-semibold">الصلاحية</th>
-                <th className="py-2 font-semibold">الحالة</th>
-                <th className="py-2 font-semibold">إجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
+                  <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>البريد</TableHead>
+                <TableHead>الصلاحية</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead>إجراءات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-border hover:bg-background">
-                  <td className="py-3 text-foreground" dir="ltr">{u.email}</td>
-                  <td className="py-3">
+                <TableRow key={u.id}>
+                  <TableCell className="text-foreground" dir="ltr">{u.email}</TableCell>
+                  <TableCell>
                     <select
                       className="border border-border rounded-lg px-2 py-1 text-sm"
                       value={u.role}
@@ -116,15 +129,15 @@ export default function Team() {
                       <option value="user">مستخدم</option>
                       <option value="admin">مسؤول</option>
                     </select>
-                  </td>
-                  <td className="py-3">
+                  </TableCell>
+                  <TableCell>
                     <span className={`badge ${u.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
                       {u.is_active ? 'نشط' : 'معطّل'}
                     </span>
-                  </td>
-                  <td className="py-3">
-                    <button
-                      className="text-sm text-primary hover:underline"
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="link" size="sm"
+                      className="px-0"
                       onClick={() =>
                         run(
                           () => api.updateUser({ id: u.id, is_active: !u.is_active }),
@@ -133,17 +146,16 @@ export default function Team() {
                       }
                     >
                       {u.is_active ? 'تعطيل' : 'تفعيل'}
-                    </button>
-                  </td>
-                </tr>
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </TableBody>
+          </Table>
+      </Card>
 
       {/* ============ محادثات تليجرام ============ */}
-      <div className="card">
+      <Card className="p-6">
         <h3 className="font-bold text-foreground mb-1">محادثات تليجرام المصرّح لها</h3>
         <p className="text-muted-foreground text-sm mb-4">
           من يستطيع إرسال العمليات للبوت. «مسؤول» يستقبل تنبيهات فشل المهام المجدولة.
@@ -163,15 +175,13 @@ export default function Team() {
             }, 'تم حفظ المحادثة.');
           }}
         >
-          <input
+          <Input
             required placeholder="معرّف المحادثة (رقم)" dir="ltr"
-            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={chatForm.chat_id}
             onChange={(e) => setChatForm({ ...chatForm, chat_id: e.target.value })}
           />
-          <input
+          <Input
             placeholder="الاسم (اختياري)"
-            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={chatForm.label}
             onChange={(e) => setChatForm({ ...chatForm, label: e.target.value })}
           />
@@ -183,41 +193,40 @@ export default function Team() {
             />
             يستقبل التنبيهات
           </label>
-          <button className="btn-primary justify-center" type="submit">إضافة</button>
+          <Button className="justify-center" type="submit">إضافة</Button>
         </form>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-end">
-            <thead>
-              <tr className="text-muted-foreground text-sm border-b border-border">
-                <th className="py-2 font-semibold">المعرّف</th>
-                <th className="py-2 font-semibold">الاسم</th>
-                <th className="py-2 font-semibold">تنبيهات</th>
-                <th className="py-2 font-semibold">الحالة</th>
-                <th className="py-2 font-semibold">إجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
+                  <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>المعرّف</TableHead>
+                <TableHead>الاسم</TableHead>
+                <TableHead>تنبيهات</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead>إجراءات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {chats.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="py-6 text-center text-muted-foreground">
+                <TableRow>
+                  <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
                     لم تُضِف أي محادثة بعد. يُستخدم حالياً المتغيّر AUTHORIZED_CHAT_IDS الاحتياطي.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 chats.map((ch) => (
-                  <tr key={ch.chat_id} className="border-b border-border hover:bg-background">
-                    <td className="py-3 font-mono text-foreground" dir="ltr">{ch.chat_id}</td>
-                    <td className="py-3 text-foreground">{ch.label || '—'}</td>
-                    <td className="py-3">{ch.is_admin ? <span className="inline-flex items-center gap-2"><Bell size={16} /> نعم</span> : '—'}</td>
-                    <td className="py-3">
+                  <TableRow key={ch.chat_id}>
+                    <TableCell className="font-mono text-foreground" dir="ltr">{ch.chat_id}</TableCell>
+                    <TableCell className="text-foreground">{ch.label || '—'}</TableCell>
+                    <TableCell>{ch.is_admin ? <span className="inline-flex items-center gap-2"><Bell size={16} /> نعم</span> : '—'}</TableCell>
+                    <TableCell>
                       <span className={`badge ${ch.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
                         {ch.is_active ? 'مصرّح' : 'موقوف'}
                       </span>
-                    </td>
-                    <td className="py-3 flex gap-3">
-                      <button
-                        className="text-sm text-primary hover:underline"
+                    </TableCell>
+                    <TableCell className="flex gap-3">
+                      <Button variant="link" size="sm"
+                        className="px-0"
                         onClick={() =>
                           run(
                             () => api.saveChat({ ...ch, is_active: ch.is_active ? 0 : 1 }),
@@ -226,24 +235,20 @@ export default function Team() {
                         }
                       >
                         {ch.is_active ? 'إيقاف' : 'تفعيل'}
-                      </button>
-                      <button
-                        className="text-sm text-destructive hover:underline"
-                        onClick={() => {
-                          if (confirm(`حذف المحادثة ${ch.chat_id}؟`))
-                            run(() => api.deleteChat(ch.chat_id), 'تم الحذف.');
-                        }}
+                      </Button>
+                      <Button variant="link" size="sm"
+                        className="px-0 text-destructive"
+                        onClick={() => setPendingChat(ch)}
                       >
                         حذف
-                      </button>
-                    </td>
-                  </tr>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </TableBody>
+          </Table>
+      </Card>
     </div>
   );
 }

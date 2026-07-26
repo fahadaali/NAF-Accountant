@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
 import { auth, setToken } from '../lib/api.js';
+import { Input } from '../naf/ui/input.jsx';
+import { CircleAlert } from 'lucide-react';
+import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
+import { Button } from '../naf/ui/button.jsx';
+import { Card } from '../naf/ui/card.jsx';
 
 export default function Login({ onAuthed }) {
   const [mode, setMode] = useState('login'); // 'login' | 'setup'
@@ -64,7 +69,7 @@ export default function Login({ onAuthed }) {
           <p className="text-sidebar-foreground/80 mt-2">المحاسب الذكي · لوحة التحكم</p>
         </div>
 
-        <div className="bg-card rounded-lg shadow-2xl p-8">
+        <Card className="shadow-2xl p-8">
           <h2 className="text-xl font-bold text-foreground mb-1">
             {mode === 'setup' ? 'إنشاء حساب المسؤول الأول' : 'تسجيل الدخول'}
           </h2>
@@ -75,16 +80,19 @@ export default function Login({ onAuthed }) {
           </p>
 
           {error && (
-            <div className="mb-4 bg-destructive/10 text-destructive text-sm rounded-lg px-4 py-3">{error}</div>
+            <Alert variant="destructive" className="mb-4">
+              <CircleAlert />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           <form onSubmit={submit} className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-foreground mb-1">البريد الإلكتروني</label>
-              <input
+              <Input
                 type="email"
                 dir="ltr"
-                className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-start"
+                className="w-full text-start"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -93,10 +101,10 @@ export default function Login({ onAuthed }) {
             </div>
             <div>
               <label className="block text-sm font-semibold text-foreground mb-1">كلمة المرور</label>
-              <input
+              <Input
                 type="password"
                 dir="ltr"
-                className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-start"
+                className="w-full text-start"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -106,10 +114,10 @@ export default function Login({ onAuthed }) {
             {mode === 'setup' && (
               <div>
                 <label className="block text-sm font-semibold text-foreground mb-1">تأكيد كلمة المرور</label>
-                <input
+                <Input
                   type="password"
                   dir="ltr"
-                  className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-start"
+                  className="w-full text-start"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   required
@@ -117,11 +125,11 @@ export default function Login({ onAuthed }) {
                 />
               </div>
             )}
-            <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3">
+            <Button type="submit" disabled={loading} size="lg" className="w-full">
               {loading ? '…' : mode === 'setup' ? 'إنشاء الحساب والدخول' : 'دخول'}
-            </button>
+            </Button>
           </form>
-        </div>
+        </Card>
 
         <p className="text-center text-sidebar-foreground/50 text-xs mt-6">
           مدعوم بالذكاء الاصطناعي · Claude & Wafeq
