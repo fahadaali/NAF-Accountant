@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { LogOut, LoaderCircle, CircleCheck, CircleSlash, Send, ChartColumn, CircleAlert } from 'lucide-react';
+import { LogOut, LoaderCircle, CircleCheck, CircleSlash, Send, ChartColumn, CircleAlert, CircleHelp } from 'lucide-react';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
 import { Card } from '../naf/ui/card.jsx';
@@ -115,7 +115,7 @@ export default function Settings({ user, onLogout }) {
               <div className="text-xs text-muted-foreground mt-1">{ASR_LABELS[asr]?.note || ''}</div>
             </div>
             <Badge variant={ASR_LABELS[asr]?.variant || 'default'}>
-              نشط
+              <CircleCheck size={16} aria-hidden="true" /> نشط
             </Badge>
           </div>
           {asr === 'cloudflare' && (
@@ -144,7 +144,7 @@ export default function Settings({ user, onLogout }) {
                   <code className="text-xs text-muted-foreground" dir="ltr">{k.hint}</code>
                 </div>
                 {status == null ? (
-                  <Badge>غير معروف</Badge>
+                  <Badge><CircleHelp size={16} aria-hidden="true" /> غير معروف</Badge>
                 ) : ok ? (
                   <Badge variant="success"><CircleCheck size={16} aria-hidden="true" /> مُهيّأ</Badge>
                 ) : (

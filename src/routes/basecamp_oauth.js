@@ -15,6 +15,24 @@ import { Hono } from 'hono';
 
 const oauth = new Hono();
 
+/**
+ * رابط ورقة أنماط الواجهة المبنيّة، مُلتقطاً من index.html.
+ * اسم الملف يحمل بصمة تتغيّر مع كل بناء، فلا يصحّ تثبيته في الكود.
+ * تعيد null لو تعذّر — والصفحة تظلّ مقروءة بأنماط المتصفّح الافتراضية.
+ */
+async function appStylesheetHref(c) {
+  if (!c.env.ASSETS) return null;
+  try {
+    const url = new URL(c.req.url);
+    const res = await c.env.ASSETS.fetch(new Request(`${url.origin}/index.html`));
+    if (!res.ok) return null;
+    const m = (await res.text()).match(/href="(\/assets\/[^"]+\.css)"/);
+    return m ? m[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 function redirectUri(c) {
   const url = new URL(c.req.url);
   return `${url.origin}/api/basecamp/callback`;
@@ -66,26 +84,35 @@ oauth.get('/basecamp/callback', async (c) => {
   const accessToken = esc(data.access_token);
   const refreshToken = esc(data.refresh_token || '');
 
+  // الصفحة تُعرَض من المنصة نفسها، فهي واجهة تخضع لقواعد ناف:
+  // لا إيموجي، ولا قيمة لون مباشرة، ولا خطّ غير خطّ الهوية. وبما أنها
+  // خارج حزمة الواجهة، نلتقط ورقة الأنماط المبنيّة من index.html —
+  // اسمها يحمل بصمة تتغيّر مع كل بناء، فلا يصحّ تثبيتها.
+  const styleHref = await appStylesheetHref(c);
+
   // نعرض التوكنين ليُحفظا يدوياً كـ Secrets. لا نخزّنهما في مكان عام.
   const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ربط بيسكامب</title>
-    <style>body{font-family:system-ui;background:#f0f7f4;padding:40px;color:#052e2b}
-    .box{background:#fff;max-width:680px;margin:auto;padding:32px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.06)}
-    label{display:block;font-weight:700;margin:18px 0 6px}
-    input{width:100%;box-sizing:border-box;background:#052e2b;color:#4ade80;padding:14px;border:0;border-radius:12px;direction:ltr;font-family:monospace;font-size:13px}
-    .warn{background:#fef2f2;color:#b91c1c;padding:12px;border-radius:12px;margin-top:18px}</style></head>
-    <body><div class="box">
-    <h2>✅ تم ربط بيسكامب بنجاح</h2>
-    <p>انسخ القيمتين التاليتين وأضِفهما في Cloudflare بنوع <b>Secret</b> بالاسمين المذكورين:</p>
+    ${styleHref ? `<link rel="stylesheet" href="${styleHref}">` : ''}
+    </head>
+    <body class="bg-background text-foreground p-8">
+    <div class="max-w-2xl mx-auto bg-card border border-border rounded-lg p-8 shadow-sm">
+    <h2 class="text-2xl font-bold mb-4">تم ربط بيسكامب</h2>
+    <p class="text-muted-foreground mb-6">انسخ القيمتين التاليتين وأضِفهما في Cloudflare بنوع <b>Secret</b> بالاسمين المذكورين.</p>
 
-    <label>BASECAMP_TOKEN (توكن الوصول — يُستخدم مباشرة)</label>
-    <input readonly onclick="this.select()" value="${accessToken}">
+    <label class="block font-semibold mb-2">BASECAMP_TOKEN (توكن الوصول — يُستخدم مباشرة)</label>
+    <input readonly onclick="this.select()" value="${accessToken}"
+      class="w-full mb-6 border border-border rounded-md px-4 py-3 bg-muted font-mono text-sm" dir="ltr">
 
-    <label>BASECAMP_REFRESH_TOKEN (للتجديد التلقائي كل أسبوعين)</label>
-    <input readonly onclick="this.select()" value="${refreshToken}">
+    <label class="block font-semibold mb-2">BASECAMP_REFRESH_TOKEN (للتجديد التلقائي كل أسبوعين)</label>
+    <input readonly onclick="this.select()" value="${refreshToken}"
+      class="w-full mb-6 border border-border rounded-md px-4 py-3 bg-muted font-mono text-sm" dir="ltr">
 
-    <div class="warn">⚠️ اضغط على الحقل لتحديده ثم انسخه. بعد حفظ القيمتين، يُفضّل تعطيل مسار
-    <b>/api/basecamp/*</b>. توكن الوصول صالح أسبوعين ويُجدَّد تلقائياً بعدها.</div>
+    <div class="border border-warning/30 bg-warning/10 rounded-lg p-4 text-sm">
+      اضغط على الحقل لتحديده ثم انسخه. بعد حفظ القيمتين، يُفضّل تعطيل مسار
+      <b>/api/basecamp/*</b>. توكن الوصول صالح أسبوعين ويُجدَّد تلقائياً بعدها.
+    </div>
     </div></body></html>`;
 
   return c.html(html);

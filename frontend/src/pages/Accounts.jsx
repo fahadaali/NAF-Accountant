@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { RefreshCw, LoaderCircle, CircleAlert, CircleCheck } from 'lucide-react';
+import { RefreshCw, LoaderCircle, CircleAlert, CircleCheck, CircleSlash } from 'lucide-react';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
 import { Input } from '../naf/ui/input.jsx';
@@ -143,9 +143,9 @@ export default function Accounts({ isAdmin }) {
                     <TableCell className="text-muted-foreground text-sm">{a.wafeq_account_id || '— غير مزامن'}</TableCell>
                     <TableCell>
                       {a.is_active ? (
-                        <Badge variant="success">نشط</Badge>
+                        <Badge variant="success"><CircleCheck size={16} aria-hidden="true" /> نشط</Badge>
                       ) : (
-                        <Badge>معطّل</Badge>
+                        <Badge><CircleSlash size={16} aria-hidden="true" /> معطّل</Badge>
                       )}
                     </TableCell>
                   </TableRow>

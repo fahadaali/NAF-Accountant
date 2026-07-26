@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api.js';
-import { TriangleAlert, RefreshCw, CircleAlert } from 'lucide-react';
+import { TriangleAlert, RefreshCw, CircleAlert, CircleCheck, Info } from 'lucide-react';
 import { fmtDateTime } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
@@ -8,7 +8,12 @@ import { Card } from '../naf/ui/card.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
 import { Badge } from '../naf/ui/badge.jsx';
 
-const STATUS_VARIANT = { success: 'success', error: 'destructive', info: 'default' };
+// الحالات العامة من naf-terms.md § حالات عامة — بأيقونة ونصّ معاً.
+const STATUS_META = {
+  success: { label: 'نجح', variant: 'success', Icon: CircleCheck },
+  error: { label: 'فشل', variant: 'destructive', Icon: CircleAlert },
+  info: { label: 'معلومة', variant: 'info', Icon: Info },
+};
 
 const ACTION_AR = {
   transcribe: 'تفريغ صوتي',
@@ -101,9 +106,14 @@ export default function Logs() {
                     </TableCell>
                     <TableCell className="text-foreground">{ACTION_AR[l.action] || l.action}</TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_VARIANT[l.status] || 'default'}>
-                        {l.status === 'success' ? 'نجح' : l.status === 'error' ? 'خطأ' : 'معلومة'}
-                      </Badge>
+                      {(() => {
+                        const st = STATUS_META[l.status] || STATUS_META.info;
+                        return (
+                          <Badge variant={st.variant}>
+                            <st.Icon size={16} aria-hidden="true" /> {st.label}
+                          </Badge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">{l.transaction_id || '—'}</TableCell>
                     <TableCell className="text-foreground text-sm max-w-md break-words">

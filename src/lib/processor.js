@@ -371,7 +371,7 @@ const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانوني
 • <code>غيّر المورّد إلى جرير</code>
 • <code>عدّل المسودة قبل الأخيرة المبلغ ٩٠٠</code>
 
-<b>٣) حذف عملية</b> (يطلب تأكيد «نعم»):
+<b>٣) حذف عملية</b> (يطلب كتابة «تأكيد»):
 • <code>احذف القيد</code>
 • <code>احذف فاتورة جرير</code>
 • <code>احذف المسودة mjou_xxx</code>
@@ -498,7 +498,7 @@ export async function processTelegramUpdate(env, update) {
       const answer = (finalText || '').trim();
       await clearConversationState(env.DB, chatId);
 
-      if (!/^(نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
+      if (!/^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
         await updateTransaction(env.DB, txId, { status: 'posted' });
         await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الحذف. لم يُحذف شيء.');
         return;
@@ -559,7 +559,7 @@ export async function processTelegramUpdate(env, update) {
     if (pendingState && pendingState.kind === 'confirm_duplicate') {
       const answer = (finalText || '').trim();
       await clearConversationState(env.DB, chatId);
-      if (!/^(نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
+      if (!/^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
         await updateTransaction(env.DB, txId, { status: 'posted' });
         await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الترحيل. لم تُسجّل العملية.');
         return;
@@ -609,7 +609,7 @@ export async function processTelegramUpdate(env, update) {
         await sendTelegramMessage(
           env,
           chatId,
-          `⚠️ <b>تأكيد الحذف</b>\n\nسيتم حذف:\n${label}\n\nأرسل «نعم» للتأكيد.`
+          `⚠️ <b>تأكيد الحذف</b>\n\nسيتم حذف:\n${label}\n\nاكتب «تأكيد» للمتابعة.`
         );
         return;
       }
@@ -655,7 +655,7 @@ export async function processTelegramUpdate(env, update) {
             chatId,
             `⚠️ <b>تأكيد حذف جماعي</b>\n\nسيتم حذف <b>${count}</b> مسودة من وافق:\n${preview}` +
               `${count > 10 ? `\n… و${count - 10} غيرها` : ''}\n\n` +
-              `⛔ لا رجعة في هذا الإجراء. أرسل «نعم» للتأكيد، أو أي شيء آخر للإلغاء.`
+              `⛔ لا رجعة في هذا الإجراء. اكتب «تأكيد» للمتابعة، أو أي شيء آخر للإلغاء.`
           );
           return;
         }
@@ -704,7 +704,7 @@ export async function processTelegramUpdate(env, update) {
             await sendTelegramMessage(
               env,
               chatId,
-              `⚠️ <b>تأكيد الحذف</b>\n\nسيتم حذف:\n${label}\n\nأرسل «نعم» للتأكيد، أو أي شيء آخر للإلغاء.`
+              `⚠️ <b>تأكيد الحذف</b>\n\nسيتم حذف:\n${label}\n\nاكتب «تأكيد» للمتابعة، أو أي شيء آخر للإلغاء.`
             );
             return;
           }
@@ -882,7 +882,7 @@ export async function processTelegramUpdate(env, update) {
         `⚠️ <b>تحذير: عملية مشابهة اليوم</b>\n\n` +
           `يوجد ${describeType(result.type)} بنفس المبلغ${result.contact_name ? ` ولنفس «${result.contact_name}»` : ''} اليوم:\n` +
           `• ${dup.summary || ''}\n🧾 ${dup.wafeqId}\n\n` +
-          `هل تريد ترحيلها مع ذلك؟ أرسل «نعم» للمتابعة، أو أي شيء آخر للإلغاء.`
+          `هل تريد ترحيلها مع ذلك؟ اكتب «تأكيد» للمتابعة، أو أي شيء آخر للإلغاء.`
       );
       return;
     }
@@ -911,7 +911,7 @@ export async function processTelegramUpdate(env, update) {
       await sendTelegramMessage(
         env,
         chatId,
-        `❌ <b>تعذّرت معالجة العملية</b>\n\nالسبب: ${msg}\n\nيرجى المحاولة مرة أخرى أو التواصل مع الدعم.`
+        `❌ <b>تعذّرت معالجة العملية</b>\n\nالسبب: ${msg}\n\nأعد المحاولة، أو تواصل مع الدعم إن تكرّر.`
       );
     } catch (_) {
       /* تجاهل فشل إرسال رسالة الخطأ */

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { Bell, CircleAlert, CircleCheck } from 'lucide-react';
+import { Bell, CircleAlert, CircleCheck, CircleSlash } from 'lucide-react';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
 import { Input } from '../naf/ui/input.jsx';
@@ -133,7 +133,9 @@ export default function Team() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={u.is_active ? 'success' : 'default'}>
-                      {u.is_active ? 'نشط' : 'معطّل'}
+                      {u.is_active
+                        ? <><CircleCheck size={16} aria-hidden="true" /> نشط</>
+                        : <><CircleSlash size={16} aria-hidden="true" /> معطّل</>}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -222,7 +224,9 @@ export default function Team() {
                     <TableCell>{ch.is_admin ? <span className="inline-flex items-center gap-2"><Bell size={16} /> نعم</span> : '—'}</TableCell>
                     <TableCell>
                       <Badge variant={ch.is_active ? 'success' : 'default'}>
-                        {ch.is_active ? 'مصرّح' : 'موقوف'}
+                        {ch.is_active
+                          ? <><CircleCheck size={16} aria-hidden="true" /> نشط</>
+                          : <><CircleSlash size={16} aria-hidden="true" /> معطّل</>}
                       </Badge>
                     </TableCell>
                     <TableCell className="flex gap-3">

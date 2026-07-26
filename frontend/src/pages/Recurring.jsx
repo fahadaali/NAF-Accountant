@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import { fmtAmount, CURRENCY } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
-import { CircleAlert, CircleCheck } from 'lucide-react';
+import { CircleAlert, CircleCheck, CircleSlash } from 'lucide-react';
 import { Button } from '../naf/ui/button.jsx';
 import { Input } from '../naf/ui/input.jsx';
 import { Card } from '../naf/ui/card.jsx';
@@ -163,7 +163,9 @@ export default function Recurring() {
                     <TableCell className="text-muted-foreground text-sm">{r.last_run_ym || 'لم يُنفّذ بعد'}</TableCell>
                     <TableCell>
                       <Badge variant={r.is_active ? 'success' : 'default'}>
-                        {r.is_active ? 'مفعّل' : 'موقوف'}
+                        {r.is_active
+                          ? <><CircleCheck size={16} aria-hidden="true" /> نشط</>
+                          : <><CircleSlash size={16} aria-hidden="true" /> معطّل</>}
                       </Badge>
                     </TableCell>
                     <TableCell className="flex gap-3">

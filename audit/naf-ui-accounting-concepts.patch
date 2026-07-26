@@ -1,7 +1,7 @@
 From 724a553ec8662da13d3112db7e74f78649884fb5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 26 Jul 2026 10:57:46 +0000
-Subject: [PATCH 1/2] =?UTF-8?q?feat(rules):=20=D8=AA=D8=B3=D8=AC=D9=8A?=
+Subject: [PATCH 1/3] =?UTF-8?q?feat(rules):=20=D8=AA=D8=B3=D8=AC=D9=8A?=
  =?UTF-8?q?=D9=84=20=D9=85=D9=81=D8=A7=D9=87=D9=8A=D9=85=20=D8=A7=D9=84?=
  =?UTF-8?q?=D9=85=D8=AD=D8=A7=D8=B3=D8=A8=D8=A9=20=E2=80=94=20=D8=A3=D9=8A?=
  =?UTF-8?q?=D9=82=D9=88=D9=86=D8=A7=D8=AA=20=D9=88=D9=85=D8=B5=D8=B7=D9=84?=
@@ -200,7 +200,7 @@ index 31ca82a..74260bb 100644
 From 99bdd81e4abf1ada9fe6e16066aee5b8efc85543 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 26 Jul 2026 17:49:08 +0000
-Subject: [PATCH 2/2] =?UTF-8?q?fix(theme)!:=20=D8=A5=D8=B9=D8=A7=D8=AF?=
+Subject: [PATCH 2/3] =?UTF-8?q?fix(theme)!:=20=D8=A5=D8=B9=D8=A7=D8=AF?=
  =?UTF-8?q?=D8=A9=20=D8=A8=D9=86=D8=A7=D8=A1=20=D9=84=D9=88=D8=AD=D8=A9=20?=
  =?UTF-8?q?=D8=A7=D9=84=D8=B1=D8=B3=D9=88=D9=85=20=D8=A7=D9=84=D8=AE=D9=85?=
  =?UTF-8?q?=D8=B3=20=D8=A8=D8=A7=D9=84=D9=82=D9=8A=D8=A7=D8=B3=20+=20?=
@@ -415,6 +415,139 @@ index 0000000..2a2c197
 +Badge.displayName = "Badge"
 +
 +export { Badge, badgeVariants }
+-- 
+2.43.0
+
+
+From 8fae0f105622f90d688907adc8c3cb58ff0c0db8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 26 Jul 2026 18:01:48 +0000
+Subject: [PATCH 3/3] =?UTF-8?q?feat(rules):=20=D8=A7=D8=B3=D8=AA=D8=AB?=
+ =?UTF-8?q?=D9=86=D8=A7=D8=A1=20=D8=A3=D8=B3=D8=B7=D8=AD=20=D8=A7=D9=84?=
+ =?UTF-8?q?=D9=85=D8=B1=D8=A7=D8=B3=D9=84=D8=A9=20+=20=D8=AA=D9=88=D8=AD?=
+ =?UTF-8?q?=D9=8A=D8=AF=20=D8=A7=D9=84=D8=AD=D8=A7=D9=84=D8=A7=D8=AA=20?=
+ =?UTF-8?q?=D8=A7=D9=84=D8=B9=D8=A7=D9=85=D8=A9?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+استثناء الإيموجي — ضيّق ومسبَّب:
+تليجرام وواتساب والرسائل النصية والبريد لا تعرض SVG داخل الرسالة،
+فـ Lucide غير متاحة هناك أصلاً، والمنع يترك الرسائل بلا بنية بصرية.
+الإيموجي مسموحة في متن الرسالة المرسلة عبر قناة كهذه — ولا شيء
+غيرها: لا في واجهة الويب، ولا في صفحة تعرضها المنصة، ولا في PDF
+تولّده. وتبقى الشروط: طقم صغير معتاد، ولا معنى محمولاً بإيموجي
+وحدها، والجملة تُقرأ صحيحة لو جُرّدت منها كلها.
+
+الحالات العامة — كانت كل منصة تسمّيها بنفسها:
+نشط/معطّل، غير معروف، نجح/فشل، معلومة — بأيقونة ولون لكلٍّ.
+و«نشط» لا «مفعّل»: الأولى تصف الحال والثانية فعلاً وقع، واستعمال
+الاثنتين في شاشتين يوهم المستخدم أنهما حالتان.
+
+Clear = «مسح»، مميَّزة عن «حذف»: مسح يُفرّغ اختياراً، وحذف يُزيل سجلّاً.
+
+وكلمة التأكيد في أسطح المراسلة «تأكيد» لا «نعم» — تُقبل «نعم»
+مُدخَلاً ولا تُعرض في نصّ الطلب.
+
+وأيقونة «إجمالي / مجموع» = Sigma، مميَّزة عن Inbox للعملية الواردة.
+---
+ CLAUDE.md    |  4 ++++
+ naf-icons.md |  6 ++++++
+ naf-terms.md | 22 ++++++++++++++++++++++
+ 3 files changed, 32 insertions(+)
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+index e9251f4..7faff13 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -79,6 +79,10 @@ The reasons are technical, not aesthetic:
+ - Screen readers announce them by unintended names
+ - Directional emoji do not mirror in RTL
+ 
++**One exception, and it is narrow: third-party messaging surfaces.** Telegram, WhatsApp, SMS and email bodies cannot render an SVG inline, so Lucide is not available there and the ban would leave those messages with no visual structure at all. Emoji are permitted in message bodies sent through such a channel — and nowhere else. Not in the web interface, not in a page the platform itself renders, not in a PDF it generates.
++
++The technical reasons for the ban still hold on those surfaces; they are simply unavoidable there. So keep the set small and conventional, never carry meaning by emoji alone, and make sure the sentence reads correctly with every emoji stripped out. A message that becomes ambiguous without its icons is written wrong.
++
+ **Meaning comes from `naf-icons.md`.** One meaning, one icon, across all five platforms. Never pick an icon for a concept already mapped there.
+ 
+ When you meet an emoji or a concept whose meaning is not in the map: do not invent a match, and do not use the nearest icon by shape. Show the surrounding context, ask for the decision, then add the approved mapping to `naf-icons.md` in the registry **before** applying it.
+diff --git a/naf-icons.md b/naf-icons.md
+index 50064eb..5169d14 100644
+--- a/naf-icons.md
++++ b/naf-icons.md
+@@ -76,6 +76,9 @@
+ | سجلّ النظام | `ClipboardList` |
+ | معالجة آلية | `Bot` |
+ | عملية واردة | `Inbox` |
++| إجمالي / مجموع | `Sigma` |
++
++`Inbox` لعملية واردة بعينها، و`Sigma` لعدّها مجموعةً. بطاقة «إجمالي العمليات» مجموع لا وارد.
+ 
+ `Receipt` للفاتورة و`ReceiptText` للقيد المحاسبي. الفاتورة مستند يُرسَل للعميل، والقيد سطر في الدفتر.
+ 
+@@ -107,6 +110,9 @@
+ | جارٍ التنفيذ | `LoaderCircle` | `muted-foreground` |
+ | مُهيّأ | `CircleCheck` | `success` |
+ | غير مُهيّأ | `CircleSlash` | `destructive` |
++| نشط | `CircleCheck` | `success` |
++| معطّل | `CircleSlash` | `muted-foreground` |
++| غير معروف | `CircleHelp` | `muted-foreground` |
+ 
+ `CircleAlert` للفشل و`TriangleAlert` للتحذير. الفشل حدث وقع، والتحذير احتمال قائم.
+ و`CircleSlash` لغير المُهيّأ لا `CircleX` — الأخيرة للمرفوض، ورفضُ مستندٍ غير نقصِ إعداد.
+diff --git a/naf-terms.md b/naf-terms.md
+index 74260bb..6facb05 100644
+--- a/naf-terms.md
++++ b/naf-terms.md
+@@ -35,12 +35,15 @@
+ | Copy | نسخ | انسخ |
+ | Share | مشاركة | شارك |
+ | Refresh | تحديث | إنعاش |
++| Clear | مسح | تفريغ، إزالة |
+ | Retry | إعادة المحاولة | حاول مجدداً |
+ | Approve | اعتماد | موافقة، قبول |
+ | Reject | رفض | ارفض |
+ | Archive | أرشفة | حفظ بالأرشيف |
+ | Restore | استعادة | استرجاع |
+ 
++**«مسح» و«حذف» ليسا واحداً.** «مسح» يُفرّغ اختياراً أو مُدخلاً ولا يمسّ بيانات — مسح المرشّحات، مسح الحقل. «حذف» يُزيل سجلّاً. لا تستعمل «امسح» بمعنى احذف.
++
+ **تنبيه على زوج شائع الخلط:** Download تُترجم "تنزيل"، و Upload تُترجم "رفع". استخدام "تحميل" للاثنين يربك المستخدم.
+ 
+ **قاعدة الاتساق عبر التدفق:** الزر الذي يقول "نشر" يجب أن ينتج رسالة "تم النشر" لا "تم الحفظ".
+@@ -122,6 +125,21 @@
+ 
+ **تنبيه:** "قيد" وحدها غامضة — تعني القيد المحاسبي وتعني التقييد. استخدم "قيد محاسبي" كاملة في العناوين، و"القيد" مختصرةً داخل سياق محاسبي واضح فقط.
+ 
++### حالات عامة
++
++تظهر في كل منصة، فتُوحَّد هنا لا في كل شاشة.
++
++| الحالة | المعتمد | الأيقونة | اللون | ممنوع |
++|---|---|---|---|---|
++| Active | نشط | `CircleCheck` | `success` | مفعّل، فعّال |
++| Inactive | معطّل | `CircleSlash` | `muted-foreground` | موقوف، غير مفعّل، متوقف |
++| Unknown | غير معروف | `CircleHelp` | `muted-foreground` | غير محدّد، — |
++| Succeeded | نجح | `CircleCheck` | `success` | ناجح، تمّ |
++| Failed | فشل | `CircleAlert` | `destructive` | خطأ، فاشل |
++| Info | معلومة | `Info` | `info` | ملاحظة |
++
++**«نشط» لا «مفعّل».** الأولى تصف الحال، والثانية تصف فعلاً وقع عليه. والمنصة التي تستعمل الاثنتين في شاشتين تُوهم المستخدم أنهما حالتان.
++
+ ### حالات العملية المحاسبية
+ 
+ دورة حياة العملية في وسيط المحاسبة، من الاستلام إلى الترحيل.
+@@ -208,6 +226,10 @@
+ > سيُحذف العميل وكل ملفاته المرتبطة. لا يمكن التراجع عن هذا.
+ > [إلغاء] [حذف]
+ 
++**في أسطح المراسلة** لا يوجد زرّ يُنقَر، فيُطلب من المستخدم كتابة كلمة. الكلمة المعتمدة **«تأكيد»** لا «نعم» — للسبب نفسه: «نعم» جواب لا فعل، ولا تخبر المستخدم بم يؤكّد.
++
++اقبل «نعم» **مُدخَلاً** حتى لا تُحبط من اعتادها، لكن لا تعرضها في نصّ الطلب.
++
+ ---
+ 
+ ## ٥. التنسيق
 -- 
 2.43.0
 

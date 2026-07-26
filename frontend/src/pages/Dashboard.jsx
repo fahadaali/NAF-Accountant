@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
 import SourceIcon from '../components/SourceIcon.jsx';
-import { Inbox, FilePen, Bot, CircleAlert } from 'lucide-react';
+import { Sigma, FilePen, Bot, CircleAlert } from 'lucide-react';
 import { fmtDateTime } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Card } from '../naf/ui/card.jsx';
@@ -11,7 +11,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 // الأيقونات والألوان من السجلّ: naf-icons.md — والخلفية مخفّفة من الرمز
 // نفسه (CLAUDE.md §6) لا من درجة لوحة.
 const STAT_CARDS = [
-  { key: 'total', label: 'إجمالي العمليات', Icon: Inbox, color: 'bg-accent text-primary' },
+  { key: 'total', label: 'إجمالي العمليات', Icon: Sigma, color: 'bg-accent text-primary' },
   { key: 'posted', label: 'مسودات في وافق', Icon: FilePen, color: 'bg-success/10 text-success' },
   { key: 'analyzed', label: 'قيد التحليل', Icon: Bot, color: 'bg-warning/10 text-warning' },
   { key: 'failed', label: 'عمليات فاشلة', Icon: CircleAlert, color: 'bg-destructive/10 text-destructive' },
@@ -55,7 +55,7 @@ export default function Dashboard() {
         <Alert variant="destructive">
           <CircleAlert />
           <AlertDescription>
-            تعذّر تحميل البيانات: {error} — تأكد من ضبط مفتاح لوحة التحكم في الإعدادات.
+            تعذّر جلب البيانات: {error} — تأكد من ضبط مفتاح لوحة التحكم في الإعدادات.
           </AlertDescription>
         </Alert>
       )}
