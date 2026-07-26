@@ -23,22 +23,22 @@
 
 @layer components {
   .card {
-    @apply bg-card rounded-2xl shadow-sm border border-slate-100 p-6;
+    @apply bg-card rounded-xl shadow-sm border border-slate-100 p-6;
   }
   /* في v4 لا يجوز @apply على صنف مكوّن آخر، فتُضمَّن أنماط .btn في كل نوع.
      المخرج البصري مطابق تماماً لما كان في v3. */
   .btn {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition;
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition;
   }
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition;
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition;
     @apply bg-primary text-primary-foreground hover:bg-primary/90;
   }
   .btn-ghost {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition;
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition;
     @apply bg-slate-100 text-foreground hover:bg-slate-200;
   }
   .badge {
-    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold;
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
   }
 }

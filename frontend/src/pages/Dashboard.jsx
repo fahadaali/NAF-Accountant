@@ -53,7 +53,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {STAT_CARDS.map((c) => (
           <div key={c.key} className="card flex items-center gap-4">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl ${c.color}`}>
+            <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${c.color}`}>
               {c.icon}
             </div>
             <div>

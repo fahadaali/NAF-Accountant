@@ -68,18 +68,18 @@ export default function Team() {
         >
           <input
             type="email" dir="ltr" required placeholder="البريد الإلكتروني"
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={userForm.email}
             onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
           />
           <input
             type="password" dir="ltr" required placeholder="كلمة المرور (8+)"
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={userForm.password}
             onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
           />
           <select
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={userForm.role}
             onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
           >
@@ -147,7 +147,7 @@ export default function Team() {
           من يستطيع إرسال العمليات للبوت. «مسؤول» يستقبل تنبيهات فشل المهام المجدولة.
           <br />
           لمعرفة معرّف المحادثة: اطلب من الموظف مراسلة البوت، ثم افتح رابط
-          <code className="bg-slate-100 px-1 rounded mx-1" dir="ltr">getUpdates</code>
+          <code className="bg-slate-100 px-1 rounded-sm mx-1" dir="ltr">getUpdates</code>
           الخاص بالبوت.
         </p>
 
@@ -163,13 +163,13 @@ export default function Team() {
         >
           <input
             required placeholder="معرّف المحادثة (رقم)" dir="ltr"
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={chatForm.chat_id}
             onChange={(e) => setChatForm({ ...chatForm, chat_id: e.target.value })}
           />
           <input
             placeholder="الاسم (اختياري)"
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={chatForm.label}
             onChange={(e) => setChatForm({ ...chatForm, label: e.target.value })}
           />

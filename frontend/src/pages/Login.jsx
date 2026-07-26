@@ -64,7 +64,7 @@ export default function Login({ onAuthed }) {
           <p className="text-sidebar-foreground/80 mt-2">المحاسب الذكي · لوحة التحكم</p>
         </div>
 
-        <div className="bg-card rounded-3xl shadow-2xl p-8">
+        <div className="bg-card rounded-lg shadow-2xl p-8">
           <h2 className="text-xl font-bold text-foreground mb-1">
             {mode === 'setup' ? 'إنشاء حساب المسؤول الأول' : 'تسجيل الدخول'}
           </h2>
@@ -75,7 +75,7 @@ export default function Login({ onAuthed }) {
           </p>
 
           {error && (
-            <div className="mb-4 bg-red-50 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>
+            <div className="mb-4 bg-red-50 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>
           )}
 
           <form onSubmit={submit} className="space-y-4">
@@ -84,7 +84,7 @@ export default function Login({ onAuthed }) {
               <input
                 type="email"
                 dir="ltr"
-                className="w-full border border-border rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-ring outline-none text-left"
+                className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-left"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -96,7 +96,7 @@ export default function Login({ onAuthed }) {
               <input
                 type="password"
                 dir="ltr"
-                className="w-full border border-border rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-ring outline-none text-left"
+                className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-left"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -109,7 +109,7 @@ export default function Login({ onAuthed }) {
                 <input
                   type="password"
                   dir="ltr"
-                  className="w-full border border-border rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-ring outline-none text-left"
+                  className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-left"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   required

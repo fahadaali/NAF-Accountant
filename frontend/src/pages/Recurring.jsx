@@ -86,7 +86,7 @@ export default function Recurring() {
         >
           <select
             required
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none sm:col-span-2"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none sm:col-span-2"
             value={form.transaction_id}
             onChange={(e) => setForm({ ...form, transaction_id: e.target.value })}
           >
@@ -99,14 +99,14 @@ export default function Recurring() {
           </select>
           <input
             required placeholder="الاسم (مثال: إيجار المكتب)"
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={form.label}
             onChange={(e) => setForm({ ...form, label: e.target.value })}
           />
           <div className="flex gap-2">
             <input
               type="number" min="1" max="28" required title="يوم التنفيذ من الشهر"
-              className="w-20 border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+              className="w-20 border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={form.day_of_month}
               onChange={(e) => setForm({ ...form, day_of_month: e.target.value })}
             />

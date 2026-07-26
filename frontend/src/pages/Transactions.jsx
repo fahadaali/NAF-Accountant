@@ -135,21 +135,21 @@ export default function Transactions({ isAdmin }) {
       <div className="card">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <input
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             placeholder="🔎 بحث في النص أو رقم وافق"
             value={filters.q}
             onChange={(e) => setF('q', e.target.value)}
           />
-          <select className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+          <select className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={filters.status} onChange={(e) => setF('status', e.target.value)}>
             {STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
           </select>
-          <select className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+          <select className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={filters.source_type} onChange={(e) => setF('source_type', e.target.value)}>
             {SOURCE_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
           </select>
           <div className="flex gap-2">
-            <select className="flex-1 border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            <select className="flex-1 border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={filters.sort} onChange={(e) => setF('sort', e.target.value)}>
               {SORT_OPTIONS.map((o) => <option key={o.v} value={o.v}>فرز: {o.label}</option>)}
             </select>
@@ -159,12 +159,12 @@ export default function Transactions({ isAdmin }) {
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">من تاريخ</label>
-            <input type="date" className="w-full border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            <input type="date" className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={filters.from} onChange={(e) => setF('from', e.target.value)} />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">إلى تاريخ</label>
-            <input type="date" className="w-full border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            <input type="date" className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={filters.to} onChange={(e) => setF('to', e.target.value)} />
           </div>
           <div className="flex items-end">

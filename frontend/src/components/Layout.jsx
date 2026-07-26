@@ -28,7 +28,7 @@ export default function Layout({ children, user, onLogout, isAdmin }) {
               to={l.to}
               end={l.end}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl transition ${
+                `flex items-center gap-3 px-4 py-3 rounded-lg transition ${
                   isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground/80 hover:bg-card/5'
                 }`
               }

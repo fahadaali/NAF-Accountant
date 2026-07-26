@@ -78,12 +78,12 @@ function TrendChart({ data }) {
         <h3 className="font-bold text-foreground">الاتجاه الشهري</h3>
         {/* الأسطورة: الهوية لا تعتمد على اللون وحده */}
         <div className="flex items-center gap-4 text-sm">
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 rounded" style={{ background: C_REVENUE }} />
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-0.5 rounded-sm" style={{ background: C_REVENUE }} />
             <span className="text-slate-600">الإيرادات</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 rounded" style={{ background: C_EXPENSE }} />
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-0.5 rounded-sm" style={{ background: C_EXPENSE }} />
             <span className="text-slate-600">المصروفات</span>
           </span>
         </div>
@@ -166,7 +166,7 @@ export default function Analytics() {
           <p className="text-muted-foreground mt-1">نظرة على المصروفات والإيرادات وأكبر الموردين</p>
         </div>
         <select
-          className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+          className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
           value={months}
           onChange={(e) => setMonths(Number(e.target.value))}
         >

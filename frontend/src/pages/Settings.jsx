@@ -107,7 +107,7 @@ export default function Settings({ user, onLogout }) {
               <div className="font-semibold text-foreground">
                 {ASR_LABELS[asr]?.name || asr}
               </div>
-              <div className="text-xs text-muted-foreground mt-0.5">{ASR_LABELS[asr]?.note || ''}</div>
+              <div className="text-xs text-muted-foreground mt-1">{ASR_LABELS[asr]?.note || ''}</div>
             </div>
             <span className={`badge ${ASR_LABELS[asr]?.cls || 'bg-slate-100 text-slate-600'}`}>
               نشط
@@ -115,7 +115,7 @@ export default function Settings({ user, onLogout }) {
           </div>
           {asr === 'cloudflare' && (
             <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-              لرفع الدقة لأعلى مستوى: أضِف <code className="bg-slate-100 px-1 rounded" dir="ltr">ELEVENLABS_API_KEY</code> كـ
+              لرفع الدقة لأعلى مستوى: أضِف <code className="bg-slate-100 px-1 rounded-sm" dir="ltr">ELEVENLABS_API_KEY</code> كـ
               Secret في Cloudflare، وسينتقل النظام إليه تلقائياً.
             </p>
           )}
@@ -127,7 +127,7 @@ export default function Settings({ user, onLogout }) {
         <h3 className="font-bold text-foreground mb-1">حالة مفاتيح الربط</h3>
         <p className="text-muted-foreground text-sm mb-4">
           المفاتيح الحساسة تُخزَّن بشكل مشفّر في Cloudflare Secrets ولا تظهر قيمها هنا — فقط حالة توفرها.
-          لتحديثها استخدم الأمر: <code className="bg-slate-100 px-2 py-0.5 rounded" dir="ltr">wrangler secret put &lt;NAME&gt;</code>
+          لتحديثها استخدم الأمر: <code className="bg-slate-100 px-2 py-1 rounded-sm" dir="ltr">wrangler secret put &lt;NAME&gt;</code>
         </p>
         <div className="space-y-2">
           {KEY_META.map((k) => {

@@ -80,21 +80,21 @@ export default function Accounts({ isAdmin }) {
         <h3 className="font-bold text-foreground mb-4">إضافة / تعديل حساب</h3>
         <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <input
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             placeholder="رمز الحساب"
             value={form.account_code}
             onChange={(e) => setForm({ ...form, account_code: e.target.value })}
             required
           />
           <input
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             placeholder="اسم الحساب"
             value={form.account_name}
             onChange={(e) => setForm({ ...form, account_name: e.target.value })}
             required
           />
           <select
-            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={form.account_type}
             onChange={(e) => setForm({ ...form, account_type: e.target.value })}
           >
