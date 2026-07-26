@@ -222,3 +222,115 @@ export async function clearConversationState(db, chatId) {
     .bind(String(chatId))
     .run();
 }
+
+// ----------------------------------------------------------------------------
+// منع التكرار وكشف العمليات المكرّرة
+// ----------------------------------------------------------------------------
+
+/**
+ * هل عُولجت رسالة تليجرام هذه سابقاً؟ (يمنع الترحيل مرتين عند إعادة الويبهوك)
+ */
+export async function isMessageProcessed(db, chatId, messageId) {
+  const row = await db
+    .prepare(
+      `SELECT id FROM transactions
+       WHERE telegram_chat_id = ? AND telegram_message_id = ? LIMIT 1`
+    )
+    .bind(String(chatId), String(messageId))
+    .first();
+  return !!row;
+}
+
+/**
+ * البحث عن عملية مُرحّلة مشابهة في نفس اليوم (نفس النوع والمبلغ وجهة الاتصال).
+ * @returns {Promise<null|{id:number, wafeqId:string, summary:string}>}
+ */
+export async function findSimilarPostedToday(db, chatId, { type, total, contactName, date }) {
+  const { results } = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+       WHERE telegram_chat_id = ? AND status = 'posted' AND wafeq_draft_id IS NOT NULL
+         AND date(created_at) = date('now')
+       ORDER BY id DESC LIMIT 20`
+    )
+    .bind(String(chatId))
+    .all();
+
+  for (const row of results || []) {
+    let r;
+    try {
+      r = JSON.parse(row.processed_json);
+    } catch (_) {
+      continue;
+    }
+    if (r.type !== type) continue;
+    if (date && r.date !== date) continue;
+    if ((contactName || '') !== (r.contact_name || '')) continue;
+
+    // إجمالي العملية السابقة.
+    let prevTotal = 0;
+    if (r.type === 'manual_journal') {
+      prevTotal = (r.manual_journal?.entries || []).reduce((s, e) => s + Number(e.debit || 0), 0);
+    } else if (r.type === 'purchase_bill') {
+      prevTotal = (r.bill?.line_items || []).reduce((s, li) => s + Number(li.amount || 0), 0);
+    } else {
+      prevTotal = (r.invoice?.line_items || []).reduce((s, li) => s + Number(li.amount || 0), 0);
+    }
+
+    if (Math.abs(prevTotal - Number(total || 0)) < 0.01) {
+      return { id: row.id, wafeqId: row.wafeq_draft_id, summary: r.summary || '' };
+    }
+  }
+  return null;
+}
+
+// ----------------------------------------------------------------------------
+// محادثات تليجرام المصرّح لها
+// ----------------------------------------------------------------------------
+
+/** المحادثات النشطة المصرّح لها. */
+export async function getActiveChats(db) {
+  const { results } = await db
+    .prepare(`SELECT chat_id, label, is_admin FROM telegram_chats WHERE is_active = 1`)
+    .all();
+  return results || [];
+}
+
+/** محادثات المسؤولين (لتنبيهات فشل المهام). */
+export async function getAdminChats(db) {
+  const { results } = await db
+    .prepare(`SELECT chat_id FROM telegram_chats WHERE is_active = 1 AND is_admin = 1`)
+    .all();
+  return (results || []).map((r) => r.chat_id);
+}
+
+// ----------------------------------------------------------------------------
+// العمليات المتكرّرة
+// ----------------------------------------------------------------------------
+
+/** القوالب المتكرّرة المستحقّة اليوم ولم تُنفّذ هذا الشهر. */
+export async function getDueRecurring(db, dayOfMonth, ym) {
+  const { results } = await db
+    .prepare(
+      `SELECT id, label, template_json, notify_chat_id FROM recurring_transactions
+       WHERE is_active = 1 AND day_of_month = ?
+         AND (last_run_ym IS NULL OR last_run_ym != ?)`
+    )
+    .bind(Number(dayOfMonth), ym)
+    .all();
+  return (results || []).map((r) => {
+    try {
+      return { ...r, template: JSON.parse(r.template_json) };
+    } catch (_) {
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+/** تسجيل تنفيذ قالب متكرّر لهذا الشهر. */
+export async function markRecurringRun(db, id, ym) {
+  await db
+    .prepare(`UPDATE recurring_transactions SET last_run_ym = ? WHERE id = ?`)
+    .bind(ym, id)
+    .run();
+}

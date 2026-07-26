@@ -29,7 +29,7 @@ telegram.post('/telegram-webhook', async (c) => {
   const chatId = message?.chat?.id;
 
   // 2) التحقق من أن المحادثة مصرّح لها.
-  if (!chatId || !isAuthorizedChat(env, chatId)) {
+  if (!chatId || !(await isAuthorizedChat(env, chatId))) {
     await writeLog(env.DB, {
       action: 'telegram_webhook',
       status: 'error',

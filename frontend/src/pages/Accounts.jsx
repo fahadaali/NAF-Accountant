@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
+import { RefreshCw } from 'lucide-react';
 
 const TYPE_LABELS = {
   asset: { label: 'أصل', cls: 'bg-sky-100 text-sky-700' },
@@ -11,7 +12,7 @@ const TYPE_LABELS = {
 
 const EMPTY = { account_code: '', account_name: '', account_type: 'expense' };
 
-export default function Accounts() {
+export default function Accounts({ isAdmin }) {
   const [accounts, setAccounts] = useState([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -62,37 +63,39 @@ export default function Accounts() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black text-slate-800">شجرة الحسابات</h2>
-          <p className="text-slate-500 mt-1">دليل الحسابات المستخدم في توجيه القيود</p>
+          <h2 className="text-2xl font-bold text-foreground">شجرة الحسابات</h2>
+          <p className="text-muted-foreground mt-1">دليل الحسابات المستخدم في توجيه القيود</p>
         </div>
-        <button className="btn-primary" onClick={sync} disabled={syncing}>
-          {syncing ? '⏳ جارٍ المزامنة…' : '🔄 مزامنة من وافق'}
-        </button>
+        {isAdmin && (
+          <button className="btn-primary" onClick={sync} disabled={syncing}>
+            {syncing ? '⏳ جارٍ المزامنة…' : <><RefreshCw size={20} /> مزامنة من وافق</>}
+          </button>
+        )}
       </div>
 
       {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
       {msg && <div className="card border-green-200 bg-green-50 text-green-700">{msg}</div>}
 
-      {/* نموذج إضافة حساب */}
-      <div className="card">
-        <h3 className="font-bold text-slate-800 mb-4">إضافة / تعديل حساب</h3>
+      {/* نموذج إضافة حساب — للمسؤول فقط */}
+      <div className="card" style={{ display: isAdmin ? undefined : 'none' }}>
+        <h3 className="font-bold text-foreground mb-4">إضافة / تعديل حساب</h3>
         <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <input
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             placeholder="رمز الحساب"
             value={form.account_code}
             onChange={(e) => setForm({ ...form, account_code: e.target.value })}
             required
           />
           <input
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             placeholder="اسم الحساب"
             value={form.account_name}
             onChange={(e) => setForm({ ...form, account_name: e.target.value })}
             required
           />
           <select
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={form.account_type}
             onChange={(e) => setForm({ ...form, account_type: e.target.value })}
           >
@@ -107,7 +110,7 @@ export default function Accounts() {
       {/* جدول الحسابات */}
       <div className="card">
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
+          <table className="w-full text-end">
             <thead>
               <tr className="text-slate-400 text-sm border-b border-slate-100">
                 <th className="py-3 font-semibold">الرمز</th>
@@ -121,16 +124,16 @@ export default function Accounts() {
               {accounts.map((a) => {
                 const t = TYPE_LABELS[a.account_type] || { label: a.account_type, cls: 'bg-slate-100 text-slate-600' };
                 return (
-                  <tr key={a.id} className="border-b border-slate-50 hover:bg-slate-50">
+                  <tr key={a.id} className="border-b border-slate-50 hover:bg-background">
                     <td className="py-3 font-mono text-slate-600">{a.account_code}</td>
-                    <td className="py-3 text-slate-800 font-semibold">{a.account_name}</td>
+                    <td className="py-3 text-foreground font-semibold">{a.account_name}</td>
                     <td className="py-3"><span className={`badge ${t.cls}`}>{t.label}</span></td>
                     <td className="py-3 text-slate-400 text-sm">{a.wafeq_account_id || '— غير مزامن'}</td>
                     <td className="py-3">
                       {a.is_active ? (
                         <span className="badge bg-green-100 text-green-700">نشط</span>
                       ) : (
-                        <span className="badge bg-slate-100 text-slate-500">معطّل</span>
+                        <span className="badge bg-slate-100 text-muted-foreground">معطّل</span>
                       )}
                     </td>
                   </tr>

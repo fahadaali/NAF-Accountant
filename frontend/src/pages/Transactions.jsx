@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { api } from '../lib/api.js';
+import { api, downloadTransactionsCsv } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
+import { Trash2, FileOutput, RefreshCw, Search, TriangleAlert } from 'lucide-react';
+import MediaViewer from '../components/MediaViewer.jsx';
 
 const STATUS_OPTIONS = [
   { v: '', label: 'كل الحالات' },
@@ -33,7 +35,7 @@ function JsonPreview({ json }) {
   try { parsed = JSON.parse(json); } catch { parsed = null; }
   return (
     <div>
-      <button className="text-naf-600 text-sm hover:underline" onClick={() => setOpen((o) => !o)}>
+      <button className="text-primary text-sm hover:underline" onClick={() => setOpen((o) => !o)}>
         {open ? 'إخفاء' : 'عرض'}
       </button>
       {open && (
@@ -47,7 +49,7 @@ function JsonPreview({ json }) {
 
 const DEFAULT_FILTERS = { status: '', source_type: '', q: '', from: '', to: '', sort: 'created_at', order: 'desc' };
 
-export default function Transactions() {
+export default function Transactions({ isAdmin }) {
   const [rows, setRows] = useState([]);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [selected, setSelected] = useState(new Set());
@@ -106,16 +108,24 @@ export default function Transactions() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-black text-slate-800">العمليات</h2>
-          <p className="text-slate-500 mt-1">فرز، تصفية، وحذف العمليات</p>
+          <h2 className="text-2xl font-bold text-foreground">العمليات</h2>
+          <p className="text-muted-foreground mt-1">فرز، تصفية، وحذف العمليات</p>
         </div>
         <div className="flex items-center gap-2">
-          {selected.size > 0 && (
-            <button className="btn bg-red-600 text-white hover:bg-red-700" onClick={deleteSelected} disabled={deleting}>
-              🗑️ حذف المحدّد ({selected.size})
+          {isAdmin && selected.size > 0 && (
+            <button className="btn bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={deleteSelected} disabled={deleting}>
+              <Trash2 size={20} /> حذف المحدّد ({selected.size})
             </button>
           )}
-          <button className="btn-ghost" onClick={load}>🔄 تحديث</button>
+          <button
+            className="btn-ghost"
+            onClick={() =>
+              downloadTransactionsCsv(filters).catch((e) => setError(e.message))
+            }
+          >
+            <FileOutput size={20} /> تصدير CSV
+          </button>
+          <button className="btn-ghost" onClick={load}><RefreshCw size={20} /> تحديث</button>
         </div>
       </div>
 
@@ -125,22 +135,31 @@ export default function Transactions() {
       {/* المرشّحات */}
       <div className="card">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <input
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
-            placeholder="🔎 بحث في النص أو رقم وافق"
-            value={filters.q}
-            onChange={(e) => setF('q', e.target.value)}
-          />
-          <select className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+          {/* أيقونة البحث داخل الحقل — الإيموجي لا تصلح داخل placeholder */}
+          <div className="relative">
+            <Search
+              size={20}
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-inline-start-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              style={{ insetInlineStart: '0.75rem' }}
+            />
+            <input
+              className="w-full border border-border rounded-lg ps-10 pe-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+              placeholder="بحث في النص أو رقم وافق"
+              value={filters.q}
+              onChange={(e) => setF('q', e.target.value)}
+            />
+          </div>
+          <select className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={filters.status} onChange={(e) => setF('status', e.target.value)}>
             {STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
           </select>
-          <select className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+          <select className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={filters.source_type} onChange={(e) => setF('source_type', e.target.value)}>
             {SOURCE_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
           </select>
           <div className="flex gap-2">
-            <select className="flex-1 border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            <select className="flex-1 border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={filters.sort} onChange={(e) => setF('sort', e.target.value)}>
               {SORT_OPTIONS.map((o) => <option key={o.v} value={o.v}>فرز: {o.label}</option>)}
             </select>
@@ -150,12 +169,12 @@ export default function Transactions() {
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">من تاريخ</label>
-            <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            <input type="date" className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={filters.from} onChange={(e) => setF('from', e.target.value)} />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">إلى تاريخ</label>
-            <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            <input type="date" className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={filters.to} onChange={(e) => setF('to', e.target.value)} />
           </div>
           <div className="flex items-end">
@@ -166,7 +185,7 @@ export default function Transactions() {
 
       {/* الجدول */}
       <div className="card">
-        <div className="flex items-center justify-between mb-3 text-sm text-slate-500">
+        <div className="flex items-center justify-between mb-3 text-sm text-muted-foreground">
           <span>النتائج: {rows.length}</span>
           {selected.size > 0 && <span>محدّد: {selected.size}</span>}
         </div>
@@ -176,15 +195,18 @@ export default function Transactions() {
           <p className="text-slate-400 text-center py-8">لا توجد عمليات مطابقة.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-right">
+            <table className="w-full text-end">
               <thead>
                 <tr className="text-slate-400 text-sm border-b border-slate-100">
-                  <th className="py-3 w-8">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} />
-                  </th>
+                  {isAdmin && (
+                    <th className="py-3 w-8">
+                      <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+                    </th>
+                  )}
                   <th className="py-3 font-semibold">#</th>
                   <th className="py-3 font-semibold">المصدر</th>
                   <th className="py-3 font-semibold">النص الأصلي</th>
+                  <th className="py-3 font-semibold">المرفق</th>
                   <th className="py-3 font-semibold">القيد</th>
                   <th className="py-3 font-semibold">وافق</th>
                   <th className="py-3 font-semibold">الحالة</th>
@@ -193,20 +215,23 @@ export default function Transactions() {
               </thead>
               <tbody>
                 {rows.map((t) => (
-                  <tr key={t.id} className={`border-b border-slate-50 align-top hover:bg-slate-50 ${selected.has(t.id) ? 'bg-naf-50' : ''}`}>
-                    <td className="py-3">
-                      <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
-                    </td>
+                  <tr key={t.id} className={`border-b border-slate-50 align-top hover:bg-background ${selected.has(t.id) ? 'bg-accent' : ''}`}>
+                    {isAdmin && (
+                      <td className="py-3">
+                        <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
+                      </td>
+                    )}
                     <td className="py-3 text-slate-600">{t.id}</td>
                     <td className="py-3 whitespace-nowrap">
                       {t.source_type === 'voice' ? '🎙️' : t.source_type === 'image' ? '🖼️' : '💬'}
                     </td>
-                    <td className="py-3 text-slate-700">
+                    <td className="py-3 text-foreground">
                       <div className="max-w-xs truncate" title={t.raw_text || ''}>{t.raw_text || '—'}</div>
-                      {t.error_message && <div className="text-red-500 text-xs mt-1">⚠️ {t.error_message}</div>}
+                      {t.error_message && <div className="text-destructive text-xs mt-1"><TriangleAlert size={16} className="inline" /> {t.error_message}</div>}
                     </td>
+                    <td className="py-3"><MediaViewer mediaKey={t.media_r2_key} /></td>
                     <td className="py-3"><JsonPreview json={t.processed_json} /></td>
-                    <td className="py-3 text-slate-500 text-sm">{t.wafeq_draft_id ? `#${t.wafeq_draft_id}` : '—'}</td>
+                    <td className="py-3 text-muted-foreground text-sm">{t.wafeq_draft_id ? `#${t.wafeq_draft_id}` : '—'}</td>
                     <td className="py-3"><StatusBadge status={t.status} /></td>
                     <td className="py-3 text-slate-400 text-sm whitespace-nowrap">
                       {new Date(t.created_at + 'Z').toLocaleString('ar')}

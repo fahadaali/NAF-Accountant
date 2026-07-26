@@ -5,6 +5,10 @@ import Dashboard from './pages/Dashboard.jsx';
 import Transactions from './pages/Transactions.jsx';
 import Accounts from './pages/Accounts.jsx';
 import Settings from './pages/Settings.jsx';
+import Logs from './pages/Logs.jsx';
+import Team from './pages/Team.jsx';
+import Recurring from './pages/Recurring.jsx';
+import Analytics from './pages/Analytics.jsx';
 import Login from './pages/Login.jsx';
 import { auth, getToken, clearToken } from './lib/api.js';
 
@@ -42,7 +46,7 @@ export default function App() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400">
+      <div className="min-h-screen flex items-center justify-center bg-background text-slate-400">
         جارٍ التحميل…
       </div>
     );
@@ -52,12 +56,18 @@ export default function App() {
     return <Login onAuthed={setUser} />;
   }
 
+  const isAdmin = user.role === 'admin';
+
   return (
-    <Layout user={user} onLogout={logout}>
+    <Layout user={user} onLogout={logout} isAdmin={isAdmin}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/transactions" element={<Transactions />} />
-        <Route path="/accounts" element={<Accounts />} />
+        <Route path="/transactions" element={<Transactions isAdmin={isAdmin} />} />
+        <Route path="/analytics" element={<Analytics />} />
+        <Route path="/accounts" element={<Accounts isAdmin={isAdmin} />} />
+        {isAdmin && <Route path="/recurring" element={<Recurring />} />}
+        {isAdmin && <Route path="/team" element={<Team />} />}
+        <Route path="/logs" element={<Logs />} />
         <Route path="/settings" element={<Settings user={user} onLogout={logout} />} />
       </Routes>
     </Layout>

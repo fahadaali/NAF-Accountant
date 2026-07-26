@@ -15,6 +15,8 @@ import {
   getPostedTransactionByWafeqId,
   searchPostedTransactions,
   listPostedTransactions,
+  isMessageProcessed,
+  findSimilarPostedToday,
 } from './db.js';
 import { sendTelegramMessage, downloadTelegramFile } from '../services/telegram.js';
 import { transcribeAudio } from '../services/transcription.js';
@@ -110,6 +112,17 @@ function targetLabel(t) {
   }\n🧾 ${t.wafeqId}`;
 }
 
+/** إجمالي العملية (قبل الضريبة) حسب نوعها. */
+function resultTotal(result) {
+  if (result.type === 'manual_journal') {
+    return (result.manual_journal?.entries || []).reduce((s, e) => s + Number(e.debit || 0), 0);
+  }
+  if (result.type === 'purchase_bill') {
+    return (result.bill?.line_items || []).reduce((s, li) => s + Number(li.amount || 0), 0);
+  }
+  return (result.invoice?.line_items || []).reduce((s, li) => s + Number(li.amount || 0), 0);
+}
+
 /** وصف عربي لنوع العملية. */
 function describeType(type) {
   return type === 'manual_journal'
@@ -151,11 +164,16 @@ function confirmManualJournal(result, wafeqId) {
 function confirmBill(result, wafeqId) {
   const items = result.bill?.line_items || [];
   const lines = items.map((li) => `• ${li.account_name} — ${li.amount}`).join('\n');
-  const total = items.reduce((s, li) => s + Number(li.amount || 0), 0);
+  const sub = items.reduce((s, li) => s + Number(li.amount || 0), 0);
+  const vatPercent = Number(result.bill?.vat_percent ?? 0);
+  const vat = +((sub * vatPercent) / 100).toFixed(2);
   return (
     `✅ <b>تم إنشاء فاتورة مشتريات (مسودة) في وافق</b>\n\n` +
     `📅 التاريخ: ${result.date}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n${lines}\n\n` +
-    `💰 الإجمالي: ${total}\n🧾 رقم المسودة: ${wafeqId || 'غير متوفر'}\n\n` +
+    (vatPercent > 0
+      ? `💰 قبل الضريبة: ${sub}\n➕ ضريبة ${vatPercent}%: ${vat}\n💵 الإجمالي: ${(sub + vat).toFixed(2)}\n`
+      : `💰 الإجمالي: ${sub} (بدون ضريبة)\n`) +
+    `🧾 رقم المسودة: ${wafeqId || 'غير متوفر'}\n\n` +
     `⚠️ فاتورة <b>مسودة</b> تتطلب مراجعتك واعتمادك في وافق.`
   );
 }
@@ -188,10 +206,14 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
   }
 
   if (result.type === 'purchase_bill') {
+    // ضريبة المشتريات (Input VAT) — تُطبّق إن كانت النسبة > 0 ومعرّف الضريبة مضبوط.
+    const billVat = Number(result.bill?.vat_percent ?? 0);
+    const billTaxRate = billVat > 0 ? env.VAT_TAX_RATE_ID || null : null;
     const lineItems = (result.bill?.line_items || []).map((li) => ({
       account: idMap[li.account_code] || li.account_code,
       description: li.description,
       amount: li.amount,
+      taxRateId: billTaxRate,
     }));
     const { id } = await createBillDraft(env, {
       contactId,
@@ -330,6 +352,40 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
   });
 }
 
+/** نص المساعدة (يظهر عند /help أو /start أو «مساعدة»). */
+const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانونية</b>
+
+<b>١) تسجيل عملية</b> — أرسل نصاً أو تسجيلاً صوتياً أو صورة فاتورة:
+• <code>دفعت ٥٠٠ ريال إيجار المكتب</code>
+• <code>شريت أدوات بـ٣٠٠ من جرير</code>
+• <code>استلمت اشتراك ٥٧٥٠ من شركة الأفق</code>
+
+<b>التوجيه التلقائي:</b>
+• رواتب/تحويلات صادرة ← قيد يومية
+• سداد/مشتريات ← فاتورة مشتريات (مسودة)
+• وارد من عميل ← فاتورة بيع + ضريبة ١٥٪ (مسودة)
+
+<b>٢) تعديل عملية</b> — أرسل التعديل مباشرة:
+• <code>عدّل المبلغ إلى ٦٠٠</code>
+• <code>خلّه بدون ضريبة</code>
+• <code>غيّر المورّد إلى جرير</code>
+• <code>عدّل المسودة قبل الأخيرة المبلغ ٩٠٠</code>
+
+<b>٣) حذف عملية</b> (يطلب تأكيد «نعم»):
+• <code>احذف القيد</code>
+• <code>احذف فاتورة جرير</code>
+• <code>احذف المسودة mjou_xxx</code>
+• <code>احذف جميع المسودات في وافق</code>
+
+<b>٤) أوامر أخرى</b>
+• <code>جديد</code> — إلغاء أي عملية جارية والبدء من نظيف
+• <code>/help</code> — هذه الرسالة
+
+<b>ملاحظات</b>
+• إن لم تذكر حساب الدفع فالافتراضي <b>الحساب البنكي</b> (اذكر «نقداً» أو «الخزينة» أو «النثرية» للتغيير).
+• التواريخ النسبية مفهومة: «أمس»، «الثلاثاء الماضي».
+• إن نقص بيان جوهري (المبلغ أو المورّد/العميل) سأسألك عنه.`;
+
 // ---------------------------------------------------------------------------
 // المعالجة الرئيسية لرسالة تليجرام.
 // ---------------------------------------------------------------------------
@@ -340,6 +396,24 @@ export async function processTelegramUpdate(env, update) {
   const chatId = message.chat.id;
   const messageId = message.message_id;
   const dateISO = messageDateISO(message.date);
+
+  const incomingText = message.text || message.caption || '';
+
+  // ---- أمر المساعدة (لا يُسجّل كعملية) ----
+  if (/^\/(help|start)\b/i.test(incomingText.trim()) || /^(مساعدة|المساعدة|الأوامر)$/.test(incomingText.trim())) {
+    await sendTelegramMessage(env, chatId, HELP_TEXT);
+    return;
+  }
+
+  // ---- منع المعالجة المزدوجة عند إعادة إرسال الويبهوك من تليجرام ----
+  if (await isMessageProcessed(env.DB, chatId, messageId)) {
+    await writeLog(env.DB, {
+      action: 'duplicate_webhook_skipped',
+      status: 'info',
+      errorDetails: `chat=${chatId} msg=${messageId}`,
+    });
+    return;
+  }
 
   let sourceType = 'text';
   if (message.voice || message.audio) sourceType = 'voice';
@@ -478,6 +552,34 @@ export async function processTelegramUpdate(env, update) {
         chatId,
         `🗑️ <b>تم حذف العملية من وافق</b>\n\n${pendingState.label || ''}`
       );
+      return;
+    }
+
+    // ---- تأكيد ترحيل عملية مكرّرة ----
+    if (pendingState && pendingState.kind === 'confirm_duplicate') {
+      const answer = (finalText || '').trim();
+      await clearConversationState(env.DB, chatId);
+      if (!/^(نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
+        await updateTransaction(env.DB, txId, { status: 'posted' });
+        await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الترحيل. لم تُسجّل العملية.');
+        return;
+      }
+      const accountsDup = await getActiveAccounts(env.DB);
+      await updateTransaction(env.DB, txId, {
+        processedJson: JSON.stringify(pendingState.analyzed),
+        status: 'analyzed',
+      });
+      await finalizeAndPost(env, {
+        txId,
+        chatId,
+        result: pendingState.analyzed,
+        accounts: accountsDup,
+        messageId,
+        contactId: pendingState.contactId || null,
+        mediaR2Key: pendingState.mediaR2Key || null,
+        mediaType: pendingState.mediaType || null,
+        prefix: '⚠️ <b>رُحّلت رغم التشابه</b>\n\n',
+      });
       return;
     }
 
@@ -756,6 +858,33 @@ export async function processTelegramUpdate(env, update) {
         return;
       }
       contactId = r.contactId;
+    }
+
+    // ---- كشف عملية مكرّرة في نفس اليوم (تحذير قبل الترحيل) ----
+    const dup = await findSimilarPostedToday(env.DB, chatId, {
+      type: result.type,
+      total: resultTotal(result),
+      contactName: result.contact_name || '',
+      date: result.date,
+    });
+    if (dup) {
+      await setConversationState(env.DB, chatId, {
+        kind: 'confirm_duplicate',
+        analyzed: result,
+        contactId,
+        mediaR2Key,
+        mediaType,
+      });
+      await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
+      await sendTelegramMessage(
+        env,
+        chatId,
+        `⚠️ <b>تحذير: عملية مشابهة اليوم</b>\n\n` +
+          `يوجد ${describeType(result.type)} بنفس المبلغ${result.contact_name ? ` ولنفس «${result.contact_name}»` : ''} اليوم:\n` +
+          `• ${dup.summary || ''}\n🧾 ${dup.wafeqId}\n\n` +
+          `هل تريد ترحيلها مع ذلك؟ أرسل «نعم» للمتابعة، أو أي شيء آخر للإلغاء.`
+      );
+      return;
     }
 
     // ---- الترحيل إلى وافق ----

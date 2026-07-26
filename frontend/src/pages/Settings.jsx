@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
+import { LogOut } from 'lucide-react';
 
 const KEY_META = [
   { key: 'TELEGRAM_BOT_TOKEN', label: 'مفتاح بوت تليجرام', hint: 'TELEGRAM_BOT_TOKEN' },
@@ -77,8 +78,8 @@ export default function Settings({ user, onLogout }) {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h2 className="text-2xl font-black text-slate-800">الإعدادات</h2>
-        <p className="text-slate-500 mt-1">إدارة الاتصال ومفاتيح الربط</p>
+        <h2 className="text-2xl font-bold text-foreground">الإعدادات</h2>
+        <p className="text-muted-foreground mt-1">إدارة الاتصال ومفاتيح الربط</p>
       </div>
 
       {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
@@ -86,36 +87,36 @@ export default function Settings({ user, onLogout }) {
 
       {/* الحساب */}
       <div className="card">
-        <h3 className="font-bold text-slate-800 mb-1">الحساب</h3>
+        <h3 className="font-bold text-foreground mb-1">الحساب</h3>
         <div className="flex items-center justify-between mt-3">
           <div>
-            <div className="font-semibold text-slate-700" dir="ltr">{user?.email}</div>
+            <div className="font-semibold text-foreground" dir="ltr">{user?.email}</div>
             <div className="text-xs text-slate-400">
               الصلاحية: {user?.role === 'admin' ? 'مسؤول' : 'مستخدم'}
             </div>
           </div>
-          <button className="btn-ghost" onClick={onLogout}>🚪 تسجيل الخروج</button>
+          <button className="btn-ghost" onClick={onLogout}><LogOut size={20} className="rtl:-scale-x-100" /> تسجيل الخروج</button>
         </div>
       </div>
 
       {/* مزوّد تحويل الصوت */}
       {asr && (
         <div className="card">
-          <h3 className="font-bold text-slate-800 mb-1">تحويل الصوت إلى نص</h3>
+          <h3 className="font-bold text-foreground mb-1">تحويل الصوت إلى نص</h3>
           <div className="flex items-center justify-between mt-3">
             <div>
-              <div className="font-semibold text-slate-700">
+              <div className="font-semibold text-foreground">
                 {ASR_LABELS[asr]?.name || asr}
               </div>
-              <div className="text-xs text-slate-500 mt-0.5">{ASR_LABELS[asr]?.note || ''}</div>
+              <div className="text-xs text-muted-foreground mt-1">{ASR_LABELS[asr]?.note || ''}</div>
             </div>
             <span className={`badge ${ASR_LABELS[asr]?.cls || 'bg-slate-100 text-slate-600'}`}>
               نشط
             </span>
           </div>
           {asr === 'cloudflare' && (
-            <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-              لرفع الدقة لأعلى مستوى: أضِف <code className="bg-slate-100 px-1 rounded" dir="ltr">ELEVENLABS_API_KEY</code> كـ
+            <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
+              لرفع الدقة لأعلى مستوى: أضِف <code className="bg-slate-100 px-1 rounded-sm" dir="ltr">ELEVENLABS_API_KEY</code> كـ
               Secret في Cloudflare، وسينتقل النظام إليه تلقائياً.
             </p>
           )}
@@ -124,10 +125,10 @@ export default function Settings({ user, onLogout }) {
 
       {/* حالة مفاتيح الربط */}
       <div className="card">
-        <h3 className="font-bold text-slate-800 mb-1">حالة مفاتيح الربط</h3>
-        <p className="text-slate-500 text-sm mb-4">
+        <h3 className="font-bold text-foreground mb-1">حالة مفاتيح الربط</h3>
+        <p className="text-muted-foreground text-sm mb-4">
           المفاتيح الحساسة تُخزَّن بشكل مشفّر في Cloudflare Secrets ولا تظهر قيمها هنا — فقط حالة توفرها.
-          لتحديثها استخدم الأمر: <code className="bg-slate-100 px-2 py-0.5 rounded" dir="ltr">wrangler secret put &lt;NAME&gt;</code>
+          لتحديثها استخدم الأمر: <code className="bg-slate-100 px-2 py-1 rounded-sm" dir="ltr">wrangler secret put &lt;NAME&gt;</code>
         </p>
         <div className="space-y-2">
           {KEY_META.map((k) => {
@@ -135,11 +136,11 @@ export default function Settings({ user, onLogout }) {
             return (
               <div key={k.key} className="flex items-center justify-between py-2 border-b border-slate-50">
                 <div>
-                  <div className="font-semibold text-slate-700">{k.label}</div>
+                  <div className="font-semibold text-foreground">{k.label}</div>
                   <code className="text-xs text-slate-400" dir="ltr">{k.hint}</code>
                 </div>
                 {status == null ? (
-                  <span className="badge bg-slate-100 text-slate-500">غير معروف</span>
+                  <span className="badge bg-slate-100 text-muted-foreground">غير معروف</span>
                 ) : ok ? (
                   <span className="badge bg-green-100 text-green-700">✓ مضبوط</span>
                 ) : (
@@ -153,8 +154,8 @@ export default function Settings({ user, onLogout }) {
 
       {/* إجراءات */}
       <div className="card">
-        <h3 className="font-bold text-slate-800 mb-1">إجراءات</h3>
-        <p className="text-slate-500 text-sm mb-4">إرسال التقارير يدوياً إلى بيسكامب.</p>
+        <h3 className="font-bold text-foreground mb-1">إجراءات</h3>
+        <p className="text-muted-foreground text-sm mb-4">إرسال التقارير يدوياً إلى بيسكامب.</p>
         <div className="flex flex-wrap gap-3">
           <button className="btn-ghost" onClick={runReport} disabled={reporting}>
             {reporting ? '⏳…' : '📤 ملخص المسودات'}
