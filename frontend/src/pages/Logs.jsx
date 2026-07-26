@@ -81,7 +81,7 @@ export default function Logs() {
           <p className="text-slate-400 text-center py-8">لا توجد سجلّات.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-right">
+            <table className="w-full text-end">
               <thead>
                 <tr className="text-slate-400 text-sm border-b border-slate-100">
                   <th className="py-3 font-semibold">الوقت</th>

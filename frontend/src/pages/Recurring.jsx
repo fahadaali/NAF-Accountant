@@ -118,7 +118,7 @@ export default function Recurring() {
 
       <div className="card">
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
+          <table className="w-full text-end">
             <thead>
               <tr className="text-slate-400 text-sm border-b border-slate-100">
                 <th className="py-2 font-semibold">الاسم</th>

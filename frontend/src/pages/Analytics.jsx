@@ -29,7 +29,7 @@ function BarList({ title, data, empty, unit = 'ر.س' }) {
           {data.map((d) => (
             <div key={d.name}>
               <div className="flex items-baseline justify-between text-sm mb-1">
-                <span className="text-foreground truncate ml-2">{d.name}</span>
+                <span className="text-foreground truncate ms-2">{d.name}</span>
                 <span className="text-muted-foreground tabular-nums whitespace-nowrap">
                   {fmt(d.value)} {unit}
                 </span>
@@ -201,7 +201,7 @@ export default function Analytics() {
             <div className="card">
               <h3 className="font-bold text-foreground mb-4">البيانات (عرض جدولي)</h3>
               <div className="overflow-x-auto">
-                <table className="w-full text-right">
+                <table className="w-full text-end">
                   <thead>
                     <tr className="text-slate-400 text-sm border-b border-slate-100">
                       <th className="py-2 font-semibold">الشهر</th>

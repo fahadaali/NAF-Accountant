@@ -90,7 +90,7 @@ export default function Team() {
         </form>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
+          <table className="w-full text-end">
             <thead>
               <tr className="text-slate-400 text-sm border-b border-slate-100">
                 <th className="py-2 font-semibold">البريد</th>
@@ -185,7 +185,7 @@ export default function Team() {
         </form>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
+          <table className="w-full text-end">
             <thead>
               <tr className="text-slate-400 text-sm border-b border-slate-100">
                 <th className="py-2 font-semibold">المعرّف</th>

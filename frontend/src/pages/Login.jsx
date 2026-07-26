@@ -84,7 +84,7 @@ export default function Login({ onAuthed }) {
               <input
                 type="email"
                 dir="ltr"
-                className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-left"
+                className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-start"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -96,7 +96,7 @@ export default function Login({ onAuthed }) {
               <input
                 type="password"
                 dir="ltr"
-                className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-left"
+                className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-start"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -109,7 +109,7 @@ export default function Login({ onAuthed }) {
                 <input
                   type="password"
                   dir="ltr"
-                  className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-left"
+                  className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none text-start"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   required
