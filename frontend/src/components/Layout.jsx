@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 
 const links = [
   { to: '/', label: 'لوحة التحكم', icon: '📊', end: true },
@@ -57,7 +58,7 @@ export default function Layout({ children, user, onLogout, isAdmin }) {
           <div className="flex items-center gap-3">
             {user && <span className="text-slate-600 text-sm" dir="ltr">{user.email}</span>}
             <button className="btn-ghost text-sm" onClick={onLogout}>
-              🚪 خروج
+              <LogOut size={20} className="rtl:-scale-x-100" /> خروج
             </button>
           </div>
         </header>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
+import { LogOut } from 'lucide-react';
 
 const KEY_META = [
   { key: 'TELEGRAM_BOT_TOKEN', label: 'مفتاح بوت تليجرام', hint: 'TELEGRAM_BOT_TOKEN' },
@@ -94,7 +95,7 @@ export default function Settings({ user, onLogout }) {
               الصلاحية: {user?.role === 'admin' ? 'مسؤول' : 'مستخدم'}
             </div>
           </div>
-          <button className="btn-ghost" onClick={onLogout}>🚪 تسجيل الخروج</button>
+          <button className="btn-ghost" onClick={onLogout}><LogOut size={20} className="rtl:-scale-x-100" /> تسجيل الخروج</button>
         </div>
       </div>
 

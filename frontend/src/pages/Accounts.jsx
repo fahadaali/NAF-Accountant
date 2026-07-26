@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
+import { RefreshCw } from 'lucide-react';
 
 const TYPE_LABELS = {
   asset: { label: 'أصل', cls: 'bg-sky-100 text-sky-700' },
@@ -67,7 +68,7 @@ export default function Accounts({ isAdmin }) {
         </div>
         {isAdmin && (
           <button className="btn-primary" onClick={sync} disabled={syncing}>
-            {syncing ? '⏳ جارٍ المزامنة…' : '🔄 مزامنة من وافق'}
+            {syncing ? '⏳ جارٍ المزامنة…' : <><RefreshCw size={20} /> مزامنة من وافق</>}
           </button>
         )}
       </div>

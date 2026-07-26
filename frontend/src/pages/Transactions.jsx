@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api, downloadTransactionsCsv } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
+import { Trash2, FileOutput, RefreshCw, Search, TriangleAlert } from 'lucide-react';
 import MediaViewer from '../components/MediaViewer.jsx';
 
 const STATUS_OPTIONS = [
@@ -113,7 +114,7 @@ export default function Transactions({ isAdmin }) {
         <div className="flex items-center gap-2">
           {isAdmin && selected.size > 0 && (
             <button className="btn bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={deleteSelected} disabled={deleting}>
-              🗑️ حذف المحدّد ({selected.size})
+              <Trash2 size={20} /> حذف المحدّد ({selected.size})
             </button>
           )}
           <button
@@ -122,9 +123,9 @@ export default function Transactions({ isAdmin }) {
               downloadTransactionsCsv(filters).catch((e) => setError(e.message))
             }
           >
-            ⬇️ تصدير CSV
+            <FileOutput size={20} /> تصدير CSV
           </button>
-          <button className="btn-ghost" onClick={load}>🔄 تحديث</button>
+          <button className="btn-ghost" onClick={load}><RefreshCw size={20} /> تحديث</button>
         </div>
       </div>
 
@@ -134,12 +135,21 @@ export default function Transactions({ isAdmin }) {
       {/* المرشّحات */}
       <div className="card">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <input
-            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
-            placeholder="🔎 بحث في النص أو رقم وافق"
-            value={filters.q}
-            onChange={(e) => setF('q', e.target.value)}
-          />
+          {/* أيقونة البحث داخل الحقل — الإيموجي لا تصلح داخل placeholder */}
+          <div className="relative">
+            <Search
+              size={20}
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-inline-start-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              style={{ insetInlineStart: '0.75rem' }}
+            />
+            <input
+              className="w-full border border-border rounded-lg ps-10 pe-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+              placeholder="بحث في النص أو رقم وافق"
+              value={filters.q}
+              onChange={(e) => setF('q', e.target.value)}
+            />
+          </div>
           <select className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={filters.status} onChange={(e) => setF('status', e.target.value)}>
             {STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
@@ -217,7 +227,7 @@ export default function Transactions({ isAdmin }) {
                     </td>
                     <td className="py-3 text-foreground">
                       <div className="max-w-xs truncate" title={t.raw_text || ''}>{t.raw_text || '—'}</div>
-                      {t.error_message && <div className="text-destructive text-xs mt-1">⚠️ {t.error_message}</div>}
+                      {t.error_message && <div className="text-destructive text-xs mt-1"><TriangleAlert size={16} className="inline" /> {t.error_message}</div>}
                     </td>
                     <td className="py-3"><MediaViewer mediaKey={t.media_r2_key} /></td>
                     <td className="py-3"><JsonPreview json={t.processed_json} /></td>

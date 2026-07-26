@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
+import { Bell } from 'lucide-react';
 
 const EMPTY_USER = { email: '', password: '', role: 'user' };
 const EMPTY_CHAT = { chat_id: '', label: '', is_admin: 0 };
@@ -207,7 +208,7 @@ export default function Team() {
                   <tr key={ch.chat_id} className="border-b border-slate-50 hover:bg-background">
                     <td className="py-3 font-mono text-slate-600" dir="ltr">{ch.chat_id}</td>
                     <td className="py-3 text-foreground">{ch.label || '—'}</td>
-                    <td className="py-3">{ch.is_admin ? '🔔 نعم' : '—'}</td>
+                    <td className="py-3">{ch.is_admin ? <span className="inline-flex items-center gap-2"><Bell size={16} /> نعم</span> : '—'}</td>
                     <td className="py-3">
                       <span className={`badge ${ch.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
                         {ch.is_active ? 'مصرّح' : 'موقوف'}

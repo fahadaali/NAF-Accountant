@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api.js';
+import { TriangleAlert, RefreshCw } from 'lucide-react';
 
 const STATUS_STYLE = {
   success: 'bg-green-100 text-green-700',
@@ -66,9 +67,9 @@ export default function Logs() {
             className={onlyErrors ? 'btn bg-destructive text-destructive-foreground' : 'btn-ghost'}
             onClick={() => setOnlyErrors((v) => !v)}
           >
-            ⚠️ الأخطاء فقط ({errorCount})
+            <TriangleAlert size={20} /> الأخطاء فقط ({errorCount})
           </button>
-          <button className="btn-ghost" onClick={load}>🔄 تحديث</button>
+          <button className="btn-ghost" onClick={load}><RefreshCw size={20} /> تحديث</button>
         </div>
       </div>
 
