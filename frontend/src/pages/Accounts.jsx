@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { RefreshCw, LoaderCircle } from 'lucide-react';
+import { RefreshCw, LoaderCircle, CircleAlert, CircleCheck } from 'lucide-react';
+import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 
 // نوع الحساب تصنيف لا حالة، فيأخذ رموز الرسوم (chart-*) المخصّصة
 // للفئات، لا رموز الحالة. والخلفية مخفّفة من الرمز نفسه (CLAUDE.md §6).
@@ -77,8 +78,8 @@ export default function Accounts({ isAdmin }) {
         )}
       </div>
 
-      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
-      {msg && <div className="card border-success/20 bg-success/10 text-success">{msg}</div>}
+      {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
+      {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
       {/* نموذج إضافة حساب — للمسؤول فقط */}
       <div className="card" style={{ display: isAdmin ? undefined : 'none' }}>

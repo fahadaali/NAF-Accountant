@@ -1,13 +1,6 @@
-import { fmtAmount, CURRENCY } from '../lib/format.js';
-
 /**
- * عرض مبلغ: أرقام جدولية، معزول اتجاهياً، والرمز بعد المبلغ.
- * بديل مؤقت عن `Money` من `naf-currency` — انظر التعليق في lib/format.js.
+ * وسيط إلى عنصر `Money` من `naf-currency` في السجلّ.
+ * عنصر السجلّ يعرض الرمز U+20C1 ويتولّى البديل «ر.س» عند تعذّر الخط،
+ * ويلفّ المبلغ في bdi، ويأخذ تنسيقه من naf-format حصراً.
  */
-export default function Money({ value, className = '' }) {
-  return (
-    <span dir="ltr" className={`tabular-nums whitespace-nowrap ${className}`}>
-      {fmtAmount(value)} {CURRENCY}
-    </span>
-  );
-}
+export { Money as default, Money } from '../naf/currency/money.jsx';

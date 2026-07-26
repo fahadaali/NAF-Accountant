@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import { fmtAmount, CURRENCY } from '../lib/format.js';
+import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
+import { CircleAlert, CircleCheck } from 'lucide-react';
 
 const TYPE_AR = {
   manual_journal: 'قيد يومية',
@@ -67,8 +69,8 @@ export default function Recurring() {
         </p>
       </div>
 
-      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
-      {msg && <div className="card border-success/20 bg-success/10 text-success">{msg}</div>}
+      {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
+      {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
       <div className="card">
         <h3 className="font-bold text-foreground mb-1">إنشاء قالب متكرّر</h3>

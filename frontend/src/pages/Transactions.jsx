@@ -1,13 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api, downloadTransactionsCsv } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
-import {
-  Trash2, FileOutput, RefreshCw, Search, CircleAlert,
-  ArrowUpNarrowWide, ArrowDownWideNarrow,
-} from 'lucide-react';
+import { Trash2, FileOutput, RefreshCw, Search, CircleAlert, ArrowUpNarrowWide, ArrowDownWideNarrow, CircleCheck } from 'lucide-react';
 import MediaViewer from '../components/MediaViewer.jsx';
 import SourceIcon from '../components/SourceIcon.jsx';
 import { fmtDateTime } from '../lib/format.js';
+import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 
 const STATUS_OPTIONS = [
   { v: '', label: 'كل الحالات' },
@@ -136,8 +134,8 @@ export default function Transactions({ isAdmin }) {
         </div>
       </div>
 
-      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
-      {msg && <div className="card border-success/20 bg-success/10 text-success">{msg}</div>}
+      {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
+      {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
       {/* المرشّحات */}
       <div className="card">

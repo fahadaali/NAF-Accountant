@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { Bell } from 'lucide-react';
+import { Bell, CircleAlert, CircleCheck } from 'lucide-react';
+import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 
 const EMPTY_USER = { email: '', password: '', role: 'user' };
 const EMPTY_CHAT = { chat_id: '', label: '', is_admin: 0 };
@@ -47,8 +48,8 @@ export default function Team() {
         <p className="text-muted-foreground mt-1">مستخدمو اللوحة، ومحادثات تليجرام المصرّح لها</p>
       </div>
 
-      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
-      {msg && <div className="card border-success/20 bg-success/10 text-success">{msg}</div>}
+      {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
+      {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
       {/* ============ مستخدمو اللوحة ============ */}
       <div className="card">

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import { fmtNumber, fmtAmount, CURRENCY } from '../lib/format.js';
 import Money from '../components/Money.jsx';
+import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
+import { CircleAlert } from 'lucide-react';
 
 // ألوان الرسوم من رموز الثيم — لا قيم مباشرة (CLAUDE.md §1).
 // chart-2 (أزرق) + chart-3 (أخضر): الزوج اجتاز كل فحوص مدقّق dataviz
@@ -180,7 +182,7 @@ export default function Analytics() {
         </select>
       </div>
 
-      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
+      {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
 
       {loading ? (
         <p className="text-muted-foreground">جارٍ التحميل…</p>

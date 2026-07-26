@@ -9,6 +9,9 @@
 /* ثيم ناف — يستورد Tailwind v4 ويعرّف الرموز في @theme inline */
 @import './naf-theme.css';
 
+/* رمز الريال U+20C1 — عنصر naf-currency من السجلّ */
+@import './naf/currency/naf-currency.css';
+
 /* الجسر المؤقت (@config) والثيم الموازي `naf` حُذفا في الدفعة ١.
    المصدر الوحيد للرموز الآن هو naf-theme.css. */
 

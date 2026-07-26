@@ -4,6 +4,7 @@ import StatusBadge from '../components/StatusBadge.jsx';
 import SourceIcon from '../components/SourceIcon.jsx';
 import { Inbox, FilePen, Bot, CircleAlert } from 'lucide-react';
 import { fmtDateTime } from '../lib/format.js';
+import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 
 // الأيقونات والألوان من السجلّ: naf-icons.md — والخلفية مخفّفة من الرمز
 // نفسه (CLAUDE.md §6) لا من درجة لوحة.
@@ -49,9 +50,12 @@ export default function Dashboard() {
       </div>
 
       {error && (
-        <div className="card border-destructive/20 bg-destructive/10 text-destructive">
-          تعذّر تحميل البيانات: {error} — تأكد من ضبط مفتاح لوحة التحكم في الإعدادات.
-        </div>
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertDescription>
+            تعذّر تحميل البيانات: {error} — تأكد من ضبط مفتاح لوحة التحكم في الإعدادات.
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* البطاقات الإحصائية */}

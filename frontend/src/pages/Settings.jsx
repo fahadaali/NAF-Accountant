@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { LogOut, LoaderCircle, CircleCheck, CircleSlash, Send, ChartColumn } from 'lucide-react';
+import { LogOut, LoaderCircle, CircleCheck, CircleSlash, Send, ChartColumn, CircleAlert } from 'lucide-react';
+import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 
 const KEY_META = [
   { key: 'TELEGRAM_BOT_TOKEN', label: 'مفتاح بوت تليجرام', hint: 'TELEGRAM_BOT_TOKEN' },
@@ -82,8 +83,8 @@ export default function Settings({ user, onLogout }) {
         <p className="text-muted-foreground mt-1">إدارة الاتصال ومفاتيح الربط</p>
       </div>
 
-      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
-      {msg && <div className="card border-success/20 bg-success/10 text-success">{msg}</div>}
+      {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
+      {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
       {/* الحساب */}
       <div className="card">

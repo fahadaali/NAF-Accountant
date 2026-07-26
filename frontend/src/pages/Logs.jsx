@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api.js';
-import { TriangleAlert, RefreshCw } from 'lucide-react';
+import { TriangleAlert, RefreshCw, CircleAlert } from 'lucide-react';
 import { fmtDateTime } from '../lib/format.js';
+import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 
 const STATUS_STYLE = {
   success: 'bg-success/10 text-success',
@@ -74,7 +75,7 @@ export default function Logs() {
         </div>
       </div>
 
-      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
+      {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
 
       <div className="card">
         {loading ? (
