@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchMediaUrl } from '../lib/api.js';
+import { Mic, Image } from 'lucide-react';
 
 /**
  * عرض مرفق العملية (تسجيل صوتي أو صورة فاتورة) المخزّن في R2.
@@ -34,16 +35,25 @@ export default function MediaViewer({ mediaKey }) {
     };
   }, [open, mediaKey, media]);
 
-  if (!mediaKey) return <span className="text-slate-300">—</span>;
+  if (!mediaKey) return <span className="text-muted-foreground/60">—</span>;
 
   return (
     <div>
-      <button className="text-primary text-sm hover:underline" onClick={() => setOpen((o) => !o)}>
-        {open ? 'إخفاء' : isAudio ? '🎙️ استماع' : '🖼️ عرض'}
+      <button
+        className="text-primary text-sm hover:underline inline-flex items-center gap-2"
+        onClick={() => setOpen((o) => !o)}
+      >
+        {open ? (
+          'إخفاء'
+        ) : isAudio ? (
+          <><Mic size={16} aria-hidden="true" /> استماع</>
+        ) : (
+          <><Image size={16} aria-hidden="true" /> عرض</>
+        )}
       </button>
       {open && (
         <div className="mt-2">
-          {loading && <span className="text-slate-400 text-xs">جارٍ التحميل…</span>}
+          {loading && <span className="text-muted-foreground text-xs">جارٍ التحميل…</span>}
           {error && <span className="text-destructive text-xs">{error}</span>}
           {media && isAudio && <audio controls src={media.url} className="w-full max-w-xs" />}
           {media && !isAudio && (

@@ -1,68 +1,95 @@
+import { fmtDate } from '../lib/format.js';
 import { NavLink } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import {
+  LogOut, LayoutDashboard, ReceiptText, TrendingUp, ListTree,
+  Repeat, Users, ClipboardList, Settings,
+} from 'lucide-react';
 
+// الأيقونات من خريطة ناف (naf-icons.md) — مقاس ٢٤ للتنقّل.
 const links = [
-  { to: '/', label: 'لوحة التحكم', icon: '📊', end: true },
-  { to: '/transactions', label: 'العمليات', icon: '🧾' },
-  { to: '/analytics', label: 'التحليلات', icon: '📈' },
-  { to: '/accounts', label: 'شجرة الحسابات', icon: '🌳' },
-  { to: '/recurring', label: 'العمليات المتكرّرة', icon: '🔁', adminOnly: true },
-  { to: '/team', label: 'الفريق والصلاحيات', icon: '👥', adminOnly: true },
-  { to: '/logs', label: 'سجلّ النظام', icon: '📋' },
-  { to: '/settings', label: 'الإعدادات', icon: '⚙️' },
+  { to: '/', label: 'لوحة التحكم', Icon: LayoutDashboard, end: true },
+  { to: '/transactions', label: 'العمليات', Icon: ReceiptText },
+  { to: '/analytics', label: 'التحليلات', Icon: TrendingUp },
+  { to: '/accounts', label: 'شجرة الحسابات', Icon: ListTree },
+  { to: '/recurring', label: 'العمليات المتكرّرة', Icon: Repeat, adminOnly: true },
+  { to: '/team', label: 'الفريق والصلاحيات', Icon: Users, adminOnly: true },
+  { to: '/logs', label: 'سجلّ النظام', Icon: ClipboardList },
+  { to: '/settings', label: 'الإعدادات', Icon: Settings },
 ];
 
 export default function Layout({ children, user, onLogout, isAdmin }) {
+  const visibleLinks = links.filter((l) => !l.adminOnly || isAdmin);
 
   return (
     <div className="min-h-screen flex">
-      {/* الشريط الجانبي */}
-      <aside className="w-64 bg-sidebar text-sidebar-foreground flex-shrink-0 flex flex-col">
-        <div className="p-6 border-b border-white/10">
+      {/* الشريط الجانبي — يختفي دون md ويحلّ محلّه شريط أفقي في الترويسة،
+          فالشريط الثابت بعرض 16rem لا يترك للمحتوى شيئاً على شاشة 375px. */}
+      <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground flex-shrink-0 flex-col">
+        <div className="p-6 border-b border-sidebar-border">
           <h1 className="text-2xl font-bold">ناف القانونية</h1>
           <p className="text-sidebar-foreground/70 text-sm mt-1">المحاسب الذكي</p>
         </div>
         <nav className="flex-1 p-3 space-y-1">
-          {links.filter((l) => !l.adminOnly || isAdmin).map((l) => (
+          {visibleLinks.map((l) => (
             <NavLink
               key={l.to}
               to={l.to}
               end={l.end}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-lg transition ${
-                  isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground/80 hover:bg-card/5'
+                  isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                 }`
               }
             >
-              <span className="text-lg">{l.icon}</span>
+              <l.Icon size={24} aria-hidden="true" />
               <span className="font-semibold">{l.label}</span>
             </NavLink>
           ))}
         </nav>
-        <div className="p-4 text-xs text-sidebar-foreground/50 border-t border-white/10">
+        <div className="p-4 text-xs text-sidebar-foreground/50 border-t border-sidebar-border">
           مدعوم بالذكاء الاصطناعي · Claude & Wafeq
         </div>
       </aside>
 
       {/* المحتوى */}
-      <main className="flex-1 overflow-auto">
-        <header className="bg-card border-b border-slate-100 px-8 py-4 flex items-center justify-between">
+      <main className="flex-1 overflow-auto min-w-0">
+        <header className="bg-card border-b border-border px-4 md:px-8 py-4 flex items-center justify-between gap-3">
           <div className="text-muted-foreground text-sm">
-            {new Date().toLocaleDateString('ar', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
+            <span dir="ltr">{fmtDate(new Date())}</span>
           </div>
-          <div className="flex items-center gap-3">
-            {user && <span className="text-slate-600 text-sm" dir="ltr">{user.email}</span>}
+          <div className="flex items-center gap-3 min-w-0">
+            {user && <span className="text-foreground text-sm truncate hidden sm:inline" dir="ltr">{user.email}</span>}
             <button className="btn-ghost text-sm" onClick={onLogout}>
-              <LogOut size={20} className="rtl:-scale-x-100" /> خروج
+              <LogOut size={20} className="rtl:-scale-x-100" aria-hidden="true" /> خروج
             </button>
           </div>
         </header>
-        <div className="p-8">{children}</div>
+
+        {/* تنقّل الشاشات الصغيرة — أيقونات فقط مع تسمية للقارئ الصوتي */}
+        <nav className="md:hidden bg-sidebar text-sidebar-foreground border-b border-sidebar-border overflow-x-auto">
+          <div className="flex gap-1 p-2 w-max">
+            {visibleLinks.map((l) => (
+              <NavLink
+                key={l.to}
+                to={l.to}
+                end={l.end}
+                title={l.label}
+                aria-label={l.label}
+                className={({ isActive }) =>
+                  `p-3 rounded-lg transition ${
+                    isActive
+                      ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                      : 'text-sidebar-foreground/80'
+                  }`
+                }
+              >
+                <l.Icon size={24} aria-hidden="true" />
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+
+        <div className="p-4 md:p-8">{children}</div>
       </main>
     </div>
   );

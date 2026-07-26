@@ -10,7 +10,7 @@ export default function Login({ onAuthed }) {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
 
-  // عند الفتح: هل يوجد مستخدمون؟ إن لا → وضع إنشاء المسؤول الأول.
+  // عند الفتح: هل يوجد مستخدمون؟ إن لا: وضع إنشاء المسؤول الأول.
   useEffect(() => {
     (async () => {
       try {
@@ -70,17 +70,17 @@ export default function Login({ onAuthed }) {
           </h2>
           <p className="text-muted-foreground text-sm mb-6">
             {mode === 'setup'
-              ? 'لا يوجد حساب بعد — أنشئ حساب المسؤول للبدء.'
+              ? 'لا حساب بعد. أنشئ حساب المسؤول للبدء.'
               : 'أدخل بريدك وكلمة المرور للدخول.'}
           </p>
 
           {error && (
-            <div className="mb-4 bg-red-50 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>
+            <div className="mb-4 bg-destructive/10 text-destructive text-sm rounded-lg px-4 py-3">{error}</div>
           )}
 
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-600 mb-1">البريد الإلكتروني</label>
+              <label className="block text-sm font-semibold text-foreground mb-1">البريد الإلكتروني</label>
               <input
                 type="email"
                 dir="ltr"
@@ -92,7 +92,7 @@ export default function Login({ onAuthed }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-600 mb-1">كلمة المرور</label>
+              <label className="block text-sm font-semibold text-foreground mb-1">كلمة المرور</label>
               <input
                 type="password"
                 dir="ltr"
@@ -105,7 +105,7 @@ export default function Login({ onAuthed }) {
             </div>
             {mode === 'setup' && (
               <div>
-                <label className="block text-sm font-semibold text-slate-600 mb-1">تأكيد كلمة المرور</label>
+                <label className="block text-sm font-semibold text-foreground mb-1">تأكيد كلمة المرور</label>
                 <input
                   type="password"
                   dir="ltr"

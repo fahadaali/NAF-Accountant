@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { LogOut } from 'lucide-react';
+import { LogOut, LoaderCircle, CircleCheck, CircleSlash, Send, ChartColumn } from 'lucide-react';
 
 const KEY_META = [
   { key: 'TELEGRAM_BOT_TOKEN', label: 'مفتاح بوت تليجرام', hint: 'TELEGRAM_BOT_TOKEN' },
@@ -20,9 +20,9 @@ const KEY_META = [
 ];
 
 const ASR_LABELS = {
-  elevenlabs: { name: 'ElevenLabs Scribe', note: 'أعلى دقة للعربية ✅', cls: 'bg-green-100 text-green-700' },
-  openai: { name: 'OpenAI', note: 'دقة عالية ✅', cls: 'bg-green-100 text-green-700' },
-  cloudflare: { name: 'Cloudflare Whisper', note: 'دقة محدودة للعربية — أضِف مفتاح ElevenLabs لرفعها', cls: 'bg-amber-100 text-amber-700' },
+  elevenlabs: { name: 'ElevenLabs Scribe', note: 'أعلى دقة للعربية', cls: 'bg-success/10 text-success' },
+  openai: { name: 'OpenAI', note: 'دقة عالية', cls: 'bg-success/10 text-success' },
+  cloudflare: { name: 'Cloudflare Whisper', note: 'دقة محدودة للعربية — أضِف مفتاح ElevenLabs لرفعها', cls: 'bg-warning/10 text-warning' },
 };
 
 export default function Settings({ user, onLogout }) {
@@ -82,8 +82,8 @@ export default function Settings({ user, onLogout }) {
         <p className="text-muted-foreground mt-1">إدارة الاتصال ومفاتيح الربط</p>
       </div>
 
-      {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
-      {msg && <div className="card border-green-200 bg-green-50 text-green-700">{msg}</div>}
+      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
+      {msg && <div className="card border-success/20 bg-success/10 text-success">{msg}</div>}
 
       {/* الحساب */}
       <div className="card">
@@ -91,7 +91,7 @@ export default function Settings({ user, onLogout }) {
         <div className="flex items-center justify-between mt-3">
           <div>
             <div className="font-semibold text-foreground" dir="ltr">{user?.email}</div>
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-muted-foreground">
               الصلاحية: {user?.role === 'admin' ? 'مسؤول' : 'مستخدم'}
             </div>
           </div>
@@ -110,13 +110,13 @@ export default function Settings({ user, onLogout }) {
               </div>
               <div className="text-xs text-muted-foreground mt-1">{ASR_LABELS[asr]?.note || ''}</div>
             </div>
-            <span className={`badge ${ASR_LABELS[asr]?.cls || 'bg-slate-100 text-slate-600'}`}>
+            <span className={`badge ${ASR_LABELS[asr]?.cls || 'bg-muted text-muted-foreground'}`}>
               نشط
             </span>
           </div>
           {asr === 'cloudflare' && (
             <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-              لرفع الدقة لأعلى مستوى: أضِف <code className="bg-slate-100 px-1 rounded-sm" dir="ltr">ELEVENLABS_API_KEY</code> كـ
+              لرفع الدقة لأعلى مستوى: أضِف <code className="bg-muted px-1 rounded-sm" dir="ltr">ELEVENLABS_API_KEY</code> كـ
               Secret في Cloudflare، وسينتقل النظام إليه تلقائياً.
             </p>
           )}
@@ -128,23 +128,23 @@ export default function Settings({ user, onLogout }) {
         <h3 className="font-bold text-foreground mb-1">حالة مفاتيح الربط</h3>
         <p className="text-muted-foreground text-sm mb-4">
           المفاتيح الحساسة تُخزَّن بشكل مشفّر في Cloudflare Secrets ولا تظهر قيمها هنا — فقط حالة توفرها.
-          لتحديثها استخدم الأمر: <code className="bg-slate-100 px-2 py-1 rounded-sm" dir="ltr">wrangler secret put &lt;NAME&gt;</code>
+          لتحديثها استخدم الأمر: <code className="bg-muted px-2 py-1 rounded-sm" dir="ltr">wrangler secret put &lt;NAME&gt;</code>
         </p>
         <div className="space-y-2">
           {KEY_META.map((k) => {
             const ok = status?.[k.key];
             return (
-              <div key={k.key} className="flex items-center justify-between py-2 border-b border-slate-50">
+              <div key={k.key} className="flex items-center justify-between py-2 border-b border-border">
                 <div>
                   <div className="font-semibold text-foreground">{k.label}</div>
-                  <code className="text-xs text-slate-400" dir="ltr">{k.hint}</code>
+                  <code className="text-xs text-muted-foreground" dir="ltr">{k.hint}</code>
                 </div>
                 {status == null ? (
-                  <span className="badge bg-slate-100 text-muted-foreground">غير معروف</span>
+                  <span className="badge bg-muted text-muted-foreground">غير معروف</span>
                 ) : ok ? (
-                  <span className="badge bg-green-100 text-green-700">✓ مضبوط</span>
+                  <span className="badge gap-1.5 bg-success/10 text-success"><CircleCheck size={16} aria-hidden="true" /> مُهيّأ</span>
                 ) : (
-                  <span className="badge bg-red-100 text-red-700">✗ غير مضبوط</span>
+                  <span className="badge gap-1.5 bg-destructive/10 text-destructive"><CircleSlash size={16} aria-hidden="true" /> غير مُهيّأ</span>
                 )}
               </div>
             );
@@ -158,19 +158,23 @@ export default function Settings({ user, onLogout }) {
         <p className="text-muted-foreground text-sm mb-4">إرسال التقارير يدوياً إلى بيسكامب.</p>
         <div className="flex flex-wrap gap-3">
           <button className="btn-ghost" onClick={runReport} disabled={reporting}>
-            {reporting ? '⏳…' : '📤 ملخص المسودات'}
+            {reporting
+              ? <><LoaderCircle size={20} className="animate-spin" aria-hidden="true" /> جارٍ الإرسال</>
+              : <><Send size={20} className="rtl:-scale-x-100" aria-hidden="true" /> ملخص المسودات</>}
           </button>
           <button className="btn-primary" onClick={() => runFinancial('monthly')} disabled={reporting}>
-            {reporting ? '⏳…' : '📊 التقرير المالي الشهري'}
+            {reporting
+              ? <><LoaderCircle size={20} className="animate-spin" aria-hidden="true" /> جارٍ الإرسال</>
+              : <><ChartColumn size={20} aria-hidden="true" /> التقرير المالي الشهري</>}
           </button>
           <button className="btn-ghost" onClick={() => runFinancial('quarterly')} disabled={reporting}>
-            📊 الربعي
+            <ChartColumn size={20} aria-hidden="true" /> الربعي
           </button>
           <button className="btn-ghost" onClick={() => runFinancial('annual')} disabled={reporting}>
-            📊 السنوي
+            <ChartColumn size={20} aria-hidden="true" /> السنوي
           </button>
         </div>
-        <p className="text-xs text-slate-400 mt-3">
+        <p className="text-xs text-muted-foreground mt-3">
           آلياً: الشهري أول كل شهر، الربعي أول كل ربع، السنوي أول السنة.
         </p>
       </div>

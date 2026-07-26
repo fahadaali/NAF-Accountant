@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
+import SourceIcon from '../components/SourceIcon.jsx';
+import { Inbox, FilePen, Bot, CircleAlert } from 'lucide-react';
+import { fmtDateTime } from '../lib/format.js';
 
+// الأيقونات والألوان من السجلّ: naf-icons.md — والخلفية مخفّفة من الرمز
+// نفسه (CLAUDE.md §6) لا من درجة لوحة.
 const STAT_CARDS = [
-  { key: 'total', label: 'إجمالي العمليات', icon: '📥', color: 'bg-accent text-primary' },
-  { key: 'posted', label: 'مسودات في وافق', icon: '✅', color: 'bg-green-50 text-green-700' },
-  { key: 'analyzed', label: 'قيد التحليل', icon: '🤖', color: 'bg-amber-50 text-amber-700' },
-  { key: 'failed', label: 'عمليات فاشلة', icon: '⚠️', color: 'bg-red-50 text-red-700' },
+  { key: 'total', label: 'إجمالي العمليات', Icon: Inbox, color: 'bg-accent text-primary' },
+  { key: 'posted', label: 'مسودات في وافق', Icon: FilePen, color: 'bg-success/10 text-success' },
+  { key: 'analyzed', label: 'قيد التحليل', Icon: Bot, color: 'bg-warning/10 text-warning' },
+  { key: 'failed', label: 'عمليات فاشلة', Icon: CircleAlert, color: 'bg-destructive/10 text-destructive' },
 ];
 
 export default function Dashboard() {
@@ -34,7 +39,7 @@ export default function Dashboard() {
       ? stats.total
       : stats.byStatus?.find((r) => r.status === status)?.count || 0;
 
-  if (loading) return <p className="text-slate-400">جارٍ التحميل…</p>;
+  if (loading) return <p className="text-muted-foreground">جارٍ التحميل…</p>;
 
   return (
     <div className="space-y-8">
@@ -44,7 +49,7 @@ export default function Dashboard() {
       </div>
 
       {error && (
-        <div className="card border-red-200 bg-red-50 text-red-700">
+        <div className="card border-destructive/20 bg-destructive/10 text-destructive">
           تعذّر تحميل البيانات: {error} — تأكد من ضبط مفتاح لوحة التحكم في الإعدادات.
         </div>
       )}
@@ -53,8 +58,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {STAT_CARDS.map((c) => (
           <div key={c.key} className="card flex items-center gap-4">
-            <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${c.color}`}>
-              {c.icon}
+            <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${c.color}`}>
+              <c.Icon size={24} aria-hidden="true" />
             </div>
             <div>
               <div className="text-3xl font-bold text-foreground">{countFor(c.key)}</div>
@@ -68,12 +73,12 @@ export default function Dashboard() {
       <div className="card">
         <h3 className="text-lg font-bold text-foreground mb-4">أحدث العمليات</h3>
         {recent.length === 0 ? (
-          <p className="text-slate-400 text-center py-8">لا توجد عمليات بعد.</p>
+          <p className="text-muted-foreground text-center py-8">لم تصل أي عملية بعد. أرسل أول عملية من بوت تليجرام.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-end">
               <thead>
-                <tr className="text-slate-400 text-sm border-b border-slate-100">
+                <tr className="text-muted-foreground text-sm border-b border-border">
                   <th className="py-3 font-semibold">#</th>
                   <th className="py-3 font-semibold">المصدر</th>
                   <th className="py-3 font-semibold">النص</th>
@@ -83,15 +88,15 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {recent.map((t) => (
-                  <tr key={t.id} className="border-b border-slate-50 hover:bg-background">
-                    <td className="py-3 text-slate-600">{t.id}</td>
+                  <tr key={t.id} className="border-b border-border hover:bg-background">
+                    <td className="py-3 text-foreground">{t.id}</td>
                     <td className="py-3">
-                      {t.source_type === 'voice' ? '🎙️ صوت' : t.source_type === 'image' ? '🖼️ صورة' : '💬 نص'}
+                      <SourceIcon type={t.source_type} withLabel />
                     </td>
                     <td className="py-3 text-foreground max-w-xs truncate">{t.raw_text || '—'}</td>
                     <td className="py-3"><StatusBadge status={t.status} /></td>
-                    <td className="py-3 text-slate-400 text-sm">
-                      {new Date(t.created_at + 'Z').toLocaleString('ar')}
+                    <td className="py-3 text-muted-foreground text-sm">
+                      {fmtDateTime(t.created_at)}
                     </td>
                   </tr>
                 ))}

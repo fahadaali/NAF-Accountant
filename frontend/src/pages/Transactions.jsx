@@ -1,24 +1,31 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api, downloadTransactionsCsv } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
-import { Trash2, FileOutput, RefreshCw, Search, TriangleAlert } from 'lucide-react';
+import {
+  Trash2, FileOutput, RefreshCw, Search, CircleAlert,
+  ArrowUpNarrowWide, ArrowDownWideNarrow,
+} from 'lucide-react';
 import MediaViewer from '../components/MediaViewer.jsx';
+import SourceIcon from '../components/SourceIcon.jsx';
+import { fmtDateTime } from '../lib/format.js';
 
 const STATUS_OPTIONS = [
   { v: '', label: 'كل الحالات' },
-  { v: 'posted', label: 'مُرحّلة/مسودة' },
+  { v: 'posted', label: 'مُرحّلة' },
   { v: 'awaiting_info', label: 'بانتظار معلومات' },
-  { v: 'analyzed', label: 'مُحلّلة' },
-  { v: 'deleted', label: 'محذوفة من وافق' },
+  { v: 'analyzed', label: 'قيد التحليل' },
+  { v: 'deleted', label: 'محذوفة' },
   { v: 'failed', label: 'فشلت' },
   { v: 'received', label: 'مستلمة' },
 ];
 
+// القوائم المنسدلة لا تقبل عناصر React، فالتسمية نصّية هنا
+// والأيقونة تظهر في خلية الجدول.
 const SOURCE_OPTIONS = [
   { v: '', label: 'كل المصادر' },
-  { v: 'text', label: '💬 نص' },
-  { v: 'voice', label: '🎙️ صوت' },
-  { v: 'image', label: '🖼️ صورة' },
+  { v: 'text', label: 'نص' },
+  { v: 'voice', label: 'صوت' },
+  { v: 'image', label: 'صورة' },
 ];
 
 const SORT_OPTIONS = [
@@ -30,7 +37,7 @@ const SORT_OPTIONS = [
 
 function JsonPreview({ json }) {
   const [open, setOpen] = useState(false);
-  if (!json) return <span className="text-slate-300">—</span>;
+  if (!json) return <span className="text-muted-foreground/60">—</span>;
   let parsed;
   try { parsed = JSON.parse(json); } catch { parsed = null; }
   return (
@@ -39,7 +46,7 @@ function JsonPreview({ json }) {
         {open ? 'إخفاء' : 'عرض'}
       </button>
       {open && (
-        <pre className="mt-2 bg-slate-900 text-green-300 text-xs p-3 rounded-lg overflow-x-auto max-w-md" dir="ltr">
+        <pre className="mt-2 bg-muted text-foreground text-xs p-3 rounded-lg overflow-x-auto max-w-md" dir="ltr">
           {JSON.stringify(parsed || json, null, 2)}
         </pre>
       )}
@@ -129,8 +136,8 @@ export default function Transactions({ isAdmin }) {
         </div>
       </div>
 
-      {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
-      {msg && <div className="card border-green-200 bg-green-50 text-green-700">{msg}</div>}
+      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
+      {msg && <div className="card border-success/20 bg-success/10 text-success">{msg}</div>}
 
       {/* المرشّحات */}
       <div className="card">
@@ -163,17 +170,25 @@ export default function Transactions({ isAdmin }) {
               value={filters.sort} onChange={(e) => setF('sort', e.target.value)}>
               {SORT_OPTIONS.map((o) => <option key={o.v} value={o.v}>فرز: {o.label}</option>)}
             </select>
-            <button className="btn-ghost px-3" onClick={toggleOrder} title="عكس الترتيب">
-              {filters.order === 'desc' ? '⬇️' : '⬆️'}
+            {/* سهم الفرز رأسي — لا يُقلب في RTL (naf-icons.md) */}
+            <button
+              className="btn-ghost px-3"
+              onClick={toggleOrder}
+              title={filters.order === 'desc' ? 'فرز تنازلي' : 'فرز تصاعدي'}
+              aria-label={filters.order === 'desc' ? 'فرز تنازلي' : 'فرز تصاعدي'}
+            >
+              {filters.order === 'desc'
+                ? <ArrowDownWideNarrow size={20} aria-hidden="true" />
+                : <ArrowUpNarrowWide size={20} aria-hidden="true" />}
             </button>
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">من تاريخ</label>
+            <label className="block text-xs text-muted-foreground mb-1">من تاريخ</label>
             <input type="date" className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={filters.from} onChange={(e) => setF('from', e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">إلى تاريخ</label>
+            <label className="block text-xs text-muted-foreground mb-1">إلى تاريخ</label>
             <input type="date" className="w-full border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={filters.to} onChange={(e) => setF('to', e.target.value)} />
           </div>
@@ -190,14 +205,14 @@ export default function Transactions({ isAdmin }) {
           {selected.size > 0 && <span>محدّد: {selected.size}</span>}
         </div>
         {loading ? (
-          <p className="text-slate-400 text-center py-8">جارٍ التحميل…</p>
+          <p className="text-muted-foreground text-center py-8">جارٍ التحميل…</p>
         ) : rows.length === 0 ? (
-          <p className="text-slate-400 text-center py-8">لا توجد عمليات مطابقة.</p>
+          <p className="text-muted-foreground text-center py-8">لا عمليات تطابق المرشّحات. وسّع المدى أو امسح المرشّحات.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-end">
               <thead>
-                <tr className="text-slate-400 text-sm border-b border-slate-100">
+                <tr className="text-muted-foreground text-sm border-b border-border">
                   {isAdmin && (
                     <th className="py-3 w-8">
                       <input type="checkbox" checked={allChecked} onChange={toggleAll} />
@@ -215,26 +230,28 @@ export default function Transactions({ isAdmin }) {
               </thead>
               <tbody>
                 {rows.map((t) => (
-                  <tr key={t.id} className={`border-b border-slate-50 align-top hover:bg-background ${selected.has(t.id) ? 'bg-accent' : ''}`}>
+                  <tr key={t.id} className={`border-b border-border align-top hover:bg-background ${selected.has(t.id) ? 'bg-accent' : ''}`}>
                     {isAdmin && (
                       <td className="py-3">
                         <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
                       </td>
                     )}
-                    <td className="py-3 text-slate-600">{t.id}</td>
+                    <td className="py-3 text-foreground">{t.id}</td>
                     <td className="py-3 whitespace-nowrap">
-                      {t.source_type === 'voice' ? '🎙️' : t.source_type === 'image' ? '🖼️' : '💬'}
+                      <SourceIcon type={t.source_type} />
                     </td>
                     <td className="py-3 text-foreground">
                       <div className="max-w-xs truncate" title={t.raw_text || ''}>{t.raw_text || '—'}</div>
-                      {t.error_message && <div className="text-destructive text-xs mt-1"><TriangleAlert size={16} className="inline" /> {t.error_message}</div>}
+                      {t.error_message && <div className="text-destructive text-xs mt-1"><CircleAlert size={16} className="inline" aria-hidden="true" /> {t.error_message}</div>}
                     </td>
                     <td className="py-3"><MediaViewer mediaKey={t.media_r2_key} /></td>
                     <td className="py-3"><JsonPreview json={t.processed_json} /></td>
-                    <td className="py-3 text-muted-foreground text-sm">{t.wafeq_draft_id ? `#${t.wafeq_draft_id}` : '—'}</td>
+                    <td className="py-3 text-muted-foreground text-sm">
+                      {t.wafeq_draft_id ? <span dir="ltr">#{t.wafeq_draft_id}</span> : '—'}
+                    </td>
                     <td className="py-3"><StatusBadge status={t.status} /></td>
-                    <td className="py-3 text-slate-400 text-sm whitespace-nowrap">
-                      {new Date(t.created_at + 'Z').toLocaleString('ar')}
+                    <td className="py-3 text-muted-foreground text-sm whitespace-nowrap">
+                      {fmtDateTime(t.created_at)}
                     </td>
                   </tr>
                 ))}

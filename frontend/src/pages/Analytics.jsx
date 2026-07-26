@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
+import { fmtNumber, fmtAmount, CURRENCY } from '../lib/format.js';
+import Money from '../components/Money.jsx';
 
 // ألوان الرسوم من رموز الثيم — لا قيم مباشرة (CLAUDE.md §1).
 // chart-2 (أزرق) + chart-3 (أخضر): الزوج اجتاز كل فحوص مدقّق dataviz
@@ -10,8 +12,10 @@ const CLS_EXPENSE = 'chart-3';
 
 const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 
-const fmt = (n) =>
-  Number(n || 0).toLocaleString('ar-SA', { maximumFractionDigits: 0 });
+// الأرقام غربية بفاصل آلاف — من lib/format.js لا داخل الصفحة.
+const fmt = (n) => fmtNumber(n);
+// نصّ داخل <title> في SVG لا يقبل عنصراً، فيُبنى المبلغ نصّاً بالقواعد نفسها.
+const fmtAmountText = (n) => `${fmtAmount(n)} ${CURRENCY}`;
 
 function monthLabel(ym) {
   const [y, m] = ym.split('-');
@@ -19,24 +23,22 @@ function monthLabel(ym) {
 }
 
 /** شريط أفقي — مقارنة مقادير بين فئات. */
-function BarList({ title, data, empty, unit = 'ر.س' }) {
+function BarList({ title, data, empty }) {
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
     <div className="card">
       <h3 className="font-bold text-foreground mb-4">{title}</h3>
       {data.length === 0 ? (
-        <p className="text-slate-400 text-center py-8">{empty}</p>
+        <p className="text-muted-foreground text-center py-8">{empty}</p>
       ) : (
         <div className="space-y-3">
           {data.map((d) => (
             <div key={d.name}>
               <div className="flex items-baseline justify-between text-sm mb-1">
                 <span className="text-foreground truncate ms-2">{d.name}</span>
-                <span className="text-muted-foreground tabular-nums whitespace-nowrap">
-                  {fmt(d.value)} {unit}
-                </span>
+                <Money value={d.value} className="text-muted-foreground" />
               </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full bg-chart-2"
                   style={{ width: `${(d.value / max) * 100}%` }}
@@ -56,7 +58,7 @@ function TrendChart({ data }) {
     return (
       <div className="card">
         <h3 className="font-bold text-foreground mb-4">الاتجاه الشهري</h3>
-        <p className="text-slate-400 text-center py-8">لا توجد بيانات كافية بعد.</p>
+        <p className="text-muted-foreground text-center py-8">تظهر الرسوم بعد أول شهر مكتمل من العمليات.</p>
       </div>
     );
   }
@@ -82,11 +84,11 @@ function TrendChart({ data }) {
         <div className="flex items-center gap-4 text-sm">
           <span className="flex items-center gap-2">
             <span className="w-3 h-0.5 rounded-sm bg-chart-2" />
-            <span className="text-slate-600">الإيرادات</span>
+            <span className="text-foreground">الإيرادات</span>
           </span>
           <span className="flex items-center gap-2">
             <span className="w-3 h-0.5 rounded-sm bg-chart-3" />
-            <span className="text-slate-600">المصروفات</span>
+            <span className="text-foreground">المصروفات</span>
           </span>
         </div>
       </div>
@@ -116,10 +118,10 @@ function TrendChart({ data }) {
           {data.map((d, i) => (
             <g key={d.month}>
               <circle cx={x(i)} cy={y(d.revenue)} r="4" className="fill-chart-2 stroke-card" strokeWidth="2">
-                <title>{`${monthLabel(d.month)} — إيرادات ${fmt(d.revenue)} ر.س`}</title>
+                <title>{`${monthLabel(d.month)} — إيرادات ${fmtAmountText(d.revenue)}`}</title>
               </circle>
               <circle cx={x(i)} cy={y(d.expenses)} r="4" className="fill-chart-3 stroke-card" strokeWidth="2">
-                <title>{`${monthLabel(d.month)} — مصروفات ${fmt(d.expenses)} ر.س`}</title>
+                <title>{`${monthLabel(d.month)} — مصروفات ${fmtAmountText(d.expenses)}`}</title>
               </circle>
               <text x={x(i)} y={H - 12} textAnchor="middle"
                     className="fill-muted-foreground text-xs">
@@ -132,8 +134,8 @@ function TrendChart({ data }) {
 
       {/* تسمية مباشرة للقيمة الأخيرة بدل رقم فوق كل نقطة */}
       <div className="flex gap-6 text-sm mt-2 text-muted-foreground">
-        <span>آخر شهر — إيرادات: <b className="text-foreground">{fmt(last.revenue)}</b> ر.س</span>
-        <span>مصروفات: <b className="text-foreground">{fmt(last.expenses)}</b> ر.س</span>
+        <span>آخر شهر — إيرادات: <Money value={last.revenue} className="text-foreground font-bold" /></span>
+        <span>مصروفات: <Money value={last.expenses} className="text-foreground font-bold" /></span>
       </div>
     </div>
   );
@@ -178,10 +180,10 @@ export default function Analytics() {
         </select>
       </div>
 
-      {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
+      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
 
       {loading ? (
-        <p className="text-slate-400">جارٍ التحميل…</p>
+        <p className="text-muted-foreground">جارٍ التحميل…</p>
       ) : (
         <>
           <TrendChart data={data?.monthly || []} />
@@ -189,12 +191,12 @@ export default function Analytics() {
             <BarList
               title="المصروفات حسب التصنيف"
               data={data?.byCategory || []}
-              empty="لا توجد مصروفات في الفترة."
+              empty="لا مصروفات في هذه الفترة. جرّب مدى أطول."
             />
             <BarList
               title="أكبر الموردين"
               data={data?.byVendor || []}
-              empty="لا توجد فواتير مشتريات في الفترة."
+              empty="لا فواتير مشتريات في هذه الفترة. جرّب مدى أطول."
             />
           </div>
 
@@ -205,7 +207,7 @@ export default function Analytics() {
               <div className="overflow-x-auto">
                 <table className="w-full text-end">
                   <thead>
-                    <tr className="text-slate-400 text-sm border-b border-slate-100">
+                    <tr className="text-muted-foreground text-sm border-b border-border">
                       <th className="py-2 font-semibold">الشهر</th>
                       <th className="py-2 font-semibold">الإيرادات</th>
                       <th className="py-2 font-semibold">المصروفات</th>
@@ -214,10 +216,10 @@ export default function Analytics() {
                   </thead>
                   <tbody>
                     {data.monthly.map((m) => (
-                      <tr key={m.month} className="border-b border-slate-50">
+                      <tr key={m.month} className="border-b border-border">
                         <td className="py-2 text-foreground">{monthLabel(m.month)}</td>
-                        <td className="py-2 tabular-nums text-slate-600">{fmt(m.revenue)}</td>
-                        <td className="py-2 tabular-nums text-slate-600">{fmt(m.expenses)}</td>
+                        <td className="py-2 tabular-nums text-foreground">{fmt(m.revenue)}</td>
+                        <td className="py-2 tabular-nums text-foreground">{fmt(m.expenses)}</td>
                         <td className="py-2 tabular-nums font-semibold text-foreground">
                           {fmt(m.revenue - m.expenses)}
                         </td>

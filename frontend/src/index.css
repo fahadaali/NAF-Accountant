@@ -13,9 +13,8 @@
    المصدر الوحيد للرموز الآن هو naf-theme.css. */
 
 @layer base {
-  html {
-    direction: rtl;
-  }
+  /* الاتجاه من السمة dir="rtl" في index.html لا من قاعدة CSS:
+     قاعدة `direction: rtl` هنا كانت تتجاوز السمة فيتعذّر عرض LTR أصلاً. */
   body {
     @apply bg-background text-foreground antialiased;
   }
@@ -23,7 +22,7 @@
 
 @layer components {
   .card {
-    @apply bg-card rounded-xl shadow-sm border border-slate-100 p-6;
+    @apply bg-card rounded-xl shadow-sm border border-border p-6;
   }
   /* في v4 لا يجوز @apply على صنف مكوّن آخر، فتُضمَّن أنماط .btn في كل نوع.
      المخرج البصري مطابق تماماً لما كان في v3. */
@@ -36,7 +35,7 @@
   }
   .btn-ghost {
     @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition;
-    @apply bg-slate-100 text-foreground hover:bg-slate-200;
+    @apply bg-muted text-foreground hover:bg-muted/70;
   }
   .badge {
     @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;

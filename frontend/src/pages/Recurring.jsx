@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
+import { fmtAmount, CURRENCY } from '../lib/format.js';
 
 const TYPE_AR = {
   manual_journal: 'قيد يومية',
@@ -17,7 +18,7 @@ function templateSummary(json) {
           ? (r.bill?.line_items || []).map((li) => Number(li.amount || 0))
           : (r.invoice?.line_items || []).map((li) => Number(li.amount || 0));
     const total = items.reduce((s, n) => s + n, 0);
-    return `${TYPE_AR[r.type] || r.type} — ${total} ر.س${r.contact_name ? ` — ${r.contact_name}` : ''}`;
+    return `${TYPE_AR[r.type] || r.type} — ${fmtAmount(total)} ${CURRENCY}${r.contact_name ? ` — ${r.contact_name}` : ''}`;
   } catch {
     return '—';
   }
@@ -66,8 +67,8 @@ export default function Recurring() {
         </p>
       </div>
 
-      {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
-      {msg && <div className="card border-green-200 bg-green-50 text-green-700">{msg}</div>}
+      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
+      {msg && <div className="card border-success/20 bg-success/10 text-success">{msg}</div>}
 
       <div className="card">
         <h3 className="font-bold text-foreground mb-1">إنشاء قالب متكرّر</h3>
@@ -113,14 +114,14 @@ export default function Recurring() {
             <button className="btn-primary flex-1 justify-center" type="submit">إضافة</button>
           </div>
         </form>
-        <p className="text-xs text-slate-400 mt-2">يوم التنفيذ من ١ إلى ٢٨ (لضمان وجوده في كل الشهور).</p>
+        <p className="text-xs text-muted-foreground mt-2">يوم التنفيذ من ١ إلى ٢٨ (لضمان وجوده في كل الشهور).</p>
       </div>
 
       <div className="card">
         <div className="overflow-x-auto">
           <table className="w-full text-end">
             <thead>
-              <tr className="text-slate-400 text-sm border-b border-slate-100">
+              <tr className="text-muted-foreground text-sm border-b border-border">
                 <th className="py-2 font-semibold">الاسم</th>
                 <th className="py-2 font-semibold">التفاصيل</th>
                 <th className="py-2 font-semibold">يوم التنفيذ</th>
@@ -132,19 +133,19 @@ export default function Recurring() {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="py-8 text-center text-slate-400">
-                    لا توجد عمليات متكرّرة بعد.
+                  <td colSpan="6" className="py-8 text-center text-muted-foreground">
+                    لم تُضِف أي عملية متكرّرة بعد. ابدأ بإضافة أول عملية.
                   </td>
                 </tr>
               ) : (
                 rows.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-50 hover:bg-background">
+                  <tr key={r.id} className="border-b border-border hover:bg-background">
                     <td className="py-3 font-semibold text-foreground">{r.label}</td>
-                    <td className="py-3 text-slate-600 text-sm">{templateSummary(r.template_json)}</td>
-                    <td className="py-3 text-slate-600">{r.day_of_month}</td>
-                    <td className="py-3 text-slate-400 text-sm">{r.last_run_ym || 'لم يُنفّذ بعد'}</td>
+                    <td className="py-3 text-foreground text-sm">{templateSummary(r.template_json)}</td>
+                    <td className="py-3 text-foreground">{r.day_of_month}</td>
+                    <td className="py-3 text-muted-foreground text-sm">{r.last_run_ym || 'لم يُنفّذ بعد'}</td>
                     <td className="py-3">
-                      <span className={`badge ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
+                      <span className={`badge ${r.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
                         {r.is_active ? 'مفعّل' : 'موقوف'}
                       </span>
                     </td>

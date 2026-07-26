@@ -1,0 +1,198 @@
+From 724a553ec8662da13d3112db7e74f78649884fb5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 26 Jul 2026 10:57:46 +0000
+Subject: [PATCH] =?UTF-8?q?feat(rules):=20=D8=AA=D8=B3=D8=AC=D9=8A=D9=84?=
+ =?UTF-8?q?=20=D9=85=D9=81=D8=A7=D9=87=D9=8A=D9=85=20=D8=A7=D9=84=D9=85?=
+ =?UTF-8?q?=D8=AD=D8=A7=D8=B3=D8=A8=D8=A9=20=E2=80=94=20=D8=A3=D9=8A=D9=82?=
+ =?UTF-8?q?=D9=88=D9=86=D8=A7=D8=AA=20=D9=88=D9=85=D8=B5=D8=B7=D9=84=D8=AD?=
+ =?UTF-8?q?=D8=A7=D8=AA=20=D9=88=D8=AD=D8=A7=D9=84=D8=A7=D8=AA?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+المنصة المحاسبية تعرض مفاهيم لا مقابل لها في السجلّ، فبقيت إيموجي.
+هذا تسجيلها قبل تطبيقها.
+
+naf-icons.md:
+- قسم «المحاسبة والمالية»: ١٢ مفهوماً (قيد محاسبي، شجرة الحسابات،
+  حساب بنكي، مورّد، تصنيف مصروف، ضريبة، عملية متكرّرة، تقرير مالي،
+  اتجاه زمني، سجلّ النظام، معالجة آلية، عملية واردة) + ٣ لمصدر العملية
+- الحالات: فشل، جارٍ التنفيذ، مُهيّأ، غير مُهيّأ
+- التنقّل: الفريق، فرز تصاعدي/تنازلي — مع بيان أنهما لا تُقلبان
+- تمييز Receipt/ReceiptText و MessageSquare/MessageSquareText و User/Users
+
+naf-terms.md:
+- ١٧ مصطلحاً محاسبياً بمعتمدها وممنوعها
+- ٧ حالات لدورة حياة العملية، ولكلٍّ أيقونة ولون
+- ٨ صياغات شاشة فارغة، ومنع «لا توجد بيانات كافية»
+
+CLAUDE.md §6:
+- الشارة بخلفية مخفّفة من الرمز لا مصمتة ولا من درجة لوحة
+- لا رمز للبرتقالي ولا البنفسجي: warning و info بديلاهما
+---
+ CLAUDE.md    |  6 ++++++
+ naf-icons.md | 45 +++++++++++++++++++++++++++++++++++++++++++++
+ naf-terms.md | 51 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 102 insertions(+)
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 93dc945..4e9d96c 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -135,6 +135,12 @@ bg-primary  text-primary-foreground  hover:bg-primary/90
+ - Never communicate meaning by colour alone — pair status colours with an icon and a label.
+ - Light and dark must both work. Test both.
+ 
++**Status badges are tinted, not solid.** A status badge uses the status token at `/10` for its background and the token itself for its text and icon — `bg-warning/10 text-warning`. Solid fills are for actions the user takes, not for states the system reports; a screen listing twenty rows of solid badges reads as twenty buttons. The one exception is `destructive` on a row the user is about to lose, where the weight is the point.
++
++Tints come from the token, never from a palette step. `bg-green-100 text-green-700` is the same mistake as a hex value: it survives a change of identity, and it should not.
++
++**Orange and purple have no token.** There is no `--orange` and no `--purple`, and none will be added. A state that feels orange is `warning`; a state that feels purple is `info`. If neither fits, the state is not yet designed — take it through the registry before shipping it.
++
+ **No undocumented status.** Every status shown to a user must exist in `naf-terms.md` with a registered colour token and a registered icon. A status that appears in one screen without passing through the registry — however reasonable it looks — is the first step back to five different systems.
+ 
+ ---
+diff --git a/naf-icons.md b/naf-icons.md
+index 1a52baf..0bd478f 100644
+--- a/naf-icons.md
++++ b/naf-icons.md
+@@ -60,6 +60,37 @@
+ 
+ ---
+ 
++## المحاسبة والمالية — خاصة بناف
++
++| المعنى | الأيقونة |
++|---|---|
++| قيد محاسبي | `ReceiptText` |
++| شجرة الحسابات | `ListTree` |
++| حساب بنكي | `Landmark` |
++| مورّد | `Truck` |
++| تصنيف مصروف | `Tags` |
++| ضريبة القيمة المضافة | `Percent` |
++| عملية متكرّرة | `Repeat` |
++| تقرير مالي | `ChartColumn` |
++| اتجاه زمني | `TrendingUp` |
++| سجلّ النظام | `ClipboardList` |
++| معالجة آلية | `Bot` |
++| عملية واردة | `Inbox` |
++
++`Receipt` للفاتورة و`ReceiptText` للقيد المحاسبي. الفاتورة مستند يُرسَل للعميل، والقيد سطر في الدفتر.
++
++### مصدر العملية
++
++| المعنى | الأيقونة |
++|---|---|
++| رسالة صوتية | `Mic` |
++| صورة مرفقة | `Image` |
++| رسالة نصية | `MessageSquareText` |
++
++`MessageSquare` للاستشارة و`MessageSquareText` لمصدر العملية النصّي. الأولى كيان قانوني، والثانية وصف لقناة الإدخال — والفرق البصري بينهما سطور النص داخل الفقاعة.
++
++---
++
+ ## الحالات
+ 
+ | الحالة | الأيقونة | اللون |
+@@ -72,6 +103,13 @@
+ | موقّع | `FileCheck` | `success` |
+ | معلومة | `Info` | `info` |
+ | تحذير | `TriangleAlert` | `warning` |
++| فشل | `CircleAlert` | `destructive` |
++| جارٍ التنفيذ | `LoaderCircle` | `muted-foreground` |
++| مُهيّأ | `CircleCheck` | `success` |
++| غير مُهيّأ | `CircleSlash` | `destructive` |
++
++`CircleAlert` للفشل و`TriangleAlert` للتحذير. الفشل حدث وقع، والتحذير احتمال قائم.
++و`CircleSlash` لغير المُهيّأ لا `CircleX` — الأخيرة للمرفوض، ورفضُ مستندٍ غير نقصِ إعداد.
+ 
+ **إلزامي:** لا تعتمد على اللون وحده. كل حالة أيقونة **و**نص، لأن نحو ٨٪ من الرجال لا يميّزون الأحمر عن الأخضر.
+ 
+@@ -91,6 +129,13 @@
+ | التالي | `ArrowLeft` | **نعم** |
+ | فتح قائمة منسدلة | `ChevronDown` | لا |
+ | توسيع عنصر | `ChevronLeft` | **نعم** |
++| الفريق | `Users` | لا |
++| فرز تصاعدي | `ArrowUpNarrowWide` | لا |
++| فرز تنازلي | `ArrowDownWideNarrow` | لا |
++
++`User` للعميل الفرد و`Users` لفريق العمل الداخلي. المعنيان مختلفان: الأول من نتعامل معه، والثاني من يستخدم النظام.
++
++**أيقونتا الفرز لا تُقلبان.** سهمهما رأسي، والقلب الأفقي في RTL لا يمسّ الرأسي. لكن أشرطة العرض داخلهما أفقية — تُترك كما هي، فهي تمثّل تدرّج القيمة لا اتجاه القراءة.
+ 
+ ---
+ 
+diff --git a/naf-terms.md b/naf-terms.md
+index 31ca82a..74260bb 100644
+--- a/naf-terms.md
++++ b/naf-terms.md
+@@ -96,6 +96,48 @@
+ | Under review | قيد المراجعة | |
+ | Pending | معلّق | |
+ 
++### المصطلحات المحاسبية
++
++خاصة بمنصة المحاسبة. تُشتقّ من المصطلح المحاسبي السعودي المعتمد.
++
++| المعنى | المعتمد | ممنوع |
++|---|---|---|
++| Journal entry | قيد محاسبي | قيد يومية، إدخال |
++| Chart of accounts | شجرة الحسابات | دليل الحسابات، مخطط الحسابات |
++| Account | حساب | بند |
++| Bank account | حساب بنكي | حساب مصرفي |
++| Vendor | مورّد | بائع، جهة |
++| Purchase bill | فاتورة مشتريات | فاتورة شراء |
++| Sales invoice | فاتورة مبيعات | فاتورة بيع |
++| VAT | ضريبة القيمة المضافة | الضريبة، ض.ق.م |
++| Input VAT | ضريبة المشتريات | الضريبة المدخلة |
++| Debit | مدين | |
++| Credit | دائن | |
++| Expense category | تصنيف المصروف | بند المصروف |
++| Recurring transaction | عملية متكرّرة | عملية دورية |
++| Profit and loss | الأرباح والخسائر | قائمة الدخل |
++| Trial balance | ميزان المراجعة | |
++| Reconciliation | مطابقة | تسوية |
++| System log | سجلّ النظام | سجلّ الأحداث |
++
++**تنبيه:** "قيد" وحدها غامضة — تعني القيد المحاسبي وتعني التقييد. استخدم "قيد محاسبي" كاملة في العناوين، و"القيد" مختصرةً داخل سياق محاسبي واضح فقط.
++
++### حالات العملية المحاسبية
++
++دورة حياة العملية في وسيط المحاسبة، من الاستلام إلى الترحيل.
++
++| الحالة | المعتمد | الأيقونة | اللون |
++|---|---|---|---|
++| received | مستلمة | `Inbox` | `muted-foreground` |
++| analyzed | قيد التحليل | `Bot` | `warning` |
++| awaiting_info | بانتظار معلومات | `Clock` | `warning` |
++| posted | مُرحّلة | `CircleCheck` | `success` |
++| deleted | محذوفة | `Trash2` | `muted-foreground` |
++| failed | فشلت | `CircleAlert` | `destructive` |
++| duplicate | مكرّرة | `Copy` | `warning` |
++
++**"مُرحّلة" لا "معتمدة".** الترحيل إدخال القيد في الدفتر، والاعتماد إقرار المحاسب له. القيد الذي ينشئه النظام مُرحَّل كمسودة وينتظر الاعتماد — والخلط بين الكلمتين يوهم المستخدم أن المراجعة تمّت.
++
+ **تعارض يجب حسمه:** كلمة "جلسة" تُستخدم للجلسة القضائية ولجلسة الدخول التقنية. القرار المعتمد: "جلسة" للقضائية فقط، و"جلسة الدخول" للتقنية صراحةً.
+ 
+ ---
+@@ -146,8 +188,17 @@
+ | لا نتائج بحث | لا نتائج مطابقة لبحثك. جرّب كلمات أخرى. |
+ | لا إشعارات | لا إشعارات جديدة. |
+ | لا مرفقات | لا مرفقات في هذا الملف. أضف أول مرفق. |
++| لا عمليات بعد | لم تصل أي عملية بعد. أرسل أول عملية من بوت تليجرام. |
++| لا عمليات مطابقة للمرشّحات | لا عمليات تطابق المرشّحات. وسّع المدى أو امسح المرشّحات. |
++| لا بيانات للرسم البياني | تظهر الرسوم بعد أول شهر مكتمل من العمليات. |
++| لا مصروفات في الفترة | لا مصروفات في هذه الفترة. جرّب مدى أطول. |
++| لا فواتير مشتريات في الفترة | لا فواتير مشتريات في هذه الفترة. جرّب مدى أطول. |
++| لا سجلّ نظام | السجلّ فارغ. تظهر هنا أحداث النظام أولاً بأول. |
++| لا عمليات متكرّرة | لم تُضِف أي عملية متكرّرة بعد. ابدأ بإضافة أول عملية. |
++| لا أعضاء في الفريق | أنت العضو الوحيد. أضف زميلاً لمشاركة العمل. |
+ 
+ **ممنوع:** "لا توجد بيانات" — صحيحة وعديمة الفائدة.
++**وممنوع مثلها:** "لا توجد بيانات كافية" — تُلقي اللوم على المستخدم دون أن تخبره متى تكفي. قل متى تظهر البيانات.
+ 
+ ### التأكيدات
+ 
+-- 
+2.43.0
+

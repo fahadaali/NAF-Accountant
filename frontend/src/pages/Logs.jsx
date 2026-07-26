@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api.js';
 import { TriangleAlert, RefreshCw } from 'lucide-react';
+import { fmtDateTime } from '../lib/format.js';
 
 const STATUS_STYLE = {
-  success: 'bg-green-100 text-green-700',
-  error: 'bg-red-100 text-red-700',
-  info: 'bg-slate-100 text-slate-600',
+  success: 'bg-success/10 text-success',
+  error: 'bg-destructive/10 text-destructive',
+  info: 'bg-muted text-muted-foreground',
 };
 
 const ACTION_AR = {
@@ -73,18 +74,18 @@ export default function Logs() {
         </div>
       </div>
 
-      {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
+      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
 
       <div className="card">
         {loading ? (
-          <p className="text-slate-400 text-center py-8">جارٍ التحميل…</p>
+          <p className="text-muted-foreground text-center py-8">جارٍ التحميل…</p>
         ) : shown.length === 0 ? (
-          <p className="text-slate-400 text-center py-8">لا توجد سجلّات.</p>
+          <p className="text-muted-foreground text-center py-8">السجلّ فارغ. تظهر هنا أحداث النظام أولاً بأول.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-end">
               <thead>
-                <tr className="text-slate-400 text-sm border-b border-slate-100">
+                <tr className="text-muted-foreground text-sm border-b border-border">
                   <th className="py-3 font-semibold">الوقت</th>
                   <th className="py-3 font-semibold">الإجراء</th>
                   <th className="py-3 font-semibold">الحالة</th>
@@ -94,9 +95,9 @@ export default function Logs() {
               </thead>
               <tbody>
                 {shown.map((l) => (
-                  <tr key={l.id} className="border-b border-slate-50 align-top hover:bg-background">
-                    <td className="py-3 text-slate-400 text-sm whitespace-nowrap">
-                      {new Date(l.timestamp + 'Z').toLocaleString('ar')}
+                  <tr key={l.id} className="border-b border-border align-top hover:bg-background">
+                    <td className="py-3 text-muted-foreground text-sm whitespace-nowrap">
+                      {fmtDateTime(l.timestamp)}
                     </td>
                     <td className="py-3 text-foreground">{ACTION_AR[l.action] || l.action}</td>
                     <td className="py-3">
@@ -105,7 +106,7 @@ export default function Logs() {
                       </span>
                     </td>
                     <td className="py-3 text-muted-foreground text-sm">{l.transaction_id || '—'}</td>
-                    <td className="py-3 text-slate-600 text-sm max-w-md break-words">
+                    <td className="py-3 text-foreground text-sm max-w-md break-words">
                       {l.error_details || '—'}
                     </td>
                   </tr>

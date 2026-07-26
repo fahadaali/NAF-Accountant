@@ -47,8 +47,8 @@ export default function Team() {
         <p className="text-muted-foreground mt-1">مستخدمو اللوحة، ومحادثات تليجرام المصرّح لها</p>
       </div>
 
-      {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
-      {msg && <div className="card border-green-200 bg-green-50 text-green-700">{msg}</div>}
+      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
+      {msg && <div className="card border-success/20 bg-success/10 text-success">{msg}</div>}
 
       {/* ============ مستخدمو اللوحة ============ */}
       <div className="card">
@@ -93,7 +93,7 @@ export default function Team() {
         <div className="overflow-x-auto">
           <table className="w-full text-end">
             <thead>
-              <tr className="text-slate-400 text-sm border-b border-slate-100">
+              <tr className="text-muted-foreground text-sm border-b border-border">
                 <th className="py-2 font-semibold">البريد</th>
                 <th className="py-2 font-semibold">الصلاحية</th>
                 <th className="py-2 font-semibold">الحالة</th>
@@ -102,7 +102,7 @@ export default function Team() {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-slate-50 hover:bg-background">
+                <tr key={u.id} className="border-b border-border hover:bg-background">
                   <td className="py-3 text-foreground" dir="ltr">{u.email}</td>
                   <td className="py-3">
                     <select
@@ -117,7 +117,7 @@ export default function Team() {
                     </select>
                   </td>
                   <td className="py-3">
-                    <span className={`badge ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
+                    <span className={`badge ${u.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
                       {u.is_active ? 'نشط' : 'معطّل'}
                     </span>
                   </td>
@@ -148,7 +148,7 @@ export default function Team() {
           من يستطيع إرسال العمليات للبوت. «مسؤول» يستقبل تنبيهات فشل المهام المجدولة.
           <br />
           لمعرفة معرّف المحادثة: اطلب من الموظف مراسلة البوت، ثم افتح رابط
-          <code className="bg-slate-100 px-1 rounded-sm mx-1" dir="ltr">getUpdates</code>
+          <code className="bg-muted px-1 rounded-sm mx-1" dir="ltr">getUpdates</code>
           الخاص بالبوت.
         </p>
 
@@ -174,7 +174,7 @@ export default function Team() {
             value={chatForm.label}
             onChange={(e) => setChatForm({ ...chatForm, label: e.target.value })}
           />
-          <label className="flex items-center gap-2 text-sm text-slate-600">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
               checked={!!chatForm.is_admin}
@@ -188,7 +188,7 @@ export default function Team() {
         <div className="overflow-x-auto">
           <table className="w-full text-end">
             <thead>
-              <tr className="text-slate-400 text-sm border-b border-slate-100">
+              <tr className="text-muted-foreground text-sm border-b border-border">
                 <th className="py-2 font-semibold">المعرّف</th>
                 <th className="py-2 font-semibold">الاسم</th>
                 <th className="py-2 font-semibold">تنبيهات</th>
@@ -199,18 +199,18 @@ export default function Team() {
             <tbody>
               {chats.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="py-6 text-center text-slate-400">
-                    لا توجد محادثات — يُستخدم حالياً المتغيّر AUTHORIZED_CHAT_IDS الاحتياطي.
+                  <td colSpan="5" className="py-6 text-center text-muted-foreground">
+                    لم تُضِف أي محادثة بعد. يُستخدم حالياً المتغيّر AUTHORIZED_CHAT_IDS الاحتياطي.
                   </td>
                 </tr>
               ) : (
                 chats.map((ch) => (
-                  <tr key={ch.chat_id} className="border-b border-slate-50 hover:bg-background">
-                    <td className="py-3 font-mono text-slate-600" dir="ltr">{ch.chat_id}</td>
+                  <tr key={ch.chat_id} className="border-b border-border hover:bg-background">
+                    <td className="py-3 font-mono text-foreground" dir="ltr">{ch.chat_id}</td>
                     <td className="py-3 text-foreground">{ch.label || '—'}</td>
                     <td className="py-3">{ch.is_admin ? <span className="inline-flex items-center gap-2"><Bell size={16} /> نعم</span> : '—'}</td>
                     <td className="py-3">
-                      <span className={`badge ${ch.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
+                      <span className={`badge ${ch.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
                         {ch.is_active ? 'مصرّح' : 'موقوف'}
                       </span>
                     </td>

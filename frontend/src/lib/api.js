@@ -99,7 +99,7 @@ export async function fetchMediaUrl(key) {
   const res = await fetch(`${API_BASE}/api/media?key=${encodeURIComponent(key)}`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!res.ok) throw new Error('تعذّر تحميل الملف');
+  if (!res.ok) throw new Error('تعذّر فتح المرفق. أعد المحاولة بعد قليل');
   const blob = await res.blob();
   return { url: URL.createObjectURL(blob), type: blob.type };
 }

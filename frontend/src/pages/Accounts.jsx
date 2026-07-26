@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, LoaderCircle } from 'lucide-react';
 
+// نوع الحساب تصنيف لا حالة، فيأخذ رموز الرسوم (chart-*) المخصّصة
+// للفئات، لا رموز الحالة. والخلفية مخفّفة من الرمز نفسه (CLAUDE.md §6).
 const TYPE_LABELS = {
-  asset: { label: 'أصل', cls: 'bg-sky-100 text-sky-700' },
-  liability: { label: 'خصم', cls: 'bg-orange-100 text-orange-700' },
-  equity: { label: 'حقوق ملكية', cls: 'bg-purple-100 text-purple-700' },
-  revenue: { label: 'إيراد', cls: 'bg-green-100 text-green-700' },
-  expense: { label: 'مصروف', cls: 'bg-red-100 text-red-700' },
+  asset: { label: 'أصل', cls: 'bg-chart-2/10 text-chart-2' },
+  liability: { label: 'خصم', cls: 'bg-chart-4/10 text-chart-4' },
+  equity: { label: 'حقوق ملكية', cls: 'bg-chart-5/10 text-chart-5' },
+  revenue: { label: 'إيراد', cls: 'bg-chart-3/10 text-chart-3' },
+  expense: { label: 'مصروف', cls: 'bg-chart-1/10 text-chart-1' },
 };
 
 const EMPTY = { account_code: '', account_name: '', account_type: 'expense' };
@@ -68,13 +70,15 @@ export default function Accounts({ isAdmin }) {
         </div>
         {isAdmin && (
           <button className="btn-primary" onClick={sync} disabled={syncing}>
-            {syncing ? '⏳ جارٍ المزامنة…' : <><RefreshCw size={20} /> مزامنة من وافق</>}
+            {syncing
+              ? <><LoaderCircle size={20} className="animate-spin" aria-hidden="true" /> جارٍ المزامنة</>
+              : <><RefreshCw size={20} aria-hidden="true" /> مزامنة من وافق</>}
           </button>
         )}
       </div>
 
-      {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
-      {msg && <div className="card border-green-200 bg-green-50 text-green-700">{msg}</div>}
+      {error && <div className="card border-destructive/20 bg-destructive/10 text-destructive">{error}</div>}
+      {msg && <div className="card border-success/20 bg-success/10 text-success">{msg}</div>}
 
       {/* نموذج إضافة حساب — للمسؤول فقط */}
       <div className="card" style={{ display: isAdmin ? undefined : 'none' }}>
@@ -112,7 +116,7 @@ export default function Accounts({ isAdmin }) {
         <div className="overflow-x-auto">
           <table className="w-full text-end">
             <thead>
-              <tr className="text-slate-400 text-sm border-b border-slate-100">
+              <tr className="text-muted-foreground text-sm border-b border-border">
                 <th className="py-3 font-semibold">الرمز</th>
                 <th className="py-3 font-semibold">اسم الحساب</th>
                 <th className="py-3 font-semibold">النوع</th>
@@ -122,18 +126,18 @@ export default function Accounts({ isAdmin }) {
             </thead>
             <tbody>
               {accounts.map((a) => {
-                const t = TYPE_LABELS[a.account_type] || { label: a.account_type, cls: 'bg-slate-100 text-slate-600' };
+                const t = TYPE_LABELS[a.account_type] || { label: a.account_type, cls: 'bg-muted text-muted-foreground' };
                 return (
-                  <tr key={a.id} className="border-b border-slate-50 hover:bg-background">
-                    <td className="py-3 font-mono text-slate-600">{a.account_code}</td>
+                  <tr key={a.id} className="border-b border-border hover:bg-background">
+                    <td className="py-3 font-mono text-foreground">{a.account_code}</td>
                     <td className="py-3 text-foreground font-semibold">{a.account_name}</td>
                     <td className="py-3"><span className={`badge ${t.cls}`}>{t.label}</span></td>
-                    <td className="py-3 text-slate-400 text-sm">{a.wafeq_account_id || '— غير مزامن'}</td>
+                    <td className="py-3 text-muted-foreground text-sm">{a.wafeq_account_id || '— غير مزامن'}</td>
                     <td className="py-3">
                       {a.is_active ? (
-                        <span className="badge bg-green-100 text-green-700">نشط</span>
+                        <span className="badge bg-success/10 text-success">نشط</span>
                       ) : (
-                        <span className="badge bg-slate-100 text-muted-foreground">معطّل</span>
+                        <span className="badge bg-muted text-muted-foreground">معطّل</span>
                       )}
                     </td>
                   </tr>
