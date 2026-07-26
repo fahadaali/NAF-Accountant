@@ -45,13 +45,13 @@ export default function MediaViewer({ mediaKey }) {
         <div className="mt-2">
           {loading && <span className="text-slate-400 text-xs">جارٍ التحميل…</span>}
           {error && <span className="text-destructive text-xs">{error}</span>}
-          {media && isAudio && <audio controls src={media.url} className="max-w-[240px]" />}
+          {media && isAudio && <audio controls src={media.url} className="w-full max-w-xs" />}
           {media && !isAudio && (
             <a href={media.url} target="_blank" rel="noreferrer">
               <img
                 src={media.url}
                 alt="مرفق"
-                className="max-w-[220px] rounded-lg border border-border"
+                className="max-w-xs rounded-lg border border-border"
               />
             </a>
           )}
