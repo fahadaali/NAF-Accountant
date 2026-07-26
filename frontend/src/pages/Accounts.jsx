@@ -62,7 +62,7 @@ export default function Accounts({ isAdmin }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black text-foreground">شجرة الحسابات</h2>
+          <h2 className="text-2xl font-bold text-foreground">شجرة الحسابات</h2>
           <p className="text-muted-foreground mt-1">دليل الحسابات المستخدم في توجيه القيود</p>
         </div>
         {isAdmin && (

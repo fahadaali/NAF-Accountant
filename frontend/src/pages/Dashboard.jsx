@@ -39,7 +39,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-black text-foreground">لوحة التحكم</h2>
+        <h2 className="text-2xl font-bold text-foreground">لوحة التحكم</h2>
         <p className="text-muted-foreground mt-1">نظرة عامة على العمليات المحاسبية الآلية</p>
       </div>
 
@@ -57,7 +57,7 @@ export default function Dashboard() {
               {c.icon}
             </div>
             <div>
-              <div className="text-3xl font-black text-foreground">{countFor(c.key)}</div>
+              <div className="text-3xl font-bold text-foreground">{countFor(c.key)}</div>
               <div className="text-muted-foreground text-sm">{c.label}</div>
             </div>
           </div>

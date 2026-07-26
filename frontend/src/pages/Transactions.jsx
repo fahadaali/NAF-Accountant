@@ -107,7 +107,7 @@ export default function Transactions({ isAdmin }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-black text-foreground">العمليات</h2>
+          <h2 className="text-2xl font-bold text-foreground">العمليات</h2>
           <p className="text-muted-foreground mt-1">فرز، تصفية، وحذف العمليات</p>
         </div>
         <div className="flex items-center gap-2">

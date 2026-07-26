@@ -60,7 +60,7 @@ export default function Recurring() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-black text-foreground">العمليات المتكرّرة</h2>
+        <h2 className="text-2xl font-bold text-foreground">العمليات المتكرّرة</h2>
         <p className="text-muted-foreground mt-1">
           عمليات تُنشأ تلقائياً كل شهر (الإيجار، الرواتب…) في اليوم المحدّد
         </p>

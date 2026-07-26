@@ -98,7 +98,7 @@ function TrendChart({ data }) {
               <line x1={P.left} x2={W - P.right} y1={y(t)} y2={y(t)}
                     stroke="#e2e8f0" strokeWidth="1" />
               <text x={P.left - 8} y={y(t) + 4} textAnchor="end"
-                    className="fill-slate-400" style={{ fontSize: 11 }}>
+                    className="fill-muted-foreground text-xs">
                 {fmt(t)}
               </text>
             </g>
@@ -119,8 +119,8 @@ function TrendChart({ data }) {
               <circle cx={x(i)} cy={y(d.expenses)} r="4" fill={C_EXPENSE} stroke="#fff" strokeWidth="2">
                 <title>{`${monthLabel(d.month)} — مصروفات ${fmt(d.expenses)} ر.س`}</title>
               </circle>
-              <text x={x(i)} y={H - 12} textAnchor="middle" className="fill-slate-400"
-                    style={{ fontSize: 11 }}>
+              <text x={x(i)} y={H - 12} textAnchor="middle"
+                    className="fill-muted-foreground text-xs">
                 {monthLabel(d.month)}
               </text>
             </g>
@@ -162,7 +162,7 @@ export default function Analytics() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-black text-foreground">التحليلات</h2>
+          <h2 className="text-2xl font-bold text-foreground">التحليلات</h2>
           <p className="text-muted-foreground mt-1">نظرة على المصروفات والإيرادات وأكبر الموردين</p>
         </div>
         <select

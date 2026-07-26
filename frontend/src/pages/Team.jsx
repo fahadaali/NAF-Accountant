@@ -42,7 +42,7 @@ export default function Team() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-black text-foreground">الفريق والصلاحيات</h2>
+        <h2 className="text-2xl font-bold text-foreground">الفريق والصلاحيات</h2>
         <p className="text-muted-foreground mt-1">مستخدمو اللوحة، ومحادثات تليجرام المصرّح لها</p>
       </div>
 

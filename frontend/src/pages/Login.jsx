@@ -60,7 +60,7 @@ export default function Login({ onAuthed }) {
     <div className="min-h-screen flex items-center justify-center bg-sidebar p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8 text-sidebar-foreground">
-          <h1 className="text-4xl font-black">ناف القانونية</h1>
+          <h1 className="text-4xl font-bold">ناف القانونية</h1>
           <p className="text-sidebar-foreground/80 mt-2">المحاسب الذكي · لوحة التحكم</p>
         </div>
 

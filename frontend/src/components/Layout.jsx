@@ -18,7 +18,7 @@ export default function Layout({ children, user, onLogout, isAdmin }) {
       {/* الشريط الجانبي */}
       <aside className="w-64 bg-sidebar text-sidebar-foreground flex-shrink-0 flex flex-col">
         <div className="p-6 border-b border-white/10">
-          <h1 className="text-2xl font-black">ناف القانونية</h1>
+          <h1 className="text-2xl font-bold">ناف القانونية</h1>
           <p className="text-sidebar-foreground/70 text-sm mt-1">المحاسب الذكي</p>
         </div>
         <nav className="flex-1 p-3 space-y-1">

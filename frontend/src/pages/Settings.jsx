@@ -77,7 +77,7 @@ export default function Settings({ user, onLogout }) {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h2 className="text-2xl font-black text-foreground">الإعدادات</h2>
+        <h2 className="text-2xl font-bold text-foreground">الإعدادات</h2>
         <p className="text-muted-foreground mt-1">إدارة الاتصال ومفاتيح الربط</p>
       </div>
 
