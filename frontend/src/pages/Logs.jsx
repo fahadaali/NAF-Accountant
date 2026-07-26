@@ -58,12 +58,12 @@ export default function Logs() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-black text-slate-800">سجلّ النظام</h2>
-          <p className="text-slate-500 mt-1">تتبّع العمليات والأخطاء لتشخيص المشاكل</p>
+          <h2 className="text-2xl font-black text-foreground">سجلّ النظام</h2>
+          <p className="text-muted-foreground mt-1">تتبّع العمليات والأخطاء لتشخيص المشاكل</p>
         </div>
         <div className="flex items-center gap-2">
           <button
-            className={onlyErrors ? 'btn bg-red-600 text-white' : 'btn-ghost'}
+            className={onlyErrors ? 'btn bg-destructive text-destructive-foreground' : 'btn-ghost'}
             onClick={() => setOnlyErrors((v) => !v)}
           >
             ⚠️ الأخطاء فقط ({errorCount})
@@ -93,17 +93,17 @@ export default function Logs() {
               </thead>
               <tbody>
                 {shown.map((l) => (
-                  <tr key={l.id} className="border-b border-slate-50 align-top hover:bg-slate-50">
+                  <tr key={l.id} className="border-b border-slate-50 align-top hover:bg-background">
                     <td className="py-3 text-slate-400 text-sm whitespace-nowrap">
                       {new Date(l.timestamp + 'Z').toLocaleString('ar')}
                     </td>
-                    <td className="py-3 text-slate-700">{ACTION_AR[l.action] || l.action}</td>
+                    <td className="py-3 text-foreground">{ACTION_AR[l.action] || l.action}</td>
                     <td className="py-3">
                       <span className={`badge ${STATUS_STYLE[l.status] || STATUS_STYLE.info}`}>
                         {l.status === 'success' ? 'نجح' : l.status === 'error' ? 'خطأ' : 'معلومة'}
                       </span>
                     </td>
-                    <td className="py-3 text-slate-500 text-sm">{l.transaction_id || '—'}</td>
+                    <td className="py-3 text-muted-foreground text-sm">{l.transaction_id || '—'}</td>
                     <td className="py-3 text-slate-600 text-sm max-w-md break-words">
                       {l.error_details || '—'}
                     </td>

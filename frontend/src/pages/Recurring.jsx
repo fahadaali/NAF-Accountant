@@ -60,8 +60,8 @@ export default function Recurring() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-black text-slate-800">العمليات المتكرّرة</h2>
-        <p className="text-slate-500 mt-1">
+        <h2 className="text-2xl font-black text-foreground">العمليات المتكرّرة</h2>
+        <p className="text-muted-foreground mt-1">
           عمليات تُنشأ تلقائياً كل شهر (الإيجار، الرواتب…) في اليوم المحدّد
         </p>
       </div>
@@ -70,8 +70,8 @@ export default function Recurring() {
       {msg && <div className="card border-green-200 bg-green-50 text-green-700">{msg}</div>}
 
       <div className="card">
-        <h3 className="font-bold text-slate-800 mb-1">إنشاء قالب متكرّر</h3>
-        <p className="text-slate-500 text-sm mb-4">
+        <h3 className="font-bold text-foreground mb-1">إنشاء قالب متكرّر</h3>
+        <p className="text-muted-foreground text-sm mb-4">
           اختر عملية سابقة لتُستنسخ شهرياً — يُستخدم نفس الحسابات والمبالغ والمورّد، ويتغيّر التاريخ فقط.
         </p>
         <form
@@ -86,7 +86,7 @@ export default function Recurring() {
         >
           <select
             required
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none sm:col-span-2"
+            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none sm:col-span-2"
             value={form.transaction_id}
             onChange={(e) => setForm({ ...form, transaction_id: e.target.value })}
           >
@@ -99,14 +99,14 @@ export default function Recurring() {
           </select>
           <input
             required placeholder="الاسم (مثال: إيجار المكتب)"
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={form.label}
             onChange={(e) => setForm({ ...form, label: e.target.value })}
           />
           <div className="flex gap-2">
             <input
               type="number" min="1" max="28" required title="يوم التنفيذ من الشهر"
-              className="w-20 border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+              className="w-20 border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={form.day_of_month}
               onChange={(e) => setForm({ ...form, day_of_month: e.target.value })}
             />
@@ -138,8 +138,8 @@ export default function Recurring() {
                 </tr>
               ) : (
                 rows.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="py-3 font-semibold text-slate-800">{r.label}</td>
+                  <tr key={r.id} className="border-b border-slate-50 hover:bg-background">
+                    <td className="py-3 font-semibold text-foreground">{r.label}</td>
                     <td className="py-3 text-slate-600 text-sm">{templateSummary(r.template_json)}</td>
                     <td className="py-3 text-slate-600">{r.day_of_month}</td>
                     <td className="py-3 text-slate-400 text-sm">{r.last_run_ym || 'لم يُنفّذ بعد'}</td>
@@ -150,7 +150,7 @@ export default function Recurring() {
                     </td>
                     <td className="py-3 flex gap-3">
                       <button
-                        className="text-sm text-naf-600 hover:underline"
+                        className="text-sm text-primary hover:underline"
                         onClick={() =>
                           run(
                             () => api.updateRecurring({ id: r.id, is_active: !r.is_active }),
@@ -161,7 +161,7 @@ export default function Recurring() {
                         {r.is_active ? 'إيقاف' : 'تفعيل'}
                       </button>
                       <button
-                        className="text-sm text-red-600 hover:underline"
+                        className="text-sm text-destructive hover:underline"
                         onClick={() => {
                           if (confirm(`حذف القالب «${r.label}»؟`))
                             run(() => api.deleteRecurring(r.id), 'تم الحذف.');

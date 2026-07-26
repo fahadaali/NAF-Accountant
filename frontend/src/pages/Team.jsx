@@ -42,8 +42,8 @@ export default function Team() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-black text-slate-800">الفريق والصلاحيات</h2>
-        <p className="text-slate-500 mt-1">مستخدمو اللوحة، ومحادثات تليجرام المصرّح لها</p>
+        <h2 className="text-2xl font-black text-foreground">الفريق والصلاحيات</h2>
+        <p className="text-muted-foreground mt-1">مستخدمو اللوحة، ومحادثات تليجرام المصرّح لها</p>
       </div>
 
       {error && <div className="card border-red-200 bg-red-50 text-red-700">{error}</div>}
@@ -51,8 +51,8 @@ export default function Team() {
 
       {/* ============ مستخدمو اللوحة ============ */}
       <div className="card">
-        <h3 className="font-bold text-slate-800 mb-1">مستخدمو لوحة التحكم</h3>
-        <p className="text-slate-500 text-sm mb-4">
+        <h3 className="font-bold text-foreground mb-1">مستخدمو لوحة التحكم</h3>
+        <p className="text-muted-foreground text-sm mb-4">
           «مسؤول» يملك كل الصلاحيات · «مستخدم» يطّلع فقط دون تعديل أو حذف.
         </p>
 
@@ -68,18 +68,18 @@ export default function Team() {
         >
           <input
             type="email" dir="ltr" required placeholder="البريد الإلكتروني"
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={userForm.email}
             onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
           />
           <input
             type="password" dir="ltr" required placeholder="كلمة المرور (8+)"
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={userForm.password}
             onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
           />
           <select
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={userForm.role}
             onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
           >
@@ -101,11 +101,11 @@ export default function Team() {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-slate-50 hover:bg-slate-50">
-                  <td className="py-3 text-slate-700" dir="ltr">{u.email}</td>
+                <tr key={u.id} className="border-b border-slate-50 hover:bg-background">
+                  <td className="py-3 text-foreground" dir="ltr">{u.email}</td>
                   <td className="py-3">
                     <select
-                      className="border border-slate-200 rounded-lg px-2 py-1 text-sm"
+                      className="border border-border rounded-lg px-2 py-1 text-sm"
                       value={u.role}
                       onChange={(e) =>
                         run(() => api.updateUser({ id: u.id, role: e.target.value }), 'تم تحديث الصلاحية.')
@@ -122,7 +122,7 @@ export default function Team() {
                   </td>
                   <td className="py-3">
                     <button
-                      className="text-sm text-naf-600 hover:underline"
+                      className="text-sm text-primary hover:underline"
                       onClick={() =>
                         run(
                           () => api.updateUser({ id: u.id, is_active: !u.is_active }),
@@ -142,8 +142,8 @@ export default function Team() {
 
       {/* ============ محادثات تليجرام ============ */}
       <div className="card">
-        <h3 className="font-bold text-slate-800 mb-1">محادثات تليجرام المصرّح لها</h3>
-        <p className="text-slate-500 text-sm mb-4">
+        <h3 className="font-bold text-foreground mb-1">محادثات تليجرام المصرّح لها</h3>
+        <p className="text-muted-foreground text-sm mb-4">
           من يستطيع إرسال العمليات للبوت. «مسؤول» يستقبل تنبيهات فشل المهام المجدولة.
           <br />
           لمعرفة معرّف المحادثة: اطلب من الموظف مراسلة البوت، ثم افتح رابط
@@ -163,13 +163,13 @@ export default function Team() {
         >
           <input
             required placeholder="معرّف المحادثة (رقم)" dir="ltr"
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={chatForm.chat_id}
             onChange={(e) => setChatForm({ ...chatForm, chat_id: e.target.value })}
           />
           <input
             placeholder="الاسم (اختياري)"
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={chatForm.label}
             onChange={(e) => setChatForm({ ...chatForm, label: e.target.value })}
           />
@@ -204,9 +204,9 @@ export default function Team() {
                 </tr>
               ) : (
                 chats.map((ch) => (
-                  <tr key={ch.chat_id} className="border-b border-slate-50 hover:bg-slate-50">
+                  <tr key={ch.chat_id} className="border-b border-slate-50 hover:bg-background">
                     <td className="py-3 font-mono text-slate-600" dir="ltr">{ch.chat_id}</td>
-                    <td className="py-3 text-slate-700">{ch.label || '—'}</td>
+                    <td className="py-3 text-foreground">{ch.label || '—'}</td>
                     <td className="py-3">{ch.is_admin ? '🔔 نعم' : '—'}</td>
                     <td className="py-3">
                       <span className={`badge ${ch.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
@@ -215,7 +215,7 @@ export default function Team() {
                     </td>
                     <td className="py-3 flex gap-3">
                       <button
-                        className="text-sm text-naf-600 hover:underline"
+                        className="text-sm text-primary hover:underline"
                         onClick={() =>
                           run(
                             () => api.saveChat({ ...ch, is_active: ch.is_active ? 0 : 1 }),
@@ -226,7 +226,7 @@ export default function Team() {
                         {ch.is_active ? 'إيقاف' : 'تفعيل'}
                       </button>
                       <button
-                        className="text-sm text-red-600 hover:underline"
+                        className="text-sm text-destructive hover:underline"
                         onClick={() => {
                           if (confirm(`حذف المحادثة ${ch.chat_id}؟`))
                             run(() => api.deleteChat(ch.chat_id), 'تم الحذف.');

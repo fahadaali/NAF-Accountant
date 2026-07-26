@@ -62,8 +62,8 @@ export default function Accounts({ isAdmin }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black text-slate-800">شجرة الحسابات</h2>
-          <p className="text-slate-500 mt-1">دليل الحسابات المستخدم في توجيه القيود</p>
+          <h2 className="text-2xl font-black text-foreground">شجرة الحسابات</h2>
+          <p className="text-muted-foreground mt-1">دليل الحسابات المستخدم في توجيه القيود</p>
         </div>
         {isAdmin && (
           <button className="btn-primary" onClick={sync} disabled={syncing}>
@@ -77,24 +77,24 @@ export default function Accounts({ isAdmin }) {
 
       {/* نموذج إضافة حساب — للمسؤول فقط */}
       <div className="card" style={{ display: isAdmin ? undefined : 'none' }}>
-        <h3 className="font-bold text-slate-800 mb-4">إضافة / تعديل حساب</h3>
+        <h3 className="font-bold text-foreground mb-4">إضافة / تعديل حساب</h3>
         <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <input
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             placeholder="رمز الحساب"
             value={form.account_code}
             onChange={(e) => setForm({ ...form, account_code: e.target.value })}
             required
           />
           <input
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             placeholder="اسم الحساب"
             value={form.account_name}
             onChange={(e) => setForm({ ...form, account_name: e.target.value })}
             required
           />
           <select
-            className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+            className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={form.account_type}
             onChange={(e) => setForm({ ...form, account_type: e.target.value })}
           >
@@ -123,16 +123,16 @@ export default function Accounts({ isAdmin }) {
               {accounts.map((a) => {
                 const t = TYPE_LABELS[a.account_type] || { label: a.account_type, cls: 'bg-slate-100 text-slate-600' };
                 return (
-                  <tr key={a.id} className="border-b border-slate-50 hover:bg-slate-50">
+                  <tr key={a.id} className="border-b border-slate-50 hover:bg-background">
                     <td className="py-3 font-mono text-slate-600">{a.account_code}</td>
-                    <td className="py-3 text-slate-800 font-semibold">{a.account_name}</td>
+                    <td className="py-3 text-foreground font-semibold">{a.account_name}</td>
                     <td className="py-3"><span className={`badge ${t.cls}`}>{t.label}</span></td>
                     <td className="py-3 text-slate-400 text-sm">{a.wafeq_account_id || '— غير مزامن'}</td>
                     <td className="py-3">
                       {a.is_active ? (
                         <span className="badge bg-green-100 text-green-700">نشط</span>
                       ) : (
-                        <span className="badge bg-slate-100 text-slate-500">معطّل</span>
+                        <span className="badge bg-slate-100 text-muted-foreground">معطّل</span>
                       )}
                     </td>
                   </tr>

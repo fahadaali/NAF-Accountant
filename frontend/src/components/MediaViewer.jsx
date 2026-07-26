@@ -38,20 +38,20 @@ export default function MediaViewer({ mediaKey }) {
 
   return (
     <div>
-      <button className="text-naf-600 text-sm hover:underline" onClick={() => setOpen((o) => !o)}>
+      <button className="text-primary text-sm hover:underline" onClick={() => setOpen((o) => !o)}>
         {open ? 'إخفاء' : isAudio ? '🎙️ استماع' : '🖼️ عرض'}
       </button>
       {open && (
         <div className="mt-2">
           {loading && <span className="text-slate-400 text-xs">جارٍ التحميل…</span>}
-          {error && <span className="text-red-500 text-xs">{error}</span>}
+          {error && <span className="text-destructive text-xs">{error}</span>}
           {media && isAudio && <audio controls src={media.url} className="max-w-[240px]" />}
           {media && !isAudio && (
             <a href={media.url} target="_blank" rel="noreferrer">
               <img
                 src={media.url}
                 alt="مرفق"
-                className="max-w-[220px] rounded-lg border border-slate-200"
+                className="max-w-[220px] rounded-lg border border-border"
               />
             </a>
           )}

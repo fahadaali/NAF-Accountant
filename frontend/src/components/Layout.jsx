@@ -16,10 +16,10 @@ export default function Layout({ children, user, onLogout, isAdmin }) {
   return (
     <div className="min-h-screen flex">
       {/* الشريط الجانبي */}
-      <aside className="w-64 bg-naf-900 text-white flex-shrink-0 flex flex-col">
+      <aside className="w-64 bg-sidebar text-sidebar-foreground flex-shrink-0 flex flex-col">
         <div className="p-6 border-b border-white/10">
           <h1 className="text-2xl font-black">ناف القانونية</h1>
-          <p className="text-naf-100/70 text-sm mt-1">المحاسب الذكي</p>
+          <p className="text-sidebar-foreground/70 text-sm mt-1">المحاسب الذكي</p>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {links.filter((l) => !l.adminOnly || isAdmin).map((l) => (
@@ -29,7 +29,7 @@ export default function Layout({ children, user, onLogout, isAdmin }) {
               end={l.end}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl transition ${
-                  isActive ? 'bg-naf-500 text-white' : 'text-naf-100/80 hover:bg-white/5'
+                  isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground/80 hover:bg-card/5'
                 }`
               }
             >
@@ -38,15 +38,15 @@ export default function Layout({ children, user, onLogout, isAdmin }) {
             </NavLink>
           ))}
         </nav>
-        <div className="p-4 text-xs text-naf-100/50 border-t border-white/10">
+        <div className="p-4 text-xs text-sidebar-foreground/50 border-t border-white/10">
           مدعوم بالذكاء الاصطناعي · Claude & Wafeq
         </div>
       </aside>
 
       {/* المحتوى */}
       <main className="flex-1 overflow-auto">
-        <header className="bg-white border-b border-slate-100 px-8 py-4 flex items-center justify-between">
-          <div className="text-slate-500 text-sm">
+        <header className="bg-card border-b border-slate-100 px-8 py-4 flex items-center justify-between">
+          <div className="text-muted-foreground text-sm">
             {new Date().toLocaleDateString('ar', {
               weekday: 'long',
               year: 'numeric',

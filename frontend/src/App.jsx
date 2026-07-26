@@ -46,7 +46,7 @@ export default function App() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400">
+      <div className="min-h-screen flex items-center justify-center bg-background text-slate-400">
         جارٍ التحميل…
       </div>
     );

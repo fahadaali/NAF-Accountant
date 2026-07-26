@@ -50,25 +50,25 @@ export default function Login({ onAuthed }) {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-naf-900 text-white">
+      <div className="min-h-screen flex items-center justify-center bg-sidebar text-sidebar-foreground">
         جارٍ التحميل…
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-naf-900 to-naf-700 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-sidebar p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8 text-white">
+        <div className="text-center mb-8 text-sidebar-foreground">
           <h1 className="text-4xl font-black">ناف القانونية</h1>
-          <p className="text-naf-100/80 mt-2">المحاسب الذكي · لوحة التحكم</p>
+          <p className="text-sidebar-foreground/80 mt-2">المحاسب الذكي · لوحة التحكم</p>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-2xl p-8">
-          <h2 className="text-xl font-bold text-slate-800 mb-1">
+        <div className="bg-card rounded-3xl shadow-2xl p-8">
+          <h2 className="text-xl font-bold text-foreground mb-1">
             {mode === 'setup' ? 'إنشاء حساب المسؤول الأول' : 'تسجيل الدخول'}
           </h2>
-          <p className="text-slate-500 text-sm mb-6">
+          <p className="text-muted-foreground text-sm mb-6">
             {mode === 'setup'
               ? 'لا يوجد حساب بعد — أنشئ حساب المسؤول للبدء.'
               : 'أدخل بريدك وكلمة المرور للدخول.'}
@@ -84,7 +84,7 @@ export default function Login({ onAuthed }) {
               <input
                 type="email"
                 dir="ltr"
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-naf-500 outline-none text-left"
+                className="w-full border border-border rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-ring outline-none text-left"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -96,7 +96,7 @@ export default function Login({ onAuthed }) {
               <input
                 type="password"
                 dir="ltr"
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-naf-500 outline-none text-left"
+                className="w-full border border-border rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-ring outline-none text-left"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -109,7 +109,7 @@ export default function Login({ onAuthed }) {
                 <input
                   type="password"
                   dir="ltr"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-naf-500 outline-none text-left"
+                  className="w-full border border-border rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-ring outline-none text-left"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   required
@@ -123,7 +123,7 @@ export default function Login({ onAuthed }) {
           </form>
         </div>
 
-        <p className="text-center text-naf-100/50 text-xs mt-6">
+        <p className="text-center text-sidebar-foreground/50 text-xs mt-6">
           مدعوم بالذكاء الاصطناعي · Claude & Wafeq
         </p>
       </div>

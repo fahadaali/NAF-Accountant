@@ -21,7 +21,7 @@ function BarList({ title, data, empty, unit = 'ر.س' }) {
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
     <div className="card">
-      <h3 className="font-bold text-slate-800 mb-4">{title}</h3>
+      <h3 className="font-bold text-foreground mb-4">{title}</h3>
       {data.length === 0 ? (
         <p className="text-slate-400 text-center py-8">{empty}</p>
       ) : (
@@ -29,8 +29,8 @@ function BarList({ title, data, empty, unit = 'ر.س' }) {
           {data.map((d) => (
             <div key={d.name}>
               <div className="flex items-baseline justify-between text-sm mb-1">
-                <span className="text-slate-700 truncate ml-2">{d.name}</span>
-                <span className="text-slate-500 tabular-nums whitespace-nowrap">
+                <span className="text-foreground truncate ml-2">{d.name}</span>
+                <span className="text-muted-foreground tabular-nums whitespace-nowrap">
                   {fmt(d.value)} {unit}
                 </span>
               </div>
@@ -53,7 +53,7 @@ function TrendChart({ data }) {
   if (data.length === 0) {
     return (
       <div className="card">
-        <h3 className="font-bold text-slate-800 mb-4">الاتجاه الشهري</h3>
+        <h3 className="font-bold text-foreground mb-4">الاتجاه الشهري</h3>
         <p className="text-slate-400 text-center py-8">لا توجد بيانات كافية بعد.</p>
       </div>
     );
@@ -75,7 +75,7 @@ function TrendChart({ data }) {
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-        <h3 className="font-bold text-slate-800">الاتجاه الشهري</h3>
+        <h3 className="font-bold text-foreground">الاتجاه الشهري</h3>
         {/* الأسطورة: الهوية لا تعتمد على اللون وحده */}
         <div className="flex items-center gap-4 text-sm">
           <span className="flex items-center gap-1.5">
@@ -129,9 +129,9 @@ function TrendChart({ data }) {
       </div>
 
       {/* تسمية مباشرة للقيمة الأخيرة بدل رقم فوق كل نقطة */}
-      <div className="flex gap-6 text-sm mt-2 text-slate-500">
-        <span>آخر شهر — إيرادات: <b className="text-slate-700">{fmt(last.revenue)}</b> ر.س</span>
-        <span>مصروفات: <b className="text-slate-700">{fmt(last.expenses)}</b> ر.س</span>
+      <div className="flex gap-6 text-sm mt-2 text-muted-foreground">
+        <span>آخر شهر — إيرادات: <b className="text-foreground">{fmt(last.revenue)}</b> ر.س</span>
+        <span>مصروفات: <b className="text-foreground">{fmt(last.expenses)}</b> ر.س</span>
       </div>
     </div>
   );
@@ -162,11 +162,11 @@ export default function Analytics() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-black text-slate-800">التحليلات</h2>
-          <p className="text-slate-500 mt-1">نظرة على المصروفات والإيرادات وأكبر الموردين</p>
+          <h2 className="text-2xl font-black text-foreground">التحليلات</h2>
+          <p className="text-muted-foreground mt-1">نظرة على المصروفات والإيرادات وأكبر الموردين</p>
         </div>
         <select
-          className="border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-naf-500 outline-none"
+          className="border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
           value={months}
           onChange={(e) => setMonths(Number(e.target.value))}
         >
@@ -199,7 +199,7 @@ export default function Analytics() {
           {/* عرض جدولي — الهوية والقيم متاحة دون الاعتماد على اللون */}
           {(data?.monthly || []).length > 0 && (
             <div className="card">
-              <h3 className="font-bold text-slate-800 mb-4">البيانات (عرض جدولي)</h3>
+              <h3 className="font-bold text-foreground mb-4">البيانات (عرض جدولي)</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-right">
                   <thead>
@@ -213,10 +213,10 @@ export default function Analytics() {
                   <tbody>
                     {data.monthly.map((m) => (
                       <tr key={m.month} className="border-b border-slate-50">
-                        <td className="py-2 text-slate-700">{monthLabel(m.month)}</td>
+                        <td className="py-2 text-foreground">{monthLabel(m.month)}</td>
                         <td className="py-2 tabular-nums text-slate-600">{fmt(m.revenue)}</td>
                         <td className="py-2 tabular-nums text-slate-600">{fmt(m.expenses)}</td>
-                        <td className="py-2 tabular-nums font-semibold text-slate-800">
+                        <td className="py-2 tabular-nums font-semibold text-foreground">
                           {fmt(m.revenue - m.expenses)}
                         </td>
                       </tr>
