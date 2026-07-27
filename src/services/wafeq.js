@@ -258,7 +258,12 @@ export async function probeAttachmentApi(env) {
   };
 
   // 1) أي مسار للمرفقات موجود؟ 404 = غير موجود، 200 = موجود، 401/403 = صلاحية.
-  const candidates = ['attachments/', 'files/', 'documents/', 'uploads/', 'media/'];
+  //
+  // `expenses/` ضمن المرشّحات رغم أن المنصة لا تستعمله: قائمة نطاقات وافق
+  // (OAuth scopes) تخلو من نطاق للمرفقات وفيها نطاق للمصروفات، وملاحظات
+  // إصدارها تذكر أن رفع المرفقات أُضيف للمصروفات. فقد يكون المرفق تابعاً
+  // لكيان المصروف لا كياناً مستقلاً.
+  const candidates = ['attachments/', 'files/', 'documents/', 'uploads/', 'media/', 'expenses/'];
   const paths = {};
   for (const path of candidates) {
     const { status, body } = await get(`${path}?page_size=1`);
@@ -300,7 +305,18 @@ export async function probeAttachmentApi(env) {
     } catch (_) {
       /* ردّ غير JSON */
     }
-    documents[label] = { status: detail.status, id: first.id, fields, attachmentLike };
+
+    // مسار فرعي تحت المستند — شكل شائع في واجهات REST ولا يظهر في قائمة
+    // المسارات الجذرية، فيُسأل عنه صراحةً.
+    const sub = await get(`${path}/${encodeURIComponent(first.id)}/attachments/`);
+
+    documents[label] = {
+      status: detail.status,
+      id: first.id,
+      fields,
+      attachmentLike,
+      subPath: { path: `${path}/{id}/attachments/`, status: sub.status, sample: briefApiError(sub.body, 120) },
+    };
   }
 
   return { base, paths, documents };
