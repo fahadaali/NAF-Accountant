@@ -239,7 +239,7 @@ export default function Team() {
                           )
                         }
                       >
-                        {ch.is_active ? 'إيقاف' : 'تفعيل'}
+                        {ch.is_active ? 'تعطيل' : 'تفعيل'}
                       </Button>
                       <Button variant="link" size="sm"
                         className="px-0 text-destructive"

@@ -3,14 +3,14 @@ import { Button } from '../naf/ui/button.jsx';
 import { ThemeToggle } from '../naf/ui/theme-toggle.jsx';
 import { NavLink } from 'react-router-dom';
 import {
-  LogOut, LayoutDashboard, ReceiptText, TrendingUp, ListTree,
+  LogOut, LayoutDashboard, ArrowLeftRight, TrendingUp, ListTree,
   Repeat, Users, ClipboardList, Settings,
 } from 'lucide-react';
 
 // الأيقونات من خريطة ناف (naf-icons.md) — مقاس ٢٤ للتنقّل.
 const links = [
   { to: '/', label: 'لوحة التحكم', Icon: LayoutDashboard, end: true },
-  { to: '/transactions', label: 'العمليات', Icon: ReceiptText },
+  { to: '/transactions', label: 'العمليات', Icon: ArrowLeftRight },
   { to: '/analytics', label: 'التحليلات', Icon: TrendingUp },
   { to: '/accounts', label: 'شجرة الحسابات', Icon: ListTree },
   { to: '/recurring', label: 'العمليات المتكرّرة', Icon: Repeat, adminOnly: true },

@@ -195,7 +195,7 @@ export default function Recurring() {
                           )
                         }
                       >
-                        {r.is_active ? 'إيقاف' : 'تفعيل'}
+                        {r.is_active ? 'تعطيل' : 'تفعيل'}
                       </Button>
                       <Button variant="link" size="sm"
                         className="px-0 text-destructive"

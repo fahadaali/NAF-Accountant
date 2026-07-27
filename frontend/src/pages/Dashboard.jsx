@@ -14,7 +14,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 // «فاشلة» ممنوعة في naf-terms.md — المعتمد «فشلت».
 const STAT_CARDS = [
   { key: 'total', label: 'إجمالي العمليات', Icon: Sigma, color: 'bg-primary-soft text-primary-strong' },
-  { key: 'posted', label: 'مسودات في وافق', Icon: FilePen, color: 'bg-success-soft text-success-strong' },
+  { key: 'posted', label: 'مُرحّلة إلى وافق', Icon: FilePen, color: 'bg-success-soft text-success-strong' },
   { key: 'analyzed', label: 'قيد التحليل', Icon: Bot, color: 'bg-warning-soft text-warning-strong' },
   { key: 'failed', label: 'العمليات التي فشلت', Icon: CircleAlert, color: 'bg-destructive-soft text-destructive-strong' },
 ];

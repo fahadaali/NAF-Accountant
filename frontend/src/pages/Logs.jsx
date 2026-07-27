@@ -17,7 +17,7 @@ const STATUS_META = {
 
 const ACTION_AR = {
   transcribe: 'تفريغ صوتي',
-  claude_analyze: 'تحليل ذكي',
+  claude_analyze: 'تحليل آلي',
   wafeq_post: 'ترحيل إلى وافق',
   wafeq_delete: 'حذف من وافق',
   wafeq_bulk_delete: 'حذف جماعي',
@@ -26,7 +26,7 @@ const ACTION_AR = {
   apply_edit: 'تطبيق تعديل',
   accounts_sync: 'مزامنة الحسابات',
   cron_accounts_sync: 'مزامنة مجدولة',
-  cron_recurring: 'عمليات متكرّرة',
+  cron_recurring: 'تنفيذ العمليات المتكرّرة',
   recurring_post: 'ترحيل عملية متكرّرة',
   basecamp_report: 'تقرير بيسكامب',
   financial_report: 'تقرير مالي',
