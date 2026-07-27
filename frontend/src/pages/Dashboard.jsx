@@ -3,18 +3,20 @@ import { api } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
 import SourceIcon from '../components/SourceIcon.jsx';
 import { Sigma, FilePen, Bot, CircleAlert } from 'lucide-react';
-import { fmtDateTime } from '../lib/format.js';
+import { fmtDateTime, fmtNumber } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Card } from '../naf/ui/card.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
 
-// الأيقونات والألوان من السجلّ: naf-icons.md — والخلفية مخفّفة من الرمز
-// نفسه (CLAUDE.md §6) لا من درجة لوحة.
+// الأيقونات من naf-icons.md، والخلفية والنصّ من --*-soft و --*-strong
+// (CLAUDE.md §6) لا من تخفيف مكتوب باليد ولا من درجة لوحة.
+//
+// «فاشلة» ممنوعة في naf-terms.md — المعتمد «فشلت».
 const STAT_CARDS = [
-  { key: 'total', label: 'إجمالي العمليات', Icon: Sigma, color: 'bg-accent text-primary' },
-  { key: 'posted', label: 'مسودات في وافق', Icon: FilePen, color: 'bg-success/10 text-success' },
-  { key: 'analyzed', label: 'قيد التحليل', Icon: Bot, color: 'bg-warning/10 text-warning' },
-  { key: 'failed', label: 'عمليات فاشلة', Icon: CircleAlert, color: 'bg-destructive/10 text-destructive' },
+  { key: 'total', label: 'إجمالي العمليات', Icon: Sigma, color: 'bg-primary-soft text-primary-strong' },
+  { key: 'posted', label: 'مُرحّلة إلى وافق', Icon: FilePen, color: 'bg-success-soft text-success-strong' },
+  { key: 'analyzed', label: 'قيد التحليل', Icon: Bot, color: 'bg-warning-soft text-warning-strong' },
+  { key: 'failed', label: 'العمليات التي فشلت', Icon: CircleAlert, color: 'bg-destructive-soft text-destructive-strong' },
 ];
 
 export default function Dashboard() {
@@ -68,7 +70,7 @@ export default function Dashboard() {
               <c.Icon size={24} aria-hidden="true" />
             </div>
             <div>
-              <div className="text-3xl font-bold text-foreground">{countFor(c.key)}</div>
+              <div className="text-3xl font-bold text-foreground tabular-nums"><bdi>{fmtNumber(countFor(c.key))}</bdi></div>
               <div className="text-muted-foreground text-sm">{c.label}</div>
             </div>
           </Card>
@@ -94,14 +96,14 @@ export default function Dashboard() {
               <TableBody>
                 {recent.map((t) => (
                   <TableRow key={t.id}>
-                    <TableCell className="text-foreground">{t.id}</TableCell>
+                    <TableCell className="text-foreground tabular-nums"><bdi>{fmtNumber(t.id)}</bdi></TableCell>
                     <TableCell>
                       <SourceIcon type={t.source_type} withLabel />
                     </TableCell>
-                    <TableCell className="text-foreground max-w-xs truncate">{t.raw_text || '—'}</TableCell>
+                    <TableCell className="text-foreground"><bdi className="block max-w-xs truncate">{t.raw_text || '—'}</bdi></TableCell>
                     <TableCell><StatusBadge status={t.status} /></TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {fmtDateTime(t.created_at)}
+                      <bdi>{fmtDateTime(t.created_at)}</bdi>
                     </TableCell>
                   </TableRow>
                 ))}

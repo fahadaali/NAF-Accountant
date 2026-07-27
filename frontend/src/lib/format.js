@@ -2,7 +2,7 @@
  * وسيط إلى `naf-format` من السجلّ: naf/lib/format.js
  *
  * كان هذا الملف بديلاً محلياً كُتب حين ظننتُ الحزمة غير موجودة في
- * الإصدار v1.1.1 — وهي موجودة. حلّت وحدة السجلّ محلّ التنفيذ المحلي،
+  * الإصدار المثبَّت آنذاك — وهي موجودة. حلّت وحدة السجلّ محلّ التنفيذ المحلي،
  * وبقي هذا الملف وسيطاً حتى لا ينكسر استيراد قائم.
  *
  * الأسماء هنا هي أسماء المنصة القديمة؛ أسماء السجلّ هي المعتمدة.
@@ -16,9 +16,12 @@ export {
   formatDualDate,
   formatTime,
   formatPhone,
+  formatMonth,
+  formatDateTime,
+  isolate,
 } from '../naf/lib/format.js';
 
-import { formatNumber, formatAmount, formatDate, formatTime } from '../naf/lib/format.js';
+import { formatNumber, formatAmount, formatDate, formatDateTime } from '../naf/lib/format.js';
 
 export const fmtNumber = (n) => formatNumber(Number(n || 0));
 export const fmtAmount = (n) => formatAmount(Number(n || 0));
@@ -36,4 +39,4 @@ function toUtc(value) {
 }
 
 export const fmtDate = (v) => { const d = toUtc(v); return d ? formatDate(d) : '—'; };
-export const fmtDateTime = (v) => { const d = toUtc(v); return d ? `${formatDate(d)} ${formatTime(d)}` : '—'; };
+export const fmtDateTime = (v) => { const d = toUtc(v); return d ? formatDateTime(d) : '—'; };

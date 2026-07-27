@@ -1,4 +1,4 @@
-import { Inbox, Bot, Clock, CircleCheck, Trash2, CircleAlert, Copy } from 'lucide-react';
+import { Inbox, FileAudio, Bot, Clock, CircleCheck, Trash2, CircleAlert, Copy } from 'lucide-react';
 import { Badge } from '../naf/ui/badge.jsx';
 
 // دورة حياة العملية — التسميات والأيقونات والألوان من السجلّ:
@@ -6,7 +6,7 @@ import { Badge } from '../naf/ui/badge.jsx';
 // التخفيف والمقاس والفجوة من عنصر Badge في السجلّ، لا من صنف محلي.
 const MAP = {
   received: { label: 'مستلمة', Icon: Inbox, variant: 'default' },
-  transcribed: { label: 'مُفرّغة', Icon: Bot, variant: 'info' },
+  transcribed: { label: 'مُفرّغة', Icon: FileAudio, variant: 'info' },
   analyzed: { label: 'قيد التحليل', Icon: Bot, variant: 'warning' },
   awaiting_info: { label: 'بانتظار معلومات', Icon: Clock, variant: 'warning' },
   posted: { label: 'مُرحّلة', Icon: CircleCheck, variant: 'success' },

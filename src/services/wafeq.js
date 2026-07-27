@@ -135,7 +135,7 @@ export async function getWafeqDraftSummary(env) {
   }
 
   await pull('bills', 'فاتورة مشتريات', 'purchase_bill');
-  await pull('invoices', 'فاتورة بيع', 'sales_invoice');
+  await pull('invoices', 'فاتورة مبيعات', 'sales_invoice');
 
   return { count: items.length, items };
 }

@@ -1,4 +1,4 @@
-/* من سجلّ ناف: fahadaali/naf-ui#v1.1.1 — العنصر «button».
+/* من سجلّ ناف: fahadaali/naf-ui — العنصر «button».
    حُوّل من TypeScript إلى JavaScript فحسب (المنصة بلا TS): حُذفت
    التعليقات النوعية ووسائط forwardRef النوعية وكتل interface،
    وعُدّلت مسارات الاستيراد. لا سطر منطق تغيّر.
@@ -31,6 +31,8 @@ const buttonVariants = cva(
         ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
         destructive:
           "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
+        success:
+          "bg-success text-success-foreground shadow-xs hover:bg-success/90",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

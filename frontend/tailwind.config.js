@@ -1,6 +1,6 @@
 /**
  * Tailwind v4 يُعرَّف من CSS لا من هذا الملف.
- * الرموز كلها تأتي من ثيم ناف: src/naf-theme.css (fahadaali/naf-ui#v1.1.1).
+ * الرموز كلها تأتي من ثيم ناف: src/naf-theme.css (fahadaali/naf-ui — الإصدار في .naf-version).
  *
  * حُذف تعريف الثيم المحلي `naf` (6 درجات لون + عائلة Cairo) الذي كان هنا:
  * نظام موازٍ يخالف قاعدة «مصدر واحد للحقيقة» في CLAUDE.md §1.

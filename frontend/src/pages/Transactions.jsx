@@ -4,11 +4,12 @@ import StatusBadge from '../components/StatusBadge.jsx';
 import { Trash2, FileOutput, RefreshCw, Search, CircleAlert, ArrowUpNarrowWide, ArrowDownWideNarrow, CircleCheck } from 'lucide-react';
 import MediaViewer from '../components/MediaViewer.jsx';
 import SourceIcon from '../components/SourceIcon.jsx';
-import { fmtDateTime } from '../lib/format.js';
+import { fmtDateTime, fmtNumber } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
 import { Input } from '../naf/ui/input.jsx';
 import { Card } from '../naf/ui/card.jsx';
+import { Select } from '../naf/ui/select.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
 
@@ -64,7 +65,7 @@ export default function Transactions({ isAdmin }) {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [selected, setSelected] = useState(new Set());
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
+  const [msg, setMsg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -105,7 +106,7 @@ export default function Transactions({ isAdmin }) {
     setMsg('');
     try {
       const r = await api.deleteTransactions([...selected]);
-      setMsg(`تم حذف ${r.deleted} عملية.`);
+      setMsg(<>تم حذف <bdi>{fmtNumber(r.deleted)}</bdi> عملية.</>);
       await load();
     } catch (e) {
       setError(e.message);
@@ -120,7 +121,7 @@ export default function Transactions({ isAdmin }) {
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="حذف العمليات المحدّدة"
-        description={`ستُحذف ${selected.size} عملية من سجلّ المنصة. لا يمكن التراجع عن هذا. القيود المرحّلة في وافق لا تتأثر.`}
+        description={<>ستُحذف <bdi>{fmtNumber(selected.size)}</bdi> عملية من سجلّ المنصة. لا يمكن التراجع عن هذا. القيود المرحّلة في وافق لا تتأثر.</>}
         actionLabel="حذف"
         onConfirm={deleteSelected}
       />
@@ -132,7 +133,7 @@ export default function Transactions({ isAdmin }) {
         <div className="flex items-center gap-2">
           {isAdmin && selected.size > 0 && (
             <Button variant="destructive" onClick={() => setConfirmOpen(true)} disabled={deleting}>
-              <Trash2 size={20} /> حذف المحدّد ({selected.size})
+              <Trash2 size={20} aria-hidden="true" /> حذف المحدّد (<bdi>{fmtNumber(selected.size)}</bdi>)
             </Button>
           )}
           <Button variant="ghost"
@@ -140,9 +141,9 @@ export default function Transactions({ isAdmin }) {
               downloadTransactionsCsv(filters).catch((e) => setError(e.message))
             }
           >
-            <FileOutput size={20} /> تصدير CSV
+            <FileOutput size={20} aria-hidden="true" /> تصدير CSV
           </Button>
-          <Button variant="ghost" onClick={load}><RefreshCw size={20} /> تحديث</Button>
+          <Button variant="ghost" onClick={load}><RefreshCw size={20} aria-hidden="true" /> تحديث</Button>
         </div>
       </div>
 
@@ -166,19 +167,17 @@ export default function Transactions({ isAdmin }) {
               onChange={(e) => setF('q', e.target.value)}
             />
           </div>
-          <select className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
-            value={filters.status} onChange={(e) => setF('status', e.target.value)}>
+          <Select value={filters.status} onChange={(e) => setF('status', e.target.value)}>
             {STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-          </select>
-          <select className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
-            value={filters.source_type} onChange={(e) => setF('source_type', e.target.value)}>
+          </Select>
+          <Select value={filters.source_type} onChange={(e) => setF('source_type', e.target.value)}>
             {SOURCE_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-          </select>
+          </Select>
           <div className="flex gap-2">
-            <select className="flex-1 border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            <Select wrapperClassName="flex-1"
               value={filters.sort} onChange={(e) => setF('sort', e.target.value)}>
               {SORT_OPTIONS.map((o) => <option key={o.v} value={o.v}>فرز: {o.label}</option>)}
-            </select>
+            </Select>
             {/* سهم الفرز رأسي — لا يُقلب في RTL (naf-icons.md) */}
             <Button variant="ghost"
               className="px-3"
@@ -192,13 +191,13 @@ export default function Transactions({ isAdmin }) {
             </Button>
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">من تاريخ</label>
-            <Input type="date" className="w-full"
+            <label htmlFor="filter-from" className="block text-xs text-muted-foreground mb-1">من تاريخ</label>
+            <Input id="filter-from" type="date" className="w-full"
               value={filters.from} onChange={(e) => setF('from', e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">إلى تاريخ</label>
-            <Input type="date" className="w-full"
+            <label htmlFor="filter-to" className="block text-xs text-muted-foreground mb-1">إلى تاريخ</label>
+            <Input id="filter-to" type="date" className="w-full"
               value={filters.to} onChange={(e) => setF('to', e.target.value)} />
           </div>
           <div className="flex items-end">
@@ -210,8 +209,8 @@ export default function Transactions({ isAdmin }) {
       {/* الجدول */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-3 text-sm text-muted-foreground">
-          <span>النتائج: {rows.length}</span>
-          {selected.size > 0 && <span>محدّد: {selected.size}</span>}
+          <span>النتائج: <bdi>{fmtNumber(rows.length)}</bdi></span>
+          {selected.size > 0 && <span>محدّد: <bdi>{fmtNumber(selected.size)}</bdi></span>}
         </div>
         {loading ? (
           <p className="text-muted-foreground text-center py-8">جارٍ التحميل…</p>
@@ -223,7 +222,7 @@ export default function Transactions({ isAdmin }) {
                 <TableRow>
                   {isAdmin && (
                     <TableHead className="w-8">
-                      <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+                      <input type="checkbox" aria-label="تحديد كل العمليات" checked={allChecked} onChange={toggleAll} />
                     </TableHead>
                   )}
                   <TableHead>#</TableHead>
@@ -238,28 +237,28 @@ export default function Transactions({ isAdmin }) {
               </TableHeader>
               <TableBody>
                 {rows.map((t) => (
-                  <TableRow key={t.id} className="align-top" data-state={selected.has(t.id) ? 'bg-accent' : '' ? "selected" : undefined}>
+                  <TableRow key={t.id} className="align-top" data-state={selected.has(t.id) ? 'selected' : undefined}>
                     {isAdmin && (
                       <TableCell>
-                        <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
+                        <input type="checkbox" aria-label={`تحديد العملية ${t.id}`} checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
                       </TableCell>
                     )}
-                    <TableCell className="text-foreground">{t.id}</TableCell>
+                    <TableCell className="text-foreground tabular-nums"><bdi>{fmtNumber(t.id)}</bdi></TableCell>
                     <TableCell className="whitespace-nowrap">
                       <SourceIcon type={t.source_type} />
                     </TableCell>
                     <TableCell className="text-foreground">
-                      <div className="max-w-xs truncate" title={t.raw_text || ''}>{t.raw_text || '—'}</div>
-                      {t.error_message && <div className="text-destructive text-xs mt-1"><CircleAlert size={16} className="inline" aria-hidden="true" /> {t.error_message}</div>}
+                      <bdi className="block max-w-xs truncate" title={t.raw_text || ''}>{t.raw_text || '—'}</bdi>
+                      {t.error_message && <div className="text-destructive text-xs mt-1"><CircleAlert size={16} className="inline" aria-hidden="true" /> <bdi>{t.error_message}</bdi></div>}
                     </TableCell>
                     <TableCell><MediaViewer mediaKey={t.media_r2_key} /></TableCell>
                     <TableCell><JsonPreview json={t.processed_json} /></TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {t.wafeq_draft_id ? <span dir="ltr">#{t.wafeq_draft_id}</span> : '—'}
+                      {t.wafeq_draft_id ? <bdi>{`#${t.wafeq_draft_id}`}</bdi> : '—'}
                     </TableCell>
                     <TableCell><StatusBadge status={t.status} /></TableCell>
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                      {fmtDateTime(t.created_at)}
+                      <bdi>{fmtDateTime(t.created_at)}</bdi>
                     </TableCell>
                   </TableRow>
                 ))}

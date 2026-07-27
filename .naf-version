@@ -1,1 +1,7 @@
-v1.1.1+local (بانتظار دفع audit/naf-ui-accounting-concepts.patch)
+v1.12.0
+
+fahadaali/naf-ui — إصدار منشور ومُوسَّم.
+https://github.com/fahadaali/naf-ui/releases/tag/v1.12.0
+
+الرقم يُكتب هنا وحده. لا تكرّره في ترويسات ملفات naf/ — تكراره في
+عشرة مواضع هو نفسه مصدر انحراف.
