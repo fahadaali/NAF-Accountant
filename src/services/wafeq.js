@@ -234,11 +234,10 @@ export function attachmentLinkState(raw) {
 /**
  * استكشاف واجهة المرفقات في وافق — قراءةٌ محضة، لا تُنشئ شيئاً ولا تُعدّله.
  *
- * مسار رفع المرفق في هذا الملف تقديري منذ كتابته، وقد ردّ فعلياً بصفحة خطأ
- * HTML — أي أن المسار غير موجود أصلاً. ولأن توثيق وافق غير متاح من بيئة
- * التطوير، يسأل الـWorker الواجهة بنفسه ويُرجع ما رآه:
+ * مسار الرفع صار معروفاً وموثّقاً (POST /files/raw/)، لكن الحقل الذي يربط
+ * الملف المرفوع بالمستند ما يزال غير موثّق. فيبقى التشخيص مفيداً لسؤالين:
  *
- *   1. أي المسارات المرشّحة موجود (GET على قائمة كل مسار).
+ *   1. أي المسارات المتصلة بالملفات موجود (GET على قائمة كل مسار).
  *   2. ما أسماء الحقول في مستند حقيقي — منها يُعرف اسم حقل المرفقات.
  *
  * @returns {Promise<object>} تقرير يُقرأ مباشرة، لا يُخزَّن.
@@ -259,11 +258,9 @@ export async function probeAttachmentApi(env) {
 
   // 1) أي مسار للمرفقات موجود؟ 404 = غير موجود، 200 = موجود، 401/403 = صلاحية.
   //
-  // `expenses/` ضمن المرشّحات رغم أن المنصة لا تستعمله: قائمة نطاقات وافق
-  // (OAuth scopes) تخلو من نطاق للمرفقات وفيها نطاق للمصروفات، وملاحظات
-  // إصدارها تذكر أن رفع المرفقات أُضيف للمصروفات. فقد يكون المرفق تابعاً
-  // لكيان المصروف لا كياناً مستقلاً.
-  const candidates = ['attachments/', 'files/', 'documents/', 'uploads/', 'media/', 'expenses/'];
+  // `files/` أولاً: هو المسار الموثّق لرفع الملفات، ووجوده يؤكّد الاتصال
+  // والصلاحية قبل النظر في غيره.
+  const candidates = ['files/', 'attachments/', 'documents/', 'uploads/', 'expenses/'];
   const paths = {};
   for (const path of candidates) {
     const { status, body } = await get(`${path}?page_size=1`);
@@ -326,25 +323,51 @@ export async function probeAttachmentApi(env) {
 }
 
 /**
+ * اسم ملف صالح لترويسة Content-Disposition.
+ *
+ * قيم الترويسات تُنقل بترميز لاتيني، فالاسم العربي أو المحتوي على اقتباس
+ * يكسر الطلب. أسماؤنا مشتقّة من معرّف الرسالة فهي لاتينية أصلاً، والتنظيف
+ * احتياطٌ لما قد يأتي من مصدر آخر.
+ */
+function headerSafeFilename(name) {
+  const safe = String(name || '')
+    .replace(/[^\x20-\x7e]/g, '')
+    .replace(/["\\]/g, '')
+    .trim();
+  // اسمٌ ذهب كلّه فبقيت لاحقته («فاتورة.pdf» ← «.pdf») يُعطى اسماً محايداً
+  // مع إبقاء اللاحقة، فهي ما يحدّد كيف يُفتح الملف.
+  return !safe || safe.startsWith('.') ? `attachment${safe}` : safe;
+}
+
+/**
  * يرفع ملفاً (صورة فاتورة أو ملف PDF) إلى وافق ويُرجع معرّفه لإرفاقه بالمستند.
- * ⚠️ المسار تقديري ولم يُثبت بعد — راجع probeAttachmentApi.
+ *
+ * المسار الموثّق: POST /files/raw/ بوسم Files — لا «attachments».
+ * الجسم بايتات الملف خاماً لا نموذج multipart، واسم الملف يُمرَّر في ترويسة
+ * Content-Disposition. الردّ 201 يحمل معرّفاً بالبادئة att_.
  */
 export async function uploadAttachment(env, buffer, filename, contentType) {
   const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
-  const form = new FormData();
-  form.append('file', new Blob([buffer], { type: contentType }), filename);
 
-  const res = await fetch(`${base}/attachments/`, {
+  const res = await fetch(`${base}/files/raw/`, {
     method: 'POST',
-    headers: { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` },
-    body: form,
+    headers: {
+      Authorization: `Api-Key ${env.WAFEQ_API_KEY}`,
+      'Content-Type': contentType || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${headerSafeFilename(filename)}"`,
+    },
+    body: buffer,
   });
+
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Wafeq attachment upload failed: ${res.status} ${briefApiError(body)}`);
+    throw new Error(`Wafeq file upload failed: ${res.status} ${briefApiError(body)}`);
   }
+
   const data = await res.json();
-  return String(data.id || data.uuid || '');
+  const id = String(data.id || '');
+  if (!id) throw new Error('وافق قبلت الملف ولم تُرجع معرّفاً له');
+  return id;
 }
 
 // ============================================================================
