@@ -37,6 +37,16 @@ If a value you need does not exist in the token set, **stop and ask**. Adding a 
 
 **No parallel systems.** A platform must not define its own theme, token set, colour scale or utility palette in `tailwind.config.js` or anywhere else. If you find one, it predates this system and must be replaced entirely and its definition removed. Two sources of truth in one repository is worse than no system at all.
 
+**Four exceptions, and only these four.** Every one of them is a context that cannot read a CSS custom property. Nothing else qualifies — "it was simpler" is not a context.
+
+*Email templates.* Email clients do not support CSS custom properties, and older desktop clients do not support logical direction properties either. A template that renders inside an inbox carries literal values and physical direction properties by necessity, and so does any in-app preview of it — a preview styled from the app theme shows the author something the subscriber will never receive. Keep those values in one template file, comment why, and mirror the same values in the preview. In an RTL template that means `border-right` where the app would use `border-inline-start`; write the RTL side directly and say so in a comment. Everything else in the same repository still obeys the rule.
+
+*External brand colours.* Platform marks — LinkedIn, X, Instagram, YouTube, Facebook, TikTok, Snapchat, Threads, Google — are identities owned by other parties. Recolouring them to fit our theme makes them unrecognisable, which defeats the icon. They are registered as `--brand-*` tokens in `naf-theme.css`; consume those. Never type the hex, and never use a `--brand-*` token for anything but that platform's own mark.
+
+*Print and PDF documents.* A document generated into its own window — `document.write`, a print stylesheet, a server-rendered PDF — does not inherit the app's stylesheet and cannot resolve `var(--…)`. It also must stay light regardless of the reader's theme: a dark-themed invoice wastes toner and a dark-themed pleading is not filed. Keep those values in the one function that builds the document, comment why, and never let them leak back into the interface. Substituting tokens there does not degrade the output — it breaks the export.
+
+*`<meta name="theme-color">`.* The tag takes a literal colour and nothing else; no browser resolves `var()` inside it. Mirror `--background` for both modes and update the two literals whenever the theme changes. This is the only place in an app shell where a background colour is written by hand.
+
 ---
 
 ## 2. RTL is the default
@@ -118,7 +128,7 @@ Never upgrade in one repository alone. Six repositories on two different icon vo
 
 - One family. Never import another font anywhere.
 - Weights 400, 500, 600, 700 only.
-- Sizes from the scale. Never `text-[15px]`.
+- Sizes from the scale. Never `text-[15px]`. The scale is registered as `--text-xs` through `--text-5xl` in `naf-theme.css`, so a platform writing plain CSS consumes the same steps as a platform writing Tailwind. Setting a size by hand is how seventeen sizes appear in one stylesheet.
 - **Do not reduce line heights.** The scale is deliberately taller than a Latin-only scale because Arabic needs vertical room for ascenders, descenders and diacritics.
 - Long-form body copy gets a capped measure.
 
@@ -139,11 +149,19 @@ bg-primary  text-primary-foreground  hover:bg-primary/90
 - Never communicate meaning by colour alone — pair status colours with an icon and a label.
 - Light and dark must both work. Test both.
 
-**Status badges are tinted, not solid.** Use the `badge` component from the registry — do not hand-roll a badge class. It takes the status token at `/10` for its background and the token itself for its text and icon. Solid fills are for actions the user takes, not for states the system reports; a screen listing twenty rows of solid badges reads as twenty buttons. The one exception is `destructive` on a row the user is about to lose, where the weight is the point.
+**Our own mark.** The navy, mint and taupe of the NAF mark are registered as `--mark-navy`, `--mark-mint` and `--mark-taupe`, taken from the logo files themselves rather than sampled by eye. They exist to render the mark and nothing else. An interface element takes a semantic token — a heading is `text-foreground`, never `text-mark-navy`, however well the navy happens to suit it. The rule is the same one that governs `--brand-*`: an identity colour is not a palette.
 
-Tints come from the token, never from a palette step. `bg-green-100 text-green-700` is the same mistake as a hex value: it survives a change of identity, and it should not.
+**Status text on soft backgrounds.** A status colour token on its own `--*-soft` background reaches only 3.7–3.8:1 — below AA for badge-sized text. Use `--success-strong`, `--warning-strong`, `--destructive-strong`, `--info-strong` and `--primary-strong` for the text and icon in that pairing; they are the same hue at a lightness measured to clear 4.5:1 in both modes. Never darken a status colour by hand to fix contrast.
 
-**Orange and purple have no token.** There is no `--orange` and no `--purple`, and none will be added. A state that feels orange is `warning`; a state that feels purple is `info`. If neither fits, the state is not yet designed — take it through the registry before shipping it.
+**The deep surface.** `--surface-deep` is the semantic dark surface — page backgrounds outside the card, slide covers, section dividers — with `--surface-deep-foreground` for text on it and `--surface-deep-muted` for secondary text. It is not `--mark-navy`: that renders the mark and nothing else. A dark surface takes the semantic token even when the mark's navy would look identical.
+
+**Elevated cards.** A card floating on `--surface-deep` needs more depth than the ordinary shadow scale carries. Use `--shadow-elevated`; do not write an `rgba` shadow to get there.
+
+**Soft state backgrounds.** `--primary-soft`, `--destructive-soft`, `--success-soft`, `--warning-soft`, `--info-soft` and `--secondary-soft` are derived from their base token by `color-mix` into the card surface, so they follow both modes from a single definition. Use them for status badges and quiet alerts. Never define your own soft value — a hand-picked tint is the exact drift that survives a palette change and then clashes with it.
+
+**Appearance follows the reader, and the reader may override it.** Both modes must work, and a platform that offers a switch uses the registered one: three states — system, light, dark — with system as the default, the choice persisted, and `.dark` toggled on the root element. Two states is a trap: a reader whose system is light and who picked light has no way back to "follow the system" when it changes. The terms are in `naf-terms.md` and the icons in `naf-icons.md`; the component is `naf-theme-toggle`.
+
+**Print stays light.** A generated document keeps the light values whatever the reader's mode is — see the print and PDF exception above.
 
 **No undocumented status.** Every status shown to a user must exist in `naf-terms.md` with a registered colour token and a registered icon. A status that appears in one screen without passing through the registry — however reasonable it looks — is the first step back to five different systems.
 
@@ -201,6 +219,8 @@ Merging into `main` runs the release workflow. It reads the commit subjects sinc
 Use `.gitmessage` as the template — `git config commit.template .gitmessage` once per clone. Types outside the table are correct and expected; they simply do not trigger a release.
 
 **The workflow refuses to publish a broken registry.** It runs `shadcn registry validate` and rebuilds `public/r` before anything else, and fails if the built output does not match `registry.json`. A release is never cut from a registry that does not validate.
+
+**The same workflow ships to the platforms.** They have no `registry.json`, so the two registry steps are skipped there and only version derivation and changelog generation run. A platform release is cut from commit subjects exactly as the registry's is.
 
 **Nothing is released when nothing warrants it.** A merge carrying only docs or refactors produces no tag and no release. That is the expected outcome, not a failure.
 

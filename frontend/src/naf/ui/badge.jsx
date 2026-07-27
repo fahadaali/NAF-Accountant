@@ -1,5 +1,7 @@
 /* من سجلّ ناف: fahadaali/naf-ui — العنصر «badge».
-   حُوّل من TypeScript إلى JavaScript فحسب (المنصة بلا TS).
+   حُوّل من TypeScript إلى JavaScript فحسب (المنصة بلا TS): حُذفت
+   التعليقات النوعية ووسائط forwardRef النوعية وكتل interface،
+   وعُدّلت مسارات الاستيراد. لا سطر منطق تغيّر.
    لا تعدّل هذا الملف — أي تغيير يحدث في السجلّ أولاً. */
 
 import * as React from "react"
@@ -10,10 +12,14 @@ import { cn } from "../lib/utils.js"
 
 // الشارة تُبلّغ عن حالة، ولا تُنقَر. ما يُنقَر زرّ.
 //
-// الخلفية مخفّفة من رمز الحالة عند /10 والنصّ والأيقونة من الرمز نفسه.
-// المصمت للأفعال لا للحالات: جدول بعشرين صفاً من الشارات المصمتة يُقرأ
-// كعشرين زرّاً. والاستثناء الوحيد `destructive` على صفّ يوشك المستخدم
-// أن يفقده، حيث الثقل هو المقصود.
+// الخلفية ‎--*-soft‎ والنصّ والأيقونة ‎--*-strong‎. الاقتران مقصود:
+// الرمز الأساس فوق خلفيته الناعمة يعطي 3.7–3.8 فقط، ونصّ الشارة صغير
+// فحدّه 4.5. رموز ‎-strong‎ هي الصبغة نفسها بإضاءة مقيسة تتجاوزه.
+// لا تخفض لون حالة بيدك، ولا تكتب تخفيفاً خاصاً بك.
+//
+// المصمت للأفعال لا للحالات: جدول بعشرين صفاً من الشارات المصمتة
+// يُقرأ كعشرين زرّاً. والاستثناء الوحيد `destructiveSolid` على صفّ
+// يوشك المستخدم أن يفقده، حيث الثقل هو المقصود.
 //
 // إلزامي: لا تعتمد على اللون وحده — كل شارة حالة أيقونة ونصّ معاً.
 const badgeVariants = cva(
@@ -26,11 +32,12 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: "bg-muted text-muted-foreground",
-        info: "bg-info/10 text-info",
-        success: "bg-success/10 text-success",
-        warning: "bg-warning/10 text-warning",
-        destructive: "bg-destructive/10 text-destructive",
-        solid: "bg-destructive text-destructive-foreground",
+        info: "bg-info-soft text-info-strong",
+        success: "bg-success-soft text-success-strong",
+        warning: "bg-warning-soft text-warning-strong",
+        destructive: "bg-destructive-soft text-destructive-strong",
+        primary: "bg-primary-soft text-primary-strong",
+        destructiveSolid: "bg-destructive text-destructive-foreground",
         outline: "border border-border text-foreground",
       },
     },

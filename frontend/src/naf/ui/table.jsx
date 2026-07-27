@@ -1,4 +1,4 @@
-/* من سجلّ ناف: fahadaali/naf-ui#v1.1.1 — العنصر «table».
+/* من سجلّ ناف: fahadaali/naf-ui — العنصر «table».
    حُوّل من TypeScript إلى JavaScript فحسب (المنصة بلا TS): حُذفت
    التعليقات النوعية ووسائط forwardRef النوعية وكتل interface،
    وعُدّلت مسارات الاستيراد. لا سطر منطق تغيّر.

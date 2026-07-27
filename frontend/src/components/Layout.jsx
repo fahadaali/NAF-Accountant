@@ -1,5 +1,6 @@
 import { fmtDate } from '../lib/format.js';
 import { Button } from '../naf/ui/button.jsx';
+import { ThemeToggle } from '../naf/ui/theme-toggle.jsx';
 import { NavLink } from 'react-router-dom';
 import {
   LogOut, LayoutDashboard, ReceiptText, TrendingUp, ListTree,
@@ -47,8 +48,10 @@ export default function Layout({ children, user, onLogout, isAdmin }) {
             </NavLink>
           ))}
         </nav>
-        <div className="p-4 text-xs text-sidebar-foreground/50 border-t border-sidebar-border">
-          مدعوم بالذكاء الاصطناعي · Claude & Wafeq
+        {/* /70 لا /50: الخمسون تعطي 3.10 في الفاتح و3.84 في الداكن،
+            وهذا نصّ xs فحدّه 4.5. السبعون تعطي 5.55. */}
+        <div className="p-4 text-xs text-sidebar-foreground/70 border-t border-sidebar-border">
+          مدعوم بالذكاء الاصطناعي · <bdi>Claude &amp; Wafeq</bdi>
         </div>
       </aside>
 
@@ -56,12 +59,13 @@ export default function Layout({ children, user, onLogout, isAdmin }) {
       <main className="flex-1 overflow-auto min-w-0">
         <header className="bg-card border-b border-border px-4 md:px-8 py-4 flex items-center justify-between gap-3">
           <div className="text-muted-foreground text-sm">
-            <span dir="ltr">{fmtDate(new Date())}</span>
+            <bdi>{fmtDate(new Date())}</bdi>
           </div>
           <div className="flex items-center gap-3 min-w-0">
-            {user && <span className="text-foreground text-sm truncate hidden sm:inline" dir="ltr">{user.email}</span>}
+            {user && <bdi className="text-foreground text-sm truncate hidden sm:inline">{user.email}</bdi>}
+            <ThemeToggle />
             <Button variant="ghost" className="text-sm" onClick={onLogout}>
-              <LogOut size={20} className="rtl:-scale-x-100" aria-hidden="true" /> خروج
+              <LogOut size={20} className="rtl:-scale-x-100" aria-hidden="true" /> تسجيل الخروج
             </Button>
           </div>
         </header>
