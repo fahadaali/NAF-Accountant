@@ -42,6 +42,7 @@ import {
   baseCurrency,
   currencyNameAr,
   formatMoney,
+  isSupportedCurrency,
   normalizeCurrency,
   resolveExchangeRate,
   toBaseAmount,
@@ -93,17 +94,26 @@ function targetLabel(t) {
  * السعر من مصادره المرتّبة. القيم تُكتب في النتيجة نفسها كي تُحفظ مع العملية
  * ويعتمدها الترحيل والتقارير معاً — فلا يُعاد استنتاجها في كل موضع.
  *
- * @returns {{rate:number, source:string}|null} null = عملة أجنبية بلا سعر معروف.
+ * @returns {{ok:true, rate:number, source:string} | {ok:false, reason:'unsupported'|'no_rate'}}
+ *   unsupported = عملة لا تقبلها وافق. no_rate = عملة أجنبية بلا سعر معروف.
  */
 function settleCurrency(env, result) {
   const base = baseCurrency(env);
   const currency = normalizeCurrency(result.currency) || base;
-  const state = resolveExchangeRate(env, currency, result.exchange_rate);
 
   result.currency = currency;
   result.base_currency = base;
+
+  // عملة خارج قائمة وافق يرفضها الخادم فيفشل المستند كلّه — نكشفها هنا
+  // ونقولها بوضوح بدل تمريرها ليعود رفضٌ غامض.
+  if (!isSupportedCurrency(currency)) {
+    result.exchange_rate = null;
+    return { ok: false, reason: 'unsupported' };
+  }
+
+  const state = resolveExchangeRate(env, currency, result.exchange_rate);
   result.exchange_rate = state ? state.rate : null;
-  return state;
+  return state ? { ok: true, ...state } : { ok: false, reason: 'no_rate' };
 }
 
 /** إجمالي العملية (قبل الضريبة) حسب نوعها. */
@@ -414,14 +424,15 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
 
   // سعر الصرف يُحسم على النسخة المعدّلة كما يُحسم على الأصلية — قد يكون
   // التعديل نفسه هو تغيير العملة.
-  if (!settleCurrency(env, edited)) {
-    await updateTransaction(env.DB, txId, { status: 'failed' });
-    await sendTelegramMessage(
-      env,
-      chatId,
-      `⚠️ لا أعرف سعر صرف ${currencyNameAr(edited.currency)} (${iso(edited.currency)}). ` +
-        `أعد الطلب ذاكراً السعر — مثال: «خلّها بالدولار بسعر ${iso('3.75')}».`
-    );
+  const editedCurrency = settleCurrency(env, edited);
+  if (!editedCurrency.ok) {
+    const why =
+      editedCurrency.reason === 'unsupported'
+        ? `وافق لا تدعم العملة ${iso(edited.currency)}.`
+        : `لا أعرف سعر صرف ${currencyNameAr(edited.currency)} (${iso(edited.currency)}). ` +
+          `أعد الطلب ذاكراً السعر — مثال: «خلّها بالدولار بسعر ${iso('3.75')}».`;
+    await updateTransaction(env.DB, txId, { status: 'failed', errorMessage: why });
+    await sendTelegramMessage(env, chatId, `⚠️ ${why}`);
     return;
   }
 
@@ -961,7 +972,7 @@ export async function processTelegramUpdate(env, update) {
       media,
       priorContext,
     });
-    const rateState = settleCurrency(env, result);
+    const currencyState = settleCurrency(env, result);
     await updateTransaction(env.DB, txId, {
       processedJson: JSON.stringify(result),
       status: 'analyzed',
@@ -971,7 +982,14 @@ export async function processTelegramUpdate(env, update) {
     // ---- بيانات ناقصة؟ اسأل واحفظ السياق ----
     // سعر صرف مجهول بيانٌ ناقص كغيره: يُسأل عنه ولا يُخمَّن، فالسعر المخترع
     // يدخل الدفاتر رقماً خاطئاً لا يُكتشف إلا عند المطابقة.
-    const needRate = !rateState;
+    if (currencyState.reason === 'unsupported') {
+      const msg = `وافق لا تدعم العملة ${iso(result.currency)}. أعد إرسال العملية بعملة مدعومة.`;
+      await updateTransaction(env.DB, txId, { status: 'failed', errorMessage: msg });
+      await sendTelegramMessage(env, chatId, `⚠️ ${msg}`);
+      return;
+    }
+
+    const needRate = currencyState.reason === 'no_rate';
     if (result.status === 'need_more' || needRate) {
       const accumulated =
         (priorContext ? priorContext + '\n---\n' : '') + (finalText || mediaPlaceholder(media));

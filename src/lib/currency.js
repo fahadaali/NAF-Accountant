@@ -44,6 +44,27 @@ const CURRENCY_NAMES_AR = {
   INR: 'روبية هندية',
 };
 
+/**
+ * العملات التي تقبلها وافق (CurrencyEnum في تعريف OpenAPI لواجهتها).
+ *
+ * منقولة من التعريف نفسه لا مستنتجة: العملة خارج هذه القائمة يرفضها وافق
+ * فيفشل إنشاء المستند كلّه. معرفتها هنا تحوّل رفضاً غامضاً من الخادم إلى
+ * رسالة مفهومة قبل الإرسال.
+ */
+export const WAFEQ_CURRENCIES = new Set(
+  `AED SAR USD EUR CAD AFN ALL AMD ARS AUD AZN BAM BDT BGN BHD BIF BND BOB BRL BWP
+   BYN BZD CDF CHF CLP CNY COP CRC CVE CZK DJF DKK DOP DZD EGP ERN ETB GBP GEL GHS
+   GNF GTQ HKD HNL HRK HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KHR KMF KRW KWD
+   KZT LBP LKR LYD MAD MDL MGA MKD MMK MOP MUR MXN MYR MZN NAD NGN NIO NOK NPR NZD
+   OMR PAB PEN PHP PKR PLN PYG QAR RON RSD RUB RWF SDG SEK SGD SOS SYP THB TND TOP
+   TRY TTD TWD TZS UAH UGX UYU UZS VES VND XAF XOF YER ZAR ZMW`.split(/\s+/)
+);
+
+/** هل تقبل وافق هذه العملة؟ */
+export function isSupportedCurrency(code) {
+  return WAFEQ_CURRENCIES.has(code);
+}
+
 /** العملة الأساسية المضبوطة للبيئة. */
 export function baseCurrency(env) {
   return normalizeCurrency(env?.WAFEQ_CURRENCY) || DEFAULT_BASE_CURRENCY;
