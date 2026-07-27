@@ -30,7 +30,7 @@ members.use('/members/*', async (c, next) => {
   const who = await authenticate(c);
   if (!who) return c.json({ ok: false, error: 'unauthorized' }, 401);
   if (!who.apiKey && who.role !== 'admin') {
-    return c.json({ ok: false, error: 'هذه العملية تتطلب صلاحية مسؤول.' }, 403);
+    return c.json({ ok: false, error: 'هذه العملية تتطلب صلاحية مسؤول' }, 403);
   }
   await next();
 });
@@ -56,7 +56,7 @@ members.post('/members/update', async (c) => {
   )
     .bind(userId)
     .first();
-  if (!member) return c.json({ ok: false, error: 'الصفحة غير موجودة' }, 404);
+  if (!member) return c.json({ ok: false, error: 'لا عضو بهذا المعرّف' }, 404);
 
   if (role) {
     if (!ROLES.includes(role)) return c.json({ ok: false, error: 'هذا الحقل مطلوب' }, 400);
