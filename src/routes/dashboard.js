@@ -99,7 +99,8 @@ dashboard.get('/transactions/export', async (c) => {
     .all();
 
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
-  const typeAr = { manual_journal: 'قيد يومية', purchase_bill: 'فاتورة مشتريات', sales_invoice: 'فاتورة بيع' };
+  // المصطلحات من naf-terms.md § المصطلحات المحاسبية
+  const typeAr = { manual_journal: 'قيد محاسبي', purchase_bill: 'فاتورة مشتريات', sales_invoice: 'فاتورة مبيعات' };
 
   const rows = [
     ['الرقم', 'التاريخ', 'المصدر', 'الحالة', 'النوع', 'الوصف', 'جهة الاتصال', 'الإجمالي', 'معرّف وافق', 'النص الأصلي', 'الخطأ'],

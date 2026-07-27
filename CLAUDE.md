@@ -89,7 +89,7 @@ The reasons are technical, not aesthetic:
 - Screen readers announce them by unintended names
 - Directional emoji do not mirror in RTL
 
-**One exception, and it is narrow: third-party messaging surfaces.** Telegram, WhatsApp, SMS and email bodies cannot render an SVG inline, so Lucide is not available there and the ban would leave those messages with no visual structure at all. Emoji are permitted in message bodies sent through such a channel — and nowhere else. Not in the web interface, not in a page the platform itself renders, not in a PDF it generates.
+**One exception, and it is narrow: third-party messaging surfaces.** Telegram, WhatsApp, SMS, Basecamp message boards and email bodies cannot render an SVG inline, so Lucide is not available there and the ban would leave those messages with no visual structure at all. Emoji are permitted in message bodies sent through such a channel — and nowhere else. Not in the web interface, not in a page the platform itself renders, not in a PDF it generates.
 
 The technical reasons for the ban still hold on those surfaces; they are simply unavoidable there. So keep the set small and conventional, never carry meaning by emoji alone, and make sure the sentence reads correctly with every emoji stripped out. A message that becomes ambiguous without its icons is written wrong.
 
