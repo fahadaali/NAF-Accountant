@@ -10,6 +10,8 @@
 //     مزامنة شجرة الحسابات من وافق أولاً لتعبئة wafeq_account_id.
 // ============================================================================
 
+import { briefApiError } from '../lib/http.js';
+
 /** مسار مستند وافق حسب نوع العملية. */
 const DOC_PATHS = {
   manual_journal: 'manual-journals',
@@ -115,7 +117,7 @@ export async function postJournalEntryDraft(env, accounts, entries, opts = {}) {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Wafeq manual-journal failed: ${res.status} ${body}`);
+    throw new Error(`Wafeq manual-journal failed: ${res.status} ${briefApiError(body)}`);
   }
 
   const data = await res.json();
@@ -200,7 +202,7 @@ export async function createContact(env, name) {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Wafeq contact create failed: ${res.status} ${body}`);
+    throw new Error(`Wafeq contact create failed: ${res.status} ${briefApiError(body)}`);
   }
   const created = await res.json();
   return String(created.id || created.uuid || '');
@@ -245,7 +247,7 @@ export async function uploadAttachment(env, buffer, filename, contentType) {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Wafeq attachment upload failed: ${res.status} ${body}`);
+    throw new Error(`Wafeq attachment upload failed: ${res.status} ${briefApiError(body)}`);
   }
   const data = await res.json();
   return String(data.id || data.uuid || '');
@@ -296,7 +298,7 @@ export async function createBillDraft(env, opts) {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Wafeq bill failed: ${res.status} ${body}`);
+    throw new Error(`Wafeq bill failed: ${res.status} ${briefApiError(body)}`);
   }
   const data = await res.json();
   return { id: String(data.id || data.uuid || ''), raw: data };
@@ -347,7 +349,7 @@ export async function createInvoiceDraft(env, opts) {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Wafeq invoice failed: ${res.status} ${body}`);
+    throw new Error(`Wafeq invoice failed: ${res.status} ${briefApiError(body)}`);
   }
   const data = await res.json();
   return { id: String(data.id || data.uuid || ''), raw: data };

@@ -5,23 +5,60 @@
 const TG_API = 'https://api.telegram.org';
 
 /**
+ * الوسوم التي يقبلها تليجرام في وضع parse_mode = HTML.
+ * ما عداها يرفضه بخطأ 400 ولا يُرسل الرسالة أصلاً.
+ */
+const TELEGRAM_TAGS =
+  /^\/?(b|strong|i|em|u|ins|s|strike|del|code|pre|blockquote|a|span|tg-spoiler|tg-emoji)(\s|\/|>|$)/i;
+
+/**
+ * تحييد كل ما ليس وسماً مقبولاً في رسالة تليجرام.
+ *
+ * الرسائل تُبنى بوسوم قليلة معروفة، لكنها تحمل نصوصاً لا نتحكّم بها: ردود
+ * واجهات برمجية، أسماء موردين مقروءة من فاتورة، رسائل أخطاء. وردُّ خطأ
+ * بصفحة HTML كاملة يحمل `<!doctype html>` فيرفض تليجرام الرسالة كلها —
+ * فتضيع رسالة تأكيد عملية رُحّلت فعلاً.
+ *
+ * التحييد هنا لا عند كل استدعاء: موضع واحد يغطّي كل الرسائل، الحالية
+ * والتي تُضاف لاحقاً.
+ */
+export function sanitizeTelegramHtml(text) {
+  return String(text ?? '')
+    // محرف & خارج الكيانات المعروفة يُربك المحلّل.
+    .replace(/&(?!(?:amp|lt|gt|quot|#\d+|#x[0-9a-f]+);)/gi, '&amp;')
+    .replace(/<[^>]*>?/g, (tag) => (TELEGRAM_TAGS.test(tag.slice(1)) ? tag : tag.replace(/</g, '&lt;')));
+}
+
+/**
  * إرسال رسالة نصية إلى محادثة تليجرام.
+ *
+ * عند رفض تليجرام للتنسيق (وسم غير مقبول أو غير مغلق) تُعاد المحاولة نصّاً
+ * صرفاً بلا parse_mode: وصولُ الرسالة بلا تنسيق أفضل من ضياعها، خاصة أنها
+ * قد تكون تأكيد عملية رُحّلت إلى وافق.
  */
 export async function sendTelegramMessage(env, chatId, text) {
-  const res = await fetch(`${TG_API}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: 'HTML',
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Telegram sendMessage failed: ${res.status} ${body}`);
+  const clean = sanitizeTelegramHtml(text);
+
+  const post = (payload) =>
+    fetch(`${TG_API}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, ...payload }),
+    });
+
+  let res = await post({ text: clean, parse_mode: 'HTML' });
+  if (res.ok) return res.json();
+
+  const body = await res.text();
+  if (res.status === 400 && /can't parse entities/i.test(body)) {
+    // نزع الوسوم وإرسالها نصّاً صرفاً.
+    const plain = clean.replace(/<[^>]*>/g, '');
+    res = await post({ text: plain });
+    if (res.ok) return res.json();
+    throw new Error(`Telegram sendMessage failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
   }
-  return res.json();
+
+  throw new Error(`Telegram sendMessage failed: ${res.status} ${body.slice(0, 300)}`);
 }
 
 /**

@@ -379,7 +379,20 @@ async function finalizeAndPost(env, ctx) {
   await updateTransaction(env.DB, txId, { wafeqDraftId: wafeqId, status: 'posted' });
   await writeLog(env.DB, { transactionId: txId, action: 'wafeq_post', status: 'success' });
   await clearConversationState(env.DB, chatId);
-  await sendTelegramMessage(env, chatId, (prefix || '') + confirm + attachmentWarning);
+
+  // العملية رُحّلت إلى وافق وانتهى أمرها. فشل إشعار المستخدم بعد ذلك حادثٌ
+  // في قناة التبليغ لا في المحاسبة، فلا يُصعَّد: تصعيده يُدخل المعالج مسار
+  // الخطأ فيسم عمليةً ناجحة بأنها فاشلة، ويبقى قيدها في وافق بلا مقابل هنا.
+  try {
+    await sendTelegramMessage(env, chatId, (prefix || '') + confirm + attachmentWarning);
+  } catch (e) {
+    await writeLog(env.DB, {
+      transactionId: txId,
+      action: 'telegram_notify',
+      status: 'error',
+      errorDetails: e.message,
+    });
+  }
 }
 
 /**

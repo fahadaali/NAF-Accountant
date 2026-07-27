@@ -34,6 +34,7 @@ const ACTION_AR = {
   image_saved_r2: 'حفظ صورة',
   pdf_saved_r2: 'حفظ ملف PDF',
   telegram_webhook: 'ويبهوك تليجرام',
+  telegram_notify: 'إشعار تليجرام',
   duplicate_webhook_skipped: 'تجاهل رسالة مكرّرة',
 };
 

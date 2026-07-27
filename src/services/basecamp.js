@@ -16,6 +16,8 @@
 //     BASECAMP_PROJECT_ID
 //     BASECAMP_MESSAGE_BOARD_ID
 // ============================================================================
+import { briefApiError } from '../lib/http.js';
+
 
 const LAUNCHPAD_TOKEN_URL = 'https://launchpad.37signals.com/authorization/token';
 const USER_AGENT = 'NAF Accountant (fahad2ao@gmail.com)';
@@ -42,7 +44,7 @@ export async function refreshAccessToken(env) {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Basecamp token refresh failed: ${res.status} ${body}`);
+    throw new Error(`Basecamp token refresh failed: ${res.status} ${briefApiError(body)}`);
   }
   const data = await res.json();
   if (!data.access_token) throw new Error('Basecamp token refresh returned no access_token');
@@ -94,7 +96,7 @@ export async function postBasecampMessage(env, subject, contentHtml) {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Basecamp message failed: ${res.status} ${body}`);
+    throw new Error(`Basecamp message failed: ${res.status} ${briefApiError(body)}`);
   }
   return res.json();
 }

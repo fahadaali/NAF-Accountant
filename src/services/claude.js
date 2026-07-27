@@ -10,6 +10,8 @@
 // كما يتولّى: تحليل التاريخ (مطلق أو نسبي مثل "أمس")، افتراض الحساب البنكي
 // عند عدم ذكر حساب الدفع، وكشف البيانات الناقصة وصياغة سؤال لاستكمالها.
 // ============================================================================
+import { briefApiError } from '../lib/http.js';
+
 
 function buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent, baseCurrency) {
   const accountsList = accounts
@@ -171,7 +173,7 @@ export async function analyzeTransaction(env, opts) {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Claude API failed: ${res.status} ${body}`);
+    throw new Error(`Claude API failed: ${res.status} ${briefApiError(body)}`);
   }
 
   const data = await res.json();
@@ -347,7 +349,7 @@ ${JSON.stringify(trialBalance).slice(0, 12000)}`;
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Claude report format failed: ${res.status} ${body}`);
+    throw new Error(`Claude report format failed: ${res.status} ${briefApiError(body)}`);
   }
   const data = await res.json();
   const html = (data.content || [])
