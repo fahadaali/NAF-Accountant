@@ -30,6 +30,7 @@ const SOURCE_OPTIONS = [
   { v: 'text', label: 'نص' },
   { v: 'voice', label: 'صوت' },
   { v: 'image', label: 'صورة' },
+  { v: 'pdf', label: 'PDF' },
 ];
 
 const SORT_OPTIONS = [

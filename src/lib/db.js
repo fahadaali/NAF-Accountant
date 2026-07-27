@@ -53,6 +53,7 @@ export async function updateTransaction(db, id, fields) {
   const values = [];
 
   const map = {
+    sourceType: 'source_type',
     rawText: 'raw_text',
     processedJson: 'processed_json',
     wafeqDraftId: 'wafeq_draft_id',

@@ -107,20 +107,22 @@ function extractJson(text) {
  * @param {string} opts.messageDateISO تاريخ الرسالة YYYY-MM-DD.
  * @param {number} opts.vatPercent     نسبة الضريبة (مثل 15).
  * @param {string} opts.text           نص العملية الحالي.
- * @param {object|null} opts.image      { mediaType, base64 } لتحليل فاتورة بالرؤية.
+ * @param {object|null} opts.media      { kind:'image'|'document', mediaType, base64 } لتحليل فاتورة
+ *                                      مصوّرة أو ملف PDF. الصور تُرسل ككتلة image، وملفات PDF
+ *                                      ككتلة document يقرأها Claude نصّاً ورؤيةً لكل صفحة.
  * @param {string|null} opts.priorContext  سياق سابق متراكم (عند استكمال حوار ناقص).
  * @returns {Promise<object>} كائن التصنيف المنظّم.
  */
 export async function analyzeTransaction(env, opts) {
-  const { accounts, defaultBank, messageDateISO, vatPercent, text, image, priorContext } = opts;
+  const { accounts, defaultBank, messageDateISO, vatPercent, text, media, priorContext } = opts;
   const system = buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent);
 
   const userContent = [];
 
-  if (image) {
+  if (media) {
     userContent.push({
-      type: 'image',
-      source: { type: 'base64', media_type: image.mediaType, data: image.base64 },
+      type: media.kind === 'document' ? 'document' : 'image',
+      source: { type: 'base64', media_type: media.mediaType, data: media.base64 },
     });
   }
 
@@ -129,7 +131,12 @@ export async function analyzeTransaction(env, opts) {
     userText += `# سياق سابق من نفس المحادثة (عملية غير مكتملة):\n${priorContext}\n\n# رسالة المستخدم الجديدة لاستكمال الناقص:\n`;
   }
   userText += text || '';
-  if (image) {
+  if (media?.kind === 'document') {
+    userText +=
+      '\n\n(المرفق ملف PDF لفاتورة وقد يكون متعدد الصفحات — استخرج بياناتها: المورّد/العميل، ' +
+      'رقم الفاتورة وتاريخها، البنود، المبالغ، الضريبة إن وُجدت. إن حوى الملف أكثر من فاتورة ' +
+      'فاعتمد الأولى واذكر ذلك في "summary".)';
+  } else if (media) {
     userText += '\n\n(المرفق صورة فاتورة — استخرج بياناتها: المورّد/العميل، البنود، المبالغ، الضريبة إن وُجدت.)';
   }
   userContent.push({ type: 'text', text: userText || '(بدون نص)' });

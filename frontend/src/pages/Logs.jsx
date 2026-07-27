@@ -32,6 +32,7 @@ const ACTION_AR = {
   financial_report: 'تقرير مالي',
   process_error: 'خطأ معالجة',
   image_saved_r2: 'حفظ صورة',
+  pdf_saved_r2: 'حفظ ملف PDF',
   telegram_webhook: 'ويبهوك تليجرام',
   duplicate_webhook_skipped: 'تجاهل رسالة مكرّرة',
 };
@@ -106,7 +107,10 @@ export default function Logs() {
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                       <bdi>{fmtDateTime(l.timestamp)}</bdi>
                     </TableCell>
-                    <TableCell className="text-foreground">{ACTION_AR[l.action] || l.action}</TableCell>
+                    {/* العنوان قد يخلط العربية بصيغة لاتينية (حفظ ملف PDF) فيُعزل اتجاهياً */}
+                    <TableCell className="text-foreground">
+                      <bdi>{ACTION_AR[l.action] || l.action}</bdi>
+                    </TableCell>
                     <TableCell>
                       {(() => {
                         const st = STATUS_META[l.status] || STATUS_META.info;

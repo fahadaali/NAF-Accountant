@@ -36,42 +36,7 @@ import {
   getWafeqDraftSummary,
 } from '../services/wafeq.js';
 import { resolveContact } from '../services/contacts.js';
-
-function arrayBufferToBase64(buffer) {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
-
-// حد Claude لحجم الصورة (~5MB). نبقى دونه بهامش أمان.
-const MAX_IMAGE_BYTES = 4.8 * 1024 * 1024;
-
-/**
- * كشف نوع الصورة الحقيقي من البايتات الأولى (magic bytes) بدل الوثوق بما
- * يعلنه تليجرام. يُرجع نوع MIME مدعوماً من Claude أو null إن كان غير مدعوم.
- * المدعوم: image/jpeg, image/png, image/gif, image/webp
- */
-function detectImageType(buffer) {
-  const b = new Uint8Array(buffer);
-  if (b.length < 12) return null;
-  // JPEG: FF D8 FF
-  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
-  // PNG: 89 50 4E 47 0D 0A 1A 0A
-  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
-  // GIF: 47 49 46 38
-  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
-  // WEBP: "RIFF"...."WEBP"
-  if (
-    b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
-    b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50
-  )
-    return 'image/webp';
-  return null; // غير مدعوم (مثل HEIC/HEIF من الآيفون)
-}
+import { prepareMedia, prepareStoredMedia, extensionFor } from './media.js';
 
 /** تاريخ الرسالة (YYYY-MM-DD) بتوقيت السعودية (UTC+3) من طابع تليجرام. */
 function messageDateISO(unixSeconds) {
@@ -273,7 +238,12 @@ async function finalizeAndPost(env, ctx) {
       if (obj) {
         const buf = await obj.arrayBuffer();
         const fname = mediaR2Key.split('/').pop() || 'attachment.jpg';
-        const attId = await uploadAttachment(env, buf, fname, mediaType || 'image/jpeg');
+        const attId = await uploadAttachment(
+          env,
+          buf,
+          fname,
+          mediaType || obj.httpMetadata?.contentType || 'image/jpeg'
+        );
         if (attId) attachmentIds.push(attId);
       }
     } catch (e) {
@@ -360,10 +330,15 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
 /** نص المساعدة (يظهر عند /help أو /start أو «مساعدة»). */
 const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانونية</b>
 
-<b>1) تسجيل عملية</b> — أرسل نصاً أو تسجيلاً صوتياً أو صورة فاتورة:
+<b>1) تسجيل عملية</b> — أرسل نصاً أو تسجيلاً صوتياً أو صورة فاتورة أو ملف <code>PDF</code>:
 • <code>دفعت 500 ريال إيجار المكتب</code>
 • <code>شريت أدوات بـ300 من جرير</code>
 • <code>استلمت اشتراك 5750 من شركة الأفق</code>
+
+<b>الفواتير المرفقة</b>
+• ملف <code>PDF</code> (حتى 10 ميغابايت) — تُقرأ صفحاته نصّاً وصورةً.
+• صور: <code>JPG</code>، <code>PNG</code>، <code>HEIC</code> (الافتراضية في الآيفون)، <code>WebP</code>، <code>GIF</code>، <code>AVIF</code>، <code>TIFF</code>، <code>BMP</code>.
+• الصيغ التي لا يقرأها المحلّل تُحوَّل تلقائياً، ويُحفظ الأصل كما أرسلته.
 
 <b>التوجيه التلقائي:</b>
 • رواتب/تحويلات صادرة ← قيد محاسبي
@@ -390,6 +365,20 @@ const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانوني
 • إن لم تذكر حساب الدفع فالافتراضي <b>الحساب البنكي</b> (اذكر «نقداً» أو «الخزينة» أو «النثرية» للتغيير).
 • التواريخ النسبية مفهومة: «أمس»، «الثلاثاء الماضي».
 • إن نقص بيان جوهري (المبلغ أو المورّد/العميل) سأسألك عنه.`;
+
+/** بديل نصّي للمرفق داخل السياق المتراكم حين تخلو الرسالة من نص. */
+function mediaPlaceholder(media) {
+  if (!media) return '';
+  return media.kind === 'document' ? '(ملف PDF مرفق)' : '(صورة مرفقة)';
+}
+
+/** تصنيف مبدئي لمرفق تليجرام: هل يبدو ملف PDF من نوعه المعلن أو اسمه؟ */
+function looksLikePdf(document) {
+  if (!document) return false;
+  return (
+    /pdf/i.test(document.mime_type || '') || /\.pdf$/i.test(document.file_name || '')
+  );
+}
 
 // ---------------------------------------------------------------------------
 // المعالجة الرئيسية لرسالة تليجرام.
@@ -420,10 +409,18 @@ export async function processTelegramUpdate(env, update) {
     return;
   }
 
+  // المرفق قد يصل صورةً مضغوطة (photo) أو ملفاً كما هو (document). النوع
+  // المعلن من تليجرام مستنتج من الامتداد فلا يُعتمد عليه — يُحسم بعد التنزيل
+  // من بايتات الملف نفسه في prepareMedia، وهنا نضع تصنيفاً مبدئياً فقط.
+  const attachment = message.photo
+    ? { fileId: message.photo[message.photo.length - 1].file_id }
+    : message.document
+      ? { fileId: message.document.file_id }
+      : null;
+
   let sourceType = 'text';
   if (message.voice || message.audio) sourceType = 'voice';
-  else if (message.photo || (message.document && /image/.test(message.document.mime_type || '')))
-    sourceType = 'image';
+  else if (attachment) sourceType = looksLikePdf(message.document) ? 'pdf' : 'image';
 
   const txId = await createTransaction(env.DB, {
     telegramMessageId: String(messageId),
@@ -435,7 +432,7 @@ export async function processTelegramUpdate(env, update) {
 
   try {
     let finalText = message.text || message.caption || '';
-    let image = null;
+    let media = null;
     let mediaR2Key = null;
     let mediaType = null;
 
@@ -460,32 +457,41 @@ export async function processTelegramUpdate(env, update) {
       });
     }
 
-    // ---- معالجة الصورة (فاتورة) ----
-    if (sourceType === 'image') {
-      const fileId = message.photo
-        ? message.photo[message.photo.length - 1].file_id
-        : message.document.file_id;
-      const buffer = await downloadTelegramFile(env, fileId);
+    // ---- معالجة المرفق (فاتورة مصوّرة أو ملف PDF) ----
+    if (attachment) {
+      const buffer = await downloadTelegramFile(env, attachment.fileId);
 
-      // كشف النوع الحقيقي من البايتات (لا نثق بما يعلنه تليجرام).
-      const detected = detectImageType(buffer);
-      if (!detected) {
-        throw new Error(
-          'صيغة الصورة غير مدعومة (قد تكون HEIC من الآيفون). الرجاء إرسالها بصيغة JPG أو PNG — ' +
-            'على الآيفون: الإعدادات ← الكاميرا ← التنسيقات ← «الأكثر توافقاً».'
+      // النوع الحقيقي والتحويل عند اللزوم (HEIC من الآيفون مثلاً) — من البايتات.
+      const prepared = await prepareMedia(env, buffer);
+
+      sourceType = prepared.kind === 'document' ? 'pdf' : 'image';
+      mediaType = prepared.mediaType;
+      const base = `invoice/${chatId}/${messageId}`;
+      mediaR2Key = `${base}.${extensionFor(mediaType)}`;
+      await env.MEDIA.put(mediaR2Key, prepared.bytes, {
+        httpMetadata: { contentType: mediaType },
+      });
+
+      // الملف المحوّل نسخة لا بديل — نحفظ الأصل كما أرسله المستخدم إلى جانبه.
+      if (prepared.originalBytes) {
+        await env.MEDIA.put(
+          `${base}-original.${extensionFor(prepared.originalType)}`,
+          prepared.originalBytes,
+          { httpMetadata: { contentType: prepared.originalType } }
         );
       }
-      if (buffer.byteLength > MAX_IMAGE_BYTES) {
-        throw new Error('حجم الصورة كبير جداً. الرجاء إرسال صورة أصغر (أقل من 5 ميغابايت).');
-      }
 
-      mediaType = detected;
-      const ext = mediaType.split('/')[1] || 'jpg';
-      mediaR2Key = `invoice/${chatId}/${messageId}.${ext}`;
-      await env.MEDIA.put(mediaR2Key, buffer, { httpMetadata: { contentType: mediaType } });
-      await updateTransaction(env.DB, txId, { mediaR2Key });
-      image = { mediaType, base64: arrayBufferToBase64(buffer) };
-      await writeLog(env.DB, { transactionId: txId, action: 'image_saved_r2', status: 'success' });
+      await updateTransaction(env.DB, txId, { mediaR2Key, sourceType });
+      media = { kind: prepared.kind, mediaType, base64: prepared.base64 };
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: prepared.kind === 'document' ? 'pdf_saved_r2' : 'image_saved_r2',
+        status: 'success',
+        errorDetails:
+          prepared.originalType === prepared.mediaType
+            ? null
+            : `converted ${prepared.originalType} -> ${prepared.mediaType}`,
+      });
     }
 
     // ---- كلمة إعادة/إلغاء تمسح أي سياق عالق وتبدأ من جديد ----
@@ -632,7 +638,7 @@ export async function processTelegramUpdate(env, update) {
     // ---- تعديل/حذف آخر عملية مُرحّلة (متابعة سياقية) ----
     // نتجاهله إن كان هناك حوار معلّق (استكمال بيانات/اختيار جهة اتصال)،
     // حتى لا يُفسَّر ردّ المستخدم على سؤال سابق كطلب تعديل.
-    if (finalText && !image && !pendingState) {
+    if (finalText && !media && !pendingState) {
       const recent = await listPostedTransactions(env.DB, chatId, 10);
       if (recent.length > 0) {
         const { intent, instruction, target } = await classifyFollowUp(env, finalText, recent);
@@ -732,17 +738,16 @@ export async function processTelegramUpdate(env, update) {
     let priorContext = null;
     if (prior) {
       priorContext = prior.accumulatedText || null;
-      // إن كان هناك مرفق سابق ولم تُرسل صورة جديدة، أعِد تحميله من R2 مع التحقق من صلاحيته.
-      if (!image && prior.mediaR2Key) {
+      // إن كان هناك مرفق سابق ولم يصل مرفق جديد، أعِد تحميله من R2 مع التحقق من صلاحيته.
+      if (!media && prior.mediaR2Key) {
         const obj = await env.MEDIA.get(prior.mediaR2Key);
         if (obj) {
-          const buf = await obj.arrayBuffer();
-          const t = detectImageType(buf);
-          // نتجاهل الصورة المخزّنة إن كانت غير مدعومة/تالفة ونكمل بالنص فقط.
-          if (t && buf.byteLength <= MAX_IMAGE_BYTES) {
-            image = { mediaType: t, base64: arrayBufferToBase64(buf) };
+          const restored = prepareStoredMedia(await obj.arrayBuffer());
+          // نتجاهل المرفق المخزّن إن كان تالفاً أو تجاوز الحدّ ونكمل بالنص وحده.
+          if (restored) {
+            media = restored;
             mediaR2Key = prior.mediaR2Key;
-            mediaType = t;
+            mediaType = restored.mediaType;
           }
         }
       }
@@ -777,7 +782,7 @@ export async function processTelegramUpdate(env, update) {
       return;
     }
 
-    if (!finalText && !image) {
+    if (!finalText && !media) {
       throw new Error('لا يوجد محتوى قابل للمعالجة في الرسالة');
     }
 
@@ -798,7 +803,7 @@ export async function processTelegramUpdate(env, update) {
       messageDateISO: dateISO,
       vatPercent,
       text: finalText,
-      image,
+      media,
       priorContext,
     });
     await updateTransaction(env.DB, txId, {
@@ -810,7 +815,7 @@ export async function processTelegramUpdate(env, update) {
     // ---- بيانات ناقصة؟ اسأل واحفظ السياق ----
     if (result.status === 'need_more') {
       const accumulated =
-        (priorContext ? priorContext + '\n---\n' : '') + (finalText || '(صورة مرفقة)');
+        (priorContext ? priorContext + '\n---\n' : '') + (finalText || mediaPlaceholder(media));
       await setConversationState(env.DB, chatId, {
         accumulatedText: accumulated,
         mediaR2Key,
@@ -832,7 +837,7 @@ export async function processTelegramUpdate(env, update) {
       if (!result.contact_name) {
         const who = result.type === 'purchase_bill' ? 'المورّد' : 'العميل';
         const accumulated =
-          (priorContext ? priorContext + '\n---\n' : '') + (finalText || '(صورة مرفقة)');
+          (priorContext ? priorContext + '\n---\n' : '') + (finalText || mediaPlaceholder(media));
         await setConversationState(env.DB, chatId, {
           accumulatedText: accumulated,
           mediaR2Key,
