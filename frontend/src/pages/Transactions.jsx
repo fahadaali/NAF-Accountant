@@ -191,13 +191,13 @@ export default function Transactions({ isAdmin }) {
             </Button>
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">من تاريخ</label>
-            <Input type="date" className="w-full"
+            <label htmlFor="filter-from" className="block text-xs text-muted-foreground mb-1">من تاريخ</label>
+            <Input id="filter-from" type="date" className="w-full"
               value={filters.from} onChange={(e) => setF('from', e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">إلى تاريخ</label>
-            <Input type="date" className="w-full"
+            <label htmlFor="filter-to" className="block text-xs text-muted-foreground mb-1">إلى تاريخ</label>
+            <Input id="filter-to" type="date" className="w-full"
               value={filters.to} onChange={(e) => setF('to', e.target.value)} />
           </div>
           <div className="flex items-end">
@@ -222,7 +222,7 @@ export default function Transactions({ isAdmin }) {
                 <TableRow>
                   {isAdmin && (
                     <TableHead className="w-8">
-                      <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+                      <input type="checkbox" aria-label="تحديد كل العمليات" checked={allChecked} onChange={toggleAll} />
                     </TableHead>
                   )}
                   <TableHead>#</TableHead>
@@ -240,7 +240,7 @@ export default function Transactions({ isAdmin }) {
                   <TableRow key={t.id} className="align-top" data-state={selected.has(t.id) ? 'selected' : undefined}>
                     {isAdmin && (
                       <TableCell>
-                        <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
+                        <input type="checkbox" aria-label={`تحديد العملية ${t.id}`} checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
                       </TableCell>
                     )}
                     <TableCell className="text-foreground tabular-nums"><bdi>{fmtNumber(t.id)}</bdi></TableCell>
@@ -248,8 +248,8 @@ export default function Transactions({ isAdmin }) {
                       <SourceIcon type={t.source_type} />
                     </TableCell>
                     <TableCell className="text-foreground">
-                      <div className="max-w-xs truncate" title={t.raw_text || ''}>{t.raw_text || '—'}</div>
-                      {t.error_message && <div className="text-destructive text-xs mt-1"><CircleAlert size={16} className="inline" aria-hidden="true" /> {t.error_message}</div>}
+                      <bdi className="block max-w-xs truncate" title={t.raw_text || ''}>{t.raw_text || '—'}</bdi>
+                      {t.error_message && <div className="text-destructive text-xs mt-1"><CircleAlert size={16} className="inline" aria-hidden="true" /> <bdi>{t.error_message}</bdi></div>}
                     </TableCell>
                     <TableCell><MediaViewer mediaKey={t.media_r2_key} /></TableCell>
                     <TableCell><JsonPreview json={t.processed_json} /></TableCell>

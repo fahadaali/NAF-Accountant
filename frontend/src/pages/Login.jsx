@@ -89,8 +89,9 @@ export default function Login({ onAuthed }) {
 
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1">البريد الإلكتروني</label>
+              <label htmlFor="login-email" className="block text-sm font-semibold text-foreground mb-1">البريد الإلكتروني</label>
               <Input
+                id="login-email"
                 type="email"
                 dir="ltr"
                 className="w-full text-start"
@@ -101,8 +102,9 @@ export default function Login({ onAuthed }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1">كلمة المرور</label>
+              <label htmlFor="login-password" className="block text-sm font-semibold text-foreground mb-1">كلمة المرور</label>
               <Input
+                id="login-password"
                 type="password"
                 dir="ltr"
                 className="w-full text-start"
@@ -114,8 +116,9 @@ export default function Login({ onAuthed }) {
             </div>
             {mode === 'setup' && (
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-1">تأكيد كلمة المرور</label>
+                <label htmlFor="login-confirm" className="block text-sm font-semibold text-foreground mb-1">تأكيد كلمة المرور</label>
                 <Input
+                  id="login-confirm"
                   type="password"
                   dir="ltr"
                   className="w-full text-start"

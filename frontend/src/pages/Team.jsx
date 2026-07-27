@@ -220,7 +220,7 @@ export default function Team() {
                 chats.map((ch) => (
                   <TableRow key={ch.chat_id}>
                     <TableCell className="font-mono text-foreground tabular-nums"><bdi>{ch.chat_id}</bdi></TableCell>
-                    <TableCell className="text-foreground">{ch.label || '—'}</TableCell>
+                    <TableCell className="text-foreground"><bdi>{ch.label || '—'}</bdi></TableCell>
                     <TableCell>{ch.is_admin ? <span className="inline-flex items-center gap-2"><Bell size={16} aria-hidden="true" /> نعم</span> : '—'}</TableCell>
                     <TableCell>
                       <Badge variant={ch.is_active ? 'success' : 'default'}>

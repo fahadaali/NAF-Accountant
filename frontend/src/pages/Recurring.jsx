@@ -172,7 +172,7 @@ export default function Recurring() {
               ) : (
                 rows.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="font-semibold text-foreground">{r.label}</TableCell>
+                    <TableCell className="font-semibold text-foreground"><bdi>{r.label}</bdi></TableCell>
                     <TableCell className="text-foreground text-sm"><TemplateSummary json={r.template_json} /></TableCell>
                     <TableCell className="text-foreground tabular-nums"><bdi>{fmtNumber(r.day_of_month)}</bdi></TableCell>
                     <TableCell className="text-muted-foreground text-sm">

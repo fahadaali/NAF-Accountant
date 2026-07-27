@@ -120,8 +120,8 @@ export default function Logs() {
                     <TableCell className="text-muted-foreground text-sm tabular-nums">
                       {l.transaction_id ? <bdi>{fmtNumber(l.transaction_id)}</bdi> : '—'}
                     </TableCell>
-                    <TableCell className="text-foreground text-sm max-w-md break-words">
-                      {l.error_details || '—'}
+                    <TableCell className="text-foreground text-sm">
+                      <bdi className="block max-w-md break-words">{l.error_details || '—'}</bdi>
                     </TableCell>
                   </TableRow>
                 ))}

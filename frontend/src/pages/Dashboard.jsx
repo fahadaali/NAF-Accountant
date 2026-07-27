@@ -100,7 +100,7 @@ export default function Dashboard() {
                     <TableCell>
                       <SourceIcon type={t.source_type} withLabel />
                     </TableCell>
-                    <TableCell className="text-foreground max-w-xs truncate">{t.raw_text || '—'}</TableCell>
+                    <TableCell className="text-foreground"><bdi className="block max-w-xs truncate">{t.raw_text || '—'}</bdi></TableCell>
                     <TableCell><StatusBadge status={t.status} /></TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       <bdi>{fmtDateTime(t.created_at)}</bdi>
