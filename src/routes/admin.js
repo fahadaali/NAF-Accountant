@@ -5,6 +5,7 @@
 
 import { Hono } from 'hono';
 import { authenticate, hashPassword } from '../lib/auth.js';
+import { probeAttachmentApi } from '../services/wafeq.js';
 
 const admin = new Hono();
 
@@ -177,6 +178,20 @@ admin.post('/recurring/delete', async (c) => {
   if (!id) return c.json({ ok: false, error: 'المعرّف مطلوب.' }, 400);
   await c.env.DB.prepare(`DELETE FROM recurring_transactions WHERE id = ?`).bind(id).run();
   return c.json({ ok: true });
+});
+
+// ============================ تشخيص واجهة وافق ============================
+
+// استكشاف واجهة المرفقات في وافق. قراءةٌ محضة: طلبات GET فقط، لا تُنشئ
+// مستنداً ولا مرفقاً ولا تُعدّل شيئاً. غايتها كشف المسار الصحيح لرفع
+// المرفقات واسم الحقل الذي يربطها بالمستند، بعد أن ردّ المسار المستعمل
+// بصفحة خطأ HTML.
+admin.get('/wafeq-probe', async (c) => {
+  if (!c.env.WAFEQ_API_KEY) {
+    return c.json({ ok: false, error: 'مفتاح وافق غير مضبوط.' }, 400);
+  }
+  const report = await probeAttachmentApi(c.env);
+  return c.json({ ok: true, report });
 });
 
 export default admin;

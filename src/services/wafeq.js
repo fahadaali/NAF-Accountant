@@ -232,8 +232,83 @@ export function attachmentLinkState(raw) {
 }
 
 /**
+ * استكشاف واجهة المرفقات في وافق — قراءةٌ محضة، لا تُنشئ شيئاً ولا تُعدّله.
+ *
+ * مسار رفع المرفق في هذا الملف تقديري منذ كتابته، وقد ردّ فعلياً بصفحة خطأ
+ * HTML — أي أن المسار غير موجود أصلاً. ولأن توثيق وافق غير متاح من بيئة
+ * التطوير، يسأل الـWorker الواجهة بنفسه ويُرجع ما رآه:
+ *
+ *   1. أي المسارات المرشّحة موجود (GET على قائمة كل مسار).
+ *   2. ما أسماء الحقول في مستند حقيقي — منها يُعرف اسم حقل المرفقات.
+ *
+ * @returns {Promise<object>} تقرير يُقرأ مباشرة، لا يُخزَّن.
+ */
+export async function probeAttachmentApi(env) {
+  const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
+  const headers = { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` };
+
+  const get = async (path) => {
+    try {
+      const res = await fetch(`${base}/${path}`, { headers });
+      const body = await res.text();
+      return { status: res.status, body };
+    } catch (e) {
+      return { status: 0, body: `fetch failed: ${e.message}` };
+    }
+  };
+
+  // 1) أي مسار للمرفقات موجود؟ 404 = غير موجود، 200 = موجود، 401/403 = صلاحية.
+  const candidates = ['attachments/', 'files/', 'documents/', 'uploads/', 'media/'];
+  const paths = {};
+  for (const path of candidates) {
+    const { status, body } = await get(`${path}?page_size=1`);
+    paths[path] = { status, sample: briefApiError(body, 120) };
+  }
+
+  // 2) أسماء الحقول في مستند حقيقي — منها يُعرف اسم حقل المرفقات وشكله.
+  const documents = {};
+  for (const [label, path] of [
+    ['bill', 'bills'],
+    ['invoice', 'invoices'],
+    ['manual_journal', 'manual-journals'],
+  ]) {
+    const list = await get(`${path}/?page_size=1`);
+    if (list.status !== 200) {
+      documents[label] = { status: list.status, note: briefApiError(list.body, 120) };
+      continue;
+    }
+    let first;
+    try {
+      const data = JSON.parse(list.body);
+      first = (data.results || data.data || [])[0];
+    } catch (_) {
+      first = null;
+    }
+    if (!first?.id) {
+      documents[label] = { status: 200, note: 'لا مستندات لفحصها' };
+      continue;
+    }
+    const detail = await get(`${path}/${encodeURIComponent(first.id)}/`);
+    let fields = [];
+    let attachmentLike = {};
+    try {
+      const doc = JSON.parse(detail.body);
+      fields = Object.keys(doc);
+      for (const k of fields) {
+        if (/attach|file|document|media/i.test(k)) attachmentLike[k] = doc[k];
+      }
+    } catch (_) {
+      /* ردّ غير JSON */
+    }
+    documents[label] = { status: detail.status, id: first.id, fields, attachmentLike };
+  }
+
+  return { base, paths, documents };
+}
+
+/**
  * يرفع ملفاً (صورة فاتورة أو ملف PDF) إلى وافق ويُرجع معرّفه لإرفاقه بالمستند.
- * ملاحظة: صيغة نقطة النهاية تقديرية وتُضبط بالاختبار.
+ * ⚠️ المسار تقديري ولم يُثبت بعد — راجع probeAttachmentApi.
  */
 export async function uploadAttachment(env, buffer, filename, contentType) {
   const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
