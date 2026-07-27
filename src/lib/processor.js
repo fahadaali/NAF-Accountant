@@ -33,6 +33,7 @@ import {
   createContact,
   uploadAttachment,
   attachmentLinkState,
+  probeAttachmentApi,
   deleteDocument,
   getWafeqDraftSummary,
 } from '../services/wafeq.js';
@@ -484,6 +485,37 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
   });
 }
 
+/**
+ * صياغة تقرير التشخيص رسالةً مقروءة.
+ * الرسالة محدودة الطول في تليجرام، فنُبقي ما يدلّ ونحذف ما يزحم.
+ */
+function formatProbeReport(report) {
+  const mark = (status) => (status === 200 ? '✅' : status === 404 ? '❌' : '⚠️');
+
+  const paths = Object.entries(report.paths || {})
+    .map(([path, r]) => `${mark(r.status)} <code>${path}</code> — ${r.status}`)
+    .join('\n');
+
+  const docs = Object.entries(report.documents || {})
+    .map(([label, d]) => {
+      if (!d.fields?.length) return `• ${label}: ${d.note || d.status}`;
+      const found = Object.keys(d.attachmentLike || {});
+      const sub = d.subPath ? `\n   فرعي: ${mark(d.subPath.status)} ${d.subPath.status}` : '';
+      return (
+        `• <b>${label}</b> (${d.fields.length} حقلاً)` +
+        `\n   حقول المرفقات: ${found.length ? found.join(', ') : 'لا شيء'}${sub}`
+      );
+    })
+    .join('\n');
+
+  return (
+    `🔎 <b>تشخيص واجهة مرفقات وافق</b>\n\n` +
+    `<b>المسارات الجذرية</b>\n${paths || 'لا شيء'}\n\n` +
+    `<b>حقول المستندات</b>\n${docs || 'لا شيء'}\n\n` +
+    `✅ موجود · ❌ غير موجود · ⚠️ صلاحية أو خطأ آخر`
+  );
+}
+
 /** نص المساعدة (يظهر عند /help أو /start أو «مساعدة»). */
 const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانونية</b>
 
@@ -516,6 +548,7 @@ const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانوني
 
 <b>4) أوامر أخرى</b>
 • <code>جديد</code> — إلغاء أي عملية جارية والبدء من نظيف
+• <code>تشخيص</code> — فحص اتصال المرفقات بوافق (قراءة فقط)
 • <code>/help</code> — هذه الرسالة
 
 <b>5) العملات</b>
@@ -560,6 +593,19 @@ export async function processTelegramUpdate(env, update) {
   // ---- أمر المساعدة (لا يُسجّل كعملية) ----
   if (/^\/(help|start)\b/i.test(incomingText.trim()) || /^(مساعدة|المساعدة|الأوامر)$/.test(incomingText.trim())) {
     await sendTelegramMessage(env, chatId, HELP_TEXT);
+    return;
+  }
+
+  // ---- أمر التشخيص (لا يُسجّل كعملية) ----
+  // مسار رفع المرفقات في وافق غير موثّق، ويُحسم بسؤال الواجهة نفسها. الأمر
+  // متاح من المحادثة لأن من يشغّله هو من يملك الحساب — لا من يملك سطر أوامر.
+  if (/^\/(diag|probe)\b/i.test(incomingText.trim()) || /^(تشخيص|التشخيص)$/.test(incomingText.trim())) {
+    try {
+      const report = await probeAttachmentApi(env);
+      await sendTelegramMessage(env, chatId, formatProbeReport(report));
+    } catch (e) {
+      await sendTelegramMessage(env, chatId, `⚠️ تعذّر التشخيص: ${e.message}`);
+    }
     return;
   }
 

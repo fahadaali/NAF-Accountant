@@ -293,7 +293,10 @@ export async function probeAttachmentApi(env) {
       documents[label] = { status: 200, note: 'لا مستندات لفحصها' };
       continue;
     }
-    const detail = await get(`${path}/${encodeURIComponent(first.id)}/`);
+    // `expand=attachments` يوسّع الكائنات المشار إليها بمعرّفاتها. فإن كان
+    // الحقل موجوداً عاد بكائنات كاملة يظهر منها شكل المرفق، وإن لم يكن
+    // موجوداً ردّت وافق بخطأ يسمّي الحقل — وكلا الجوابين يفيد.
+    const detail = await get(`${path}/${encodeURIComponent(first.id)}/?expand=attachments`);
     let fields = [];
     let attachmentLike = {};
     try {
