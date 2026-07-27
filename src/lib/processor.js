@@ -642,7 +642,7 @@ export async function processTelegramUpdate(env, update) {
           const { count, items } = await getWafeqDraftSummary(env);
           if (count === 0) {
             await updateTransaction(env.DB, txId, { status: 'posted' });
-            await sendTelegramMessage(env, chatId, 'ℹ️ لا توجد مسودات في وافق للحذف.');
+            await sendTelegramMessage(env, chatId, 'ℹ️ لا قيود مُرحّلة في وافق للحذف.');
             return;
           }
           const preview = items
