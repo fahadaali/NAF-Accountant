@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
 import SourceIcon from '../components/SourceIcon.jsx';
-import { Sigma, FilePen, Bot, CircleAlert } from 'lucide-react';
+import { Sigma, CircleCheck, Bot, CircleAlert } from 'lucide-react';
 import { fmtDateTime, fmtNumber } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Card } from '../naf/ui/card.jsx';
@@ -12,9 +12,13 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 // (CLAUDE.md §6) لا من تخفيف مكتوب باليد ولا من درجة لوحة.
 //
 // «فاشلة» ممنوعة في naf-terms.md — المعتمد «فشلت».
+//
+// وأيقونة posted هي CircleCheck لا FilePen: naf-terms.md يسجّل
+// `posted | مُرحّلة | CircleCheck`، و FilePen مسجّلة لـ«مسودة». كانت
+// أيقونة المسودة باقية بعد تصحيح التسمية من «مسودات في وافق».
 const STAT_CARDS = [
   { key: 'total', label: 'إجمالي العمليات', Icon: Sigma, color: 'bg-primary-soft text-primary-strong' },
-  { key: 'posted', label: 'مُرحّلة إلى وافق', Icon: FilePen, color: 'bg-success-soft text-success-strong' },
+  { key: 'posted', label: 'مُرحّلة إلى وافق', Icon: CircleCheck, color: 'bg-success-soft text-success-strong' },
   { key: 'analyzed', label: 'قيد التحليل', Icon: Bot, color: 'bg-warning-soft text-warning-strong' },
   { key: 'failed', label: 'العمليات التي فشلت', Icon: CircleAlert, color: 'bg-destructive-soft text-destructive-strong' },
 ];
