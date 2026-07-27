@@ -5,6 +5,7 @@ import Money from '../components/Money.jsx';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { CircleAlert } from 'lucide-react';
 import { Card } from '../naf/ui/card.jsx';
+import { Select } from '../naf/ui/select.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../naf/ui/table.jsx';
 
 // ألوان الرسوم من رموز الثيم — لا قيم مباشرة (CLAUDE.md §1).
@@ -18,7 +19,10 @@ const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو
 
 // الأرقام غربية بفاصل آلاف — من lib/format.js لا داخل الصفحة.
 const fmt = (n) => fmtNumber(n);
-// نصّ داخل <title> في SVG لا يقبل عنصراً، فيُبنى المبلغ نصّاً بالقواعد نفسها.
+// <title> داخل SVG نصّ خالص لا يقبل عنصراً، فتعذّر استعمال Money هنا
+// وحده. البديل «ر.س» هو صيغة الطباعة المعتمدة في naf-terms.md §٥،
+// والتنسيق من naf-format كما في كل موضع آخر. لا يُنسخ هذا النمط إلى
+// نصّ عادي: في الخلية والفقرة يُستعمل Money.
 const fmtAmountText = (n) => `${fmtAmount(n)} ${CURRENCY}`;
 
 function monthLabel(ym) {
@@ -173,15 +177,16 @@ export default function Analytics() {
           <h2 className="text-2xl font-bold text-foreground">التحليلات</h2>
           <p className="text-muted-foreground mt-1">نظرة على المصروفات والإيرادات وأكبر الموردين</p>
         </div>
-        <select
-          className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+        {/* أرقام غربية — naf-terms.md §٥ */}
+        <Select
+          wrapperClassName="w-auto"
           value={months}
           onChange={(e) => setMonths(Number(e.target.value))}
         >
-          <option value={3}>آخر ٣ أشهر</option>
-          <option value={6}>آخر ٦ أشهر</option>
-          <option value={12}>آخر ١٢ شهراً</option>
-        </select>
+          <option value={3}>آخر 3 أشهر</option>
+          <option value={6}>آخر 6 أشهر</option>
+          <option value={12}>آخر 12 شهراً</option>
+        </Select>
       </div>
 
       {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
@@ -221,10 +226,10 @@ export default function Analytics() {
                     {data.monthly.map((m) => (
                       <TableRow key={m.month}>
                         <TableCell className="text-foreground">{monthLabel(m.month)}</TableCell>
-                        <TableCell className="tabular-nums text-foreground">{fmt(m.revenue)}</TableCell>
-                        <TableCell className="tabular-nums text-foreground">{fmt(m.expenses)}</TableCell>
+                        <TableCell className="tabular-nums text-foreground"><bdi>{fmt(m.revenue)}</bdi></TableCell>
+                        <TableCell className="tabular-nums text-foreground"><bdi>{fmt(m.expenses)}</bdi></TableCell>
                         <TableCell className="tabular-nums font-semibold text-foreground">
-                          {fmt(m.revenue - m.expenses)}
+                          <bdi>{fmt(m.revenue - m.expenses)}</bdi>
                         </TableCell>
                       </TableRow>
                     ))}

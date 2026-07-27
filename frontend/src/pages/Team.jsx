@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
+import { Select } from '../naf/ui/select.jsx';
 import { Bell, CircleAlert, CircleCheck, CircleSlash } from 'lucide-react';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
@@ -55,7 +56,7 @@ export default function Team() {
           open={!!pendingChat}
           onOpenChange={(v) => !v && setPendingChat(null)}
           title="حذف المحادثة"
-          description={`لن يستقبل النظام عمليات من المحادثة ${pendingChat.chat_id} بعد الحذف.`}
+          description={<>لن يستقبل النظام عمليات من المحادثة <bdi>{pendingChat.chat_id}</bdi> بعد الحذف.</>}
           actionLabel="حذف"
           onConfirm={() => run(() => api.deleteChat(pendingChat.chat_id), 'تم الحذف.')}
         />
@@ -95,14 +96,13 @@ export default function Team() {
             value={userForm.password}
             onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
           />
-          <select
-            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+          <Select
             value={userForm.role}
             onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
           >
             <option value="user">مستخدم (اطّلاع)</option>
             <option value="admin">مسؤول</option>
-          </select>
+          </Select>
           <Button className="justify-center" type="submit">إضافة</Button>
         </form>
 
@@ -118,10 +118,10 @@ export default function Team() {
             <TableBody>
               {users.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell className="text-foreground" dir="ltr">{u.email}</TableCell>
+                  <TableCell className="text-foreground"><bdi>{u.email}</bdi></TableCell>
                   <TableCell>
-                    <select
-                      className="border border-border rounded-lg px-2 py-1 text-sm"
+                    <Select
+                      size="sm"
                       value={u.role}
                       onChange={(e) =>
                         run(() => api.updateUser({ id: u.id, role: e.target.value }), 'تم تحديث الصلاحية.')
@@ -129,7 +129,7 @@ export default function Team() {
                     >
                       <option value="user">مستخدم</option>
                       <option value="admin">مسؤول</option>
-                    </select>
+                    </Select>
                   </TableCell>
                   <TableCell>
                     <Badge variant={u.is_active ? 'success' : 'default'}>
@@ -213,15 +213,15 @@ export default function Team() {
               {chats.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
-                    لم تُضِف أي محادثة بعد. يُستخدم حالياً المتغيّر AUTHORIZED_CHAT_IDS الاحتياطي.
+                    لم تُضِف أي محادثة بعد. يُستخدم حالياً المتغيّر <bdi>AUTHORIZED_CHAT_IDS</bdi> الاحتياطي.
                   </TableCell>
                 </TableRow>
               ) : (
                 chats.map((ch) => (
                   <TableRow key={ch.chat_id}>
-                    <TableCell className="font-mono text-foreground" dir="ltr">{ch.chat_id}</TableCell>
+                    <TableCell className="font-mono text-foreground tabular-nums"><bdi>{ch.chat_id}</bdi></TableCell>
                     <TableCell className="text-foreground">{ch.label || '—'}</TableCell>
-                    <TableCell>{ch.is_admin ? <span className="inline-flex items-center gap-2"><Bell size={16} /> نعم</span> : '—'}</TableCell>
+                    <TableCell>{ch.is_admin ? <span className="inline-flex items-center gap-2"><Bell size={16} aria-hidden="true" /> نعم</span> : '—'}</TableCell>
                     <TableCell>
                       <Badge variant={ch.is_active ? 'success' : 'default'}>
                         {ch.is_active

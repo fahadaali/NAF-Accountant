@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api.js';
-import { TriangleAlert, RefreshCw, CircleAlert, CircleCheck, Info } from 'lucide-react';
-import { fmtDateTime } from '../lib/format.js';
+import { RefreshCw, CircleAlert, CircleCheck, Info } from 'lucide-react';
+import { fmtDateTime, fmtNumber } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
 import { Card } from '../naf/ui/card.jsx';
@@ -74,9 +74,11 @@ export default function Logs() {
             variant={onlyErrors ? 'destructive' : 'ghost'}
             onClick={() => setOnlyErrors((v) => !v)}
           >
-            <TriangleAlert size={20} /> الأخطاء فقط ({errorCount})
+            {/* CircleAlert لا TriangleAlert: naf-icons.md — الفشل حدث وقع
+                والتحذير احتمال قائم، وهذه أخطاء وقعت فعلاً. */}
+            <CircleAlert size={20} aria-hidden="true" /> الأخطاء فقط (<bdi>{fmtNumber(errorCount)}</bdi>)
           </Button>
-          <Button variant="ghost" onClick={load}><RefreshCw size={20} /> تحديث</Button>
+          <Button variant="ghost" onClick={load}><RefreshCw size={20} aria-hidden="true" /> تحديث</Button>
         </div>
       </div>
 
@@ -102,7 +104,7 @@ export default function Logs() {
                 {shown.map((l) => (
                   <TableRow key={l.id} className="align-top">
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                      {fmtDateTime(l.timestamp)}
+                      <bdi>{fmtDateTime(l.timestamp)}</bdi>
                     </TableCell>
                     <TableCell className="text-foreground">{ACTION_AR[l.action] || l.action}</TableCell>
                     <TableCell>
@@ -115,7 +117,9 @@ export default function Logs() {
                         );
                       })()}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{l.transaction_id || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm tabular-nums">
+                      {l.transaction_id ? <bdi>{fmtNumber(l.transaction_id)}</bdi> : '—'}
+                    </TableCell>
                     <TableCell className="text-foreground text-sm max-w-md break-words">
                       {l.error_details || '—'}
                     </TableCell>

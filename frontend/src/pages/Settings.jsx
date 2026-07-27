@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
+import { fmtNumber } from '../lib/format.js';
 import { LogOut, LoaderCircle, CircleCheck, CircleSlash, Send, ChartColumn, CircleAlert, CircleHelp } from 'lucide-react';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
@@ -33,7 +34,7 @@ export default function Settings({ user, onLogout }) {
   const [status, setStatus] = useState(null);
   const [asr, setAsr] = useState(null);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
+  const [msg, setMsg] = useState(null);
   const [reporting, setReporting] = useState(false);
 
   const loadStatus = async () => {
@@ -57,7 +58,7 @@ export default function Settings({ user, onLogout }) {
     setMsg('');
     try {
       const r = await api.sendReport();
-      setMsg(`تم إرسال التقرير إلى بيسكامب (${r.count} مسودة).`);
+      setMsg(<>تم إرسال التقرير إلى بيسكامب (<bdi>{fmtNumber(r.count)}</bdi> مسودة).</>);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -94,12 +95,12 @@ export default function Settings({ user, onLogout }) {
         <h3 className="font-bold text-foreground mb-1">الحساب</h3>
         <div className="flex items-center justify-between mt-3">
           <div>
-            <div className="font-semibold text-foreground" dir="ltr">{user?.email}</div>
+            <bdi className="block font-semibold text-foreground">{user?.email}</bdi>
             <div className="text-xs text-muted-foreground">
               الصلاحية: {user?.role === 'admin' ? 'مسؤول' : 'مستخدم'}
             </div>
           </div>
-          <Button variant="ghost" onClick={onLogout}><LogOut size={20} className="rtl:-scale-x-100" /> تسجيل الخروج</Button>
+          <Button variant="ghost" onClick={onLogout}><LogOut size={20} className="rtl:-scale-x-100" aria-hidden="true" /> تسجيل الخروج</Button>
         </div>
       </Card>
 
@@ -120,8 +121,8 @@ export default function Settings({ user, onLogout }) {
           </div>
           {asr === 'cloudflare' && (
             <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-              لرفع الدقة لأعلى مستوى: أضِف <code className="bg-muted px-1 rounded-sm" dir="ltr">ELEVENLABS_API_KEY</code> كـ
-              Secret في Cloudflare، وسينتقل النظام إليه تلقائياً.
+              لرفع الدقة لأعلى مستوى: أضِف <code className="bg-muted px-1 rounded-sm" dir="ltr">ELEVENLABS_API_KEY</code>{' '}
+              كـ<bdi>Secret</bdi> في <bdi>Cloudflare</bdi>، وسينتقل النظام إليه تلقائياً.
             </p>
           )}
         </Card>
@@ -131,7 +132,7 @@ export default function Settings({ user, onLogout }) {
       <Card className="p-6">
         <h3 className="font-bold text-foreground mb-1">حالة مفاتيح الربط</h3>
         <p className="text-muted-foreground text-sm mb-4">
-          المفاتيح الحساسة تُخزَّن بشكل مشفّر في Cloudflare Secrets ولا تظهر قيمها هنا — فقط حالة توفرها.
+          المفاتيح الحساسة تُخزَّن بشكل مشفّر في <bdi>Cloudflare Secrets</bdi> ولا تظهر قيمها هنا — فقط حالة توفرها.
           لتحديثها استخدم الأمر: <code className="bg-muted px-2 py-1 rounded-sm" dir="ltr">wrangler secret put &lt;NAME&gt;</code>
         </p>
         <div className="space-y-2">
