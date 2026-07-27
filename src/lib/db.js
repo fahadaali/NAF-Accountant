@@ -248,7 +248,7 @@ export async function isMessageProcessed(db, chatId, messageId) {
  * البحث عن عملية مُرحّلة مشابهة في نفس اليوم (نفس النوع والمبلغ وجهة الاتصال).
  * @returns {Promise<null|{id:number, wafeqId:string, summary:string}>}
  */
-export async function findSimilarPostedToday(db, chatId, { type, total, contactName, date }) {
+export async function findSimilarPostedToday(db, chatId, { type, total, currency, contactName, date }) {
   const { results } = await db
     .prepare(
       `SELECT id, wafeq_draft_id, media_r2_key, processed_json FROM transactions
@@ -269,6 +269,8 @@ export async function findSimilarPostedToday(db, chatId, { type, total, contactN
     if (r.type !== type) continue;
     if (date && r.date !== date) continue;
     if ((contactName || '') !== (r.contact_name || '')) continue;
+    // مبلغان متساويان بعملتين مختلفتين ليسا تكراراً — 500 دولار غير 500 ريال.
+    if (currency && (r.currency || currency) !== currency) continue;
 
     // إجمالي العملية السابقة.
     let prevTotal = 0;

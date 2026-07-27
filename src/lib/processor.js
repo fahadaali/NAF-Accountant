@@ -38,6 +38,14 @@ import {
 } from '../services/wafeq.js';
 import { resolveContact } from '../services/contacts.js';
 import { prepareMedia, prepareStoredMedia, extensionFor } from './media.js';
+import {
+  baseCurrency,
+  currencyNameAr,
+  formatMoney,
+  normalizeCurrency,
+  resolveExchangeRate,
+  toBaseAmount,
+} from './currency.js';
 
 /** تاريخ الرسالة (YYYY-MM-DD) بتوقيت السعودية (UTC+3) من طابع تليجرام. */
 function messageDateISO(unixSeconds) {
@@ -78,6 +86,26 @@ function targetLabel(t) {
   }\n🧾 ${t.wafeqId}`;
 }
 
+/**
+ * تثبيت عملة العملية وسعر صرفها على نتيجة التحليل.
+ *
+ * Claude يستخرج العملة وما ذكره المستخدم من سعر؛ وهنا يُطبَّع الرمز ويُحسم
+ * السعر من مصادره المرتّبة. القيم تُكتب في النتيجة نفسها كي تُحفظ مع العملية
+ * ويعتمدها الترحيل والتقارير معاً — فلا يُعاد استنتاجها في كل موضع.
+ *
+ * @returns {{rate:number, source:string}|null} null = عملة أجنبية بلا سعر معروف.
+ */
+function settleCurrency(env, result) {
+  const base = baseCurrency(env);
+  const currency = normalizeCurrency(result.currency) || base;
+  const state = resolveExchangeRate(env, currency, result.exchange_rate);
+
+  result.currency = currency;
+  result.base_currency = base;
+  result.exchange_rate = state ? state.rate : null;
+  return state;
+}
+
 /** إجمالي العملية (قبل الضريبة) حسب نوعها. */
 function resultTotal(result) {
   if (result.type === 'manual_journal') {
@@ -115,11 +143,28 @@ function accountIdMap(accounts) {
 // ---------------------------------------------------------------------------
 // رسائل التأكيد حسب نوع العملية.
 // ---------------------------------------------------------------------------
-function confirmManualJournal(result, wafeqId) {
+
+/**
+ * سطر سعر الصرف والمقابل بعملة الدفاتر — يظهر للعمليات بعملة أجنبية فقط.
+ * الدفاتر بالريال، فمن حقّ المستخدم أن يرى بكم دخلت العملية دفاتره.
+ */
+function exchangeLine(result, cur, total) {
+  const base = result.base_currency;
+  if (!base || cur === base) return '';
+  const rate = Number(result.exchange_rate) || 1;
+  return (
+    `💱 سعر الصرف: ${iso(rate)} — يعادل ${formatMoney(toBaseAmount(total, rate), base)}\n`
+  );
+}
+
+function confirmManualJournal(result, wafeqId, cur) {
   const entries = result.manual_journal?.entries || [];
   const lines = entries
     .map((e) => {
-      const side = Number(e.debit) > 0 ? `مدين ${e.debit}` : `دائن ${e.credit}`;
+      const side =
+        Number(e.debit) > 0
+          ? `مدين ${formatMoney(e.debit, cur)}`
+          : `دائن ${formatMoney(e.credit, cur)}`;
       return `• ${e.account_name} — ${side}`;
     })
     .join('\n');
@@ -127,38 +172,48 @@ function confirmManualJournal(result, wafeqId) {
   return (
     `✅ <b>تم إنشاء قيد محاسبي في وافق</b>\n\n` +
     `📅 التاريخ: ${iso(result.date)}\n${lines}\n\n` +
-    `💰 الإجمالي: ${iso(total)}\n🧾 المرجع: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
+    `💰 الإجمالي: ${formatMoney(total, cur)}\n` +
+    exchangeLine(result, cur, total) +
+    `🧾 المرجع: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
     `ℹ️ ملاحظة: القيود اليدوية تُرحّل مباشرة في وافق (لا تدعم المسودة عبر الـ API).`
   );
 }
 
-function confirmBill(result, wafeqId) {
+function confirmBill(result, wafeqId, cur) {
   const items = result.bill?.line_items || [];
-  const lines = items.map((li) => `• ${li.account_name} — ${li.amount}`).join('\n');
+  const lines = items
+    .map((li) => `• ${li.account_name} — ${formatMoney(li.amount, cur)}`)
+    .join('\n');
   const sub = items.reduce((s, li) => s + Number(li.amount || 0), 0);
   const vatPercent = Number(result.bill?.vat_percent ?? 0);
   const vat = +((sub * vatPercent) / 100).toFixed(2);
+  const total = vatPercent > 0 ? +(sub + vat).toFixed(2) : sub;
   return (
     `✅ <b>تم إنشاء فاتورة مشتريات (مسودة) في وافق</b>\n\n` +
     `📅 التاريخ: ${iso(result.date)}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n${lines}\n\n` +
     (vatPercent > 0
-      ? `💰 قبل الضريبة: ${iso(sub)}\n➕ ضريبة ${iso(vatPercent + '%')}: ${iso(vat)}\n💵 الإجمالي: ${iso((sub + vat).toFixed(2))}\n`
-      : `💰 الإجمالي: ${sub} (بدون ضريبة)\n`) +
+      ? `💰 قبل الضريبة: ${formatMoney(sub, cur)}\n➕ ضريبة ${iso(vatPercent + '%')}: ${formatMoney(vat, cur)}\n💵 الإجمالي: ${formatMoney(total, cur)}\n`
+      : `💰 الإجمالي: ${formatMoney(sub, cur)} (بدون ضريبة)\n`) +
+    exchangeLine(result, cur, total) +
     `🧾 رقم المسودة: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
     `⚠️ فاتورة <b>مسودة</b> تتطلب مراجعتك واعتمادك في وافق.`
   );
 }
 
-function confirmInvoice(result, wafeqId) {
+function confirmInvoice(result, wafeqId, cur) {
   const items = result.invoice?.line_items || [];
   const vatPercent = Number(result.invoice?.vat_percent || 15);
   const sub = items.reduce((s, li) => s + Number(li.amount || 0), 0);
   const vat = +(sub * vatPercent / 100).toFixed(2);
-  const lines = items.map((li) => `• ${li.account_name} — ${li.amount}`).join('\n');
+  const total = +(sub + vat).toFixed(2);
+  const lines = items
+    .map((li) => `• ${li.account_name} — ${formatMoney(li.amount, cur)}`)
+    .join('\n');
   return (
     `✅ <b>تم إنشاء فاتورة مبيعات (مسودة) في وافق</b>\n\n` +
     `📅 التاريخ: ${iso(result.date)}\n👤 العميل: ${result.contact_name ? iso(result.contact_name) : 'غير محدّد'}\n${lines}\n\n` +
-    `💰 قبل الضريبة: ${iso(sub)}\n➕ ضريبة ${iso(vatPercent + '%')}: ${iso(vat)}\n💵 الإجمالي: ${iso((sub + vat).toFixed(2))}\n` +
+    `💰 قبل الضريبة: ${formatMoney(sub, cur)}\n➕ ضريبة ${iso(vatPercent + '%')}: ${formatMoney(vat, cur)}\n💵 الإجمالي: ${formatMoney(total, cur)}\n` +
+    exchangeLine(result, cur, total) +
     `🧾 رقم المسودة: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
     `⚠️ فاتورة <b>مسودة</b> تتطلب مراجعتك واعتمادك في وافق.`
   );
@@ -169,18 +224,19 @@ function confirmInvoice(result, wafeqId) {
 // ---------------------------------------------------------------------------
 async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId) {
   const idMap = accountIdMap(accounts);
+  const currency = result.currency || baseCurrency(env);
+  const exchangeRate = Number(result.exchange_rate) > 0 ? Number(result.exchange_rate) : 1;
 
   if (result.type === 'manual_journal') {
     const entries = result.manual_journal?.entries || [];
-    const { id, raw } = await postJournalEntryDraft(
-      env,
-      accounts,
-      entries,
-      ref,
-      result.date,
-      attachmentIds
-    );
-    return { wafeqId: id, raw, confirm: confirmManualJournal(result, id) };
+    const { id, raw } = await postJournalEntryDraft(env, accounts, entries, {
+      description: ref,
+      date: result.date,
+      attachmentIds,
+      currency,
+      exchangeRate,
+    });
+    return { wafeqId: id, raw, confirm: confirmManualJournal(result, id, currency) };
   }
 
   if (result.type === 'purchase_bill') {
@@ -196,10 +252,11 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
     const { id, raw } = await createBillDraft(env, {
       contactId,
       date: result.date,
+      currency,
       lineItems,
       attachmentIds,
     });
-    return { wafeqId: id, raw, confirm: confirmBill(result, id) };
+    return { wafeqId: id, raw, confirm: confirmBill(result, id, currency) };
   }
 
   if (result.type === 'sales_invoice') {
@@ -211,11 +268,12 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
     const { id, raw } = await createInvoiceDraft(env, {
       contactId,
       date: result.date,
+      currency,
       lineItems,
       taxRateId: env.VAT_TAX_RATE_ID || null,
       attachmentIds,
     });
-    return { wafeqId: id, raw, confirm: confirmInvoice(result, id) };
+    return { wafeqId: id, raw, confirm: confirmInvoice(result, id, currency) };
   }
 
   throw new Error(`نوع عملية غير معروف: ${result.type}`);
@@ -336,9 +394,23 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
     accounts,
     defaultBank: bank,
     vatPercent: Number(env.VAT_PERCENT || 15),
+    baseCurrency: baseCurrency(env),
     previous: chosen.result,
     instruction,
   });
+
+  // سعر الصرف يُحسم على النسخة المعدّلة كما يُحسم على الأصلية — قد يكون
+  // التعديل نفسه هو تغيير العملة.
+  if (!settleCurrency(env, edited)) {
+    await updateTransaction(env.DB, txId, { status: 'failed' });
+    await sendTelegramMessage(
+      env,
+      chatId,
+      `⚠️ لا أعرف سعر صرف ${currencyNameAr(edited.currency)} (${iso(edited.currency)}). ` +
+        `أعد الطلب ذاكراً السعر — مثال: «خلّها بالدولار بسعر ${iso('3.75')}».`
+    );
+    return;
+  }
 
   // جهة الاتصال للفواتير.
   let contactId = null;
@@ -421,6 +493,13 @@ const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانوني
 <b>4) أوامر أخرى</b>
 • <code>جديد</code> — إلغاء أي عملية جارية والبدء من نظيف
 • <code>/help</code> — هذه الرسالة
+
+<b>5) العملات</b>
+• العملة الافتراضية <b>الريال</b> — لا حاجة لذكرها.
+• لعملة أخرى اذكرها: <code>دفعت 500 دولار رسوم منصة</code>
+• الدولار محسوب بالربط الرسمي <code>3.75</code>. لسعر مختلف اذكره: <code>بسعر 3.78</code>
+• عملة بلا سعر معروف؟ سأسألك عن سعرها قبل الترحيل.
+• المبلغ يُرحّل بعملته، ويظهر مقابله بالريال في رسالة التأكيد.
 
 <b>ملاحظات</b>
 • إن لم تذكر حساب الدفع فالافتراضي <b>الحساب البنكي</b> (اذكر «نقداً» أو «الخزينة» أو «النثرية» للتغيير).
@@ -856,6 +935,7 @@ export async function processTelegramUpdate(env, update) {
       ? accounts.find((a) => a.account_code === defaultBankCode) || null
       : null;
     const vatPercent = Number(env.VAT_PERCENT || 15);
+    const base = baseCurrency(env);
 
     // ---- التحليل والتصنيف عبر Claude ----
     const result = await analyzeTransaction(env, {
@@ -863,10 +943,12 @@ export async function processTelegramUpdate(env, update) {
       defaultBank,
       messageDateISO: dateISO,
       vatPercent,
+      baseCurrency: base,
       text: finalText,
       media,
       priorContext,
     });
+    const rateState = settleCurrency(env, result);
     await updateTransaction(env.DB, txId, {
       processedJson: JSON.stringify(result),
       status: 'analyzed',
@@ -874,7 +956,10 @@ export async function processTelegramUpdate(env, update) {
     await writeLog(env.DB, { transactionId: txId, action: 'claude_analyze', status: 'success' });
 
     // ---- بيانات ناقصة؟ اسأل واحفظ السياق ----
-    if (result.status === 'need_more') {
+    // سعر صرف مجهول بيانٌ ناقص كغيره: يُسأل عنه ولا يُخمَّن، فالسعر المخترع
+    // يدخل الدفاتر رقماً خاطئاً لا يُكتشف إلا عند المطابقة.
+    const needRate = !rateState;
+    if (result.status === 'need_more' || needRate) {
       const accumulated =
         (priorContext ? priorContext + '\n---\n' : '') + (finalText || mediaPlaceholder(media));
       await setConversationState(env.DB, chatId, {
@@ -883,11 +968,11 @@ export async function processTelegramUpdate(env, update) {
         mediaType,
       });
       await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
-      await sendTelegramMessage(
-        env,
-        chatId,
-        `❓ ${result.question || 'أحتاج معلومات إضافية لإكمال العملية.'}`
-      );
+      const question = needRate
+        ? `كم سعر صرف ${currencyNameAr(result.currency)} (${iso(result.currency)}) مقابل ` +
+          `${currencyNameAr(base)}؟ أرسل الرقم فقط — مثال: ${iso('3.75')}`
+        : result.question || 'أحتاج معلومات إضافية لإكمال العملية.';
+      await sendTelegramMessage(env, chatId, `❓ ${question}`);
       return;
     }
 
@@ -935,6 +1020,7 @@ export async function processTelegramUpdate(env, update) {
     const dup = await findSimilarPostedToday(env.DB, chatId, {
       type: result.type,
       total: resultTotal(result),
+      currency: result.currency,
       contactName: result.contact_name || '',
       date: result.date,
     });

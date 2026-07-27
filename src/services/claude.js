@@ -11,7 +11,7 @@
 // عند عدم ذكر حساب الدفع، وكشف البيانات الناقصة وصياغة سؤال لاستكمالها.
 // ============================================================================
 
-function buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent) {
+function buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent, baseCurrency) {
   const accountsList = accounts
     .map((a) => `- ${a.account_code} | ${a.account_name} (${a.account_type})`)
     .join('\n');
@@ -20,7 +20,7 @@ function buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent) {
     ? `${defaultBank.account_code} | ${defaultBank.account_name}`
     : '(غير محدّد — استخدم أنسب حساب بنكي/نقدي من القائمة ولا تسأل عنه)';
 
-  return `أنت محاسب قانوني خبير في شركة ناف لو (شركة سعودية، العملة SAR). مهمتك تحليل العملية المالية الواردة وتوجيهها للمسار المحاسبي الصحيح في نظام وافق.
+  return `أنت محاسب قانوني خبير في شركة ناف لو (شركة سعودية، عملة الدفاتر ${baseCurrency}). مهمتك تحليل العملية المالية الواردة وتوجيهها للمسار المحاسبي الصحيح في نظام وافق.
 
 # شجرة الحسابات المتاحة (استخدم رموزها حصرياً، لا تخترع حسابات):
 ${accountsList}
@@ -39,6 +39,16 @@ ${bankLine}
 - ⛔ لا تسأل إطلاقاً عن الحساب البنكي أو مصدر الدفع أو حساب الاستلام. عدم ذكره ليس بياناً ناقصاً.
 - إذا لم يُذكر مصدر الدفع/الاستلام صراحةً، فهو دائماً الحساب البنكي الافتراضي أعلاه.
 - استخدم حساباً آخر فقط إذا ذكره المستخدم صراحةً، مثل: "نقداً" أو "الصندوق" أو "الخزينة" أو "المصروفات النثرية" أو "sifi" أو أي اسم حساب في القائمة.
+
+# قاعدة العملة (صارمة):
+- العملة الافتراضية هي ${baseCurrency}. إن لم تُذكر عملة فاضبط "currency": "${baseCurrency}" ولا تسأل عنها.
+- إن ذُكرت عملة أخرى — «دولار» أو «$» أو «USD» أو «يورو» أو «درهم» أو ما شابه، أو كانت
+  الفاتورة المرفقة محرّرة بها — فاضبط "currency" برمزها الدولي (ISO 4217) بثلاثة أحرف كبيرة:
+  دولار → USD، يورو → EUR، جنيه إسترليني → GBP، درهم إماراتي → AED، دينار كويتي → KWD.
+- المبالغ في "amount" و"debit" و"credit" تبقى دائماً بعملة العملية نفسها. ⛔ لا تحوّلها بنفسك.
+- "exchange_rate": املأه فقط إذا ذكر المستخدم سعر الصرف صراحةً («بسعر 3.78»، «الدولار بـ3.76»،
+  أو رقماً مجرداً رداً على سؤال عن سعر الصرف في السياق السابق). وإلا اضبطه null.
+- ⛔ لا تسأل عن سعر الصرف ولا تخترعه — النظام يتولّاه.
 
 # قواعد عامة:
 - التاريخ: إن ذُكر تاريخ صريح أو نسبي ("أمس"، "الثلاثاء الماضي"، "قبل يومين") فحوّله إلى YYYY-MM-DD بناءً على تاريخ الرسالة. وإن لم يُذكر تاريخ فاستخدم تاريخ الرسالة.
@@ -62,6 +72,8 @@ ${bankLine}
   "type": "manual_journal" | "purchase_bill" | "sales_invoice",
   "date": "YYYY-MM-DD",
   "contact_name": "اسم العميل أو المورّد أو null",
+  "currency": "${baseCurrency}",
+  "exchange_rate": null,
   "summary": "وصف موجز بالعربية للعملية",
   "manual_journal": {
     "entries": [
@@ -106,6 +118,7 @@ function extractJson(text) {
  * @param {object|null} opts.defaultBank الحساب البنكي الافتراضي {account_code, account_name}.
  * @param {string} opts.messageDateISO تاريخ الرسالة YYYY-MM-DD.
  * @param {number} opts.vatPercent     نسبة الضريبة (مثل 15).
+ * @param {string} opts.baseCurrency   عملة الدفاتر الأساسية (مثل SAR).
  * @param {string} opts.text           نص العملية الحالي.
  * @param {object|null} opts.media      { kind:'image'|'document', mediaType, base64 } لتحليل فاتورة
  *                                      مصوّرة أو ملف PDF. الصور تُرسل ككتلة image، وملفات PDF
@@ -114,8 +127,8 @@ function extractJson(text) {
  * @returns {Promise<object>} كائن التصنيف المنظّم.
  */
 export async function analyzeTransaction(env, opts) {
-  const { accounts, defaultBank, messageDateISO, vatPercent, text, media, priorContext } = opts;
-  const system = buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent);
+  const { accounts, defaultBank, messageDateISO, vatPercent, baseCurrency, text, media, priorContext } = opts;
+  const system = buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent, baseCurrency);
 
   const userContent = [];
 
@@ -440,10 +453,10 @@ ${text}`;
 
 /**
  * تطبيق تعديل على عملية سابقة وإنتاج نتيجة كاملة مصحّحة (نفس صيغة analyzeTransaction).
- * @param {object} opts { accounts, defaultBank, vatPercent, previous, instruction }
+ * @param {object} opts { accounts, defaultBank, vatPercent, baseCurrency, previous, instruction }
  */
 export async function applyEdit(env, opts) {
-  const { accounts, defaultBank, vatPercent, previous, instruction } = opts;
+  const { accounts, defaultBank, vatPercent, baseCurrency, previous, instruction } = opts;
   const accountsList = accounts
     .map((a) => `- ${a.account_code} | ${a.account_name} (${a.account_type})`)
     .join('\n');
@@ -451,7 +464,7 @@ export async function applyEdit(env, opts) {
     ? `${defaultBank.account_code} | ${defaultBank.account_name}`
     : '(غير محدّد)';
 
-  const system = `أنت محاسب قانوني خبير في شركة ناف القانونية (السعودية، الريال SAR).
+  const system = `أنت محاسب قانوني خبير في شركة ناف القانونية (السعودية، عملة الدفاتر ${baseCurrency}).
 لديك عملية محاسبية سابقة، وطلب تعديل عليها. مهمتك إنتاج نسخة كاملة معدّلة من العملية.
 
 # شجرة الحسابات المتاحة (استخدم رموزها حصرياً):
@@ -463,6 +476,9 @@ ${accountsList}
 - طبّق التعديل المطلوب فقط، وأبقِ بقية الحقول كما هي.
 - إن غُيّر المبلغ، أعِد حساب الضريبة (${vatPercent}% لفاتورة البيع) والتوازن (للقيد اليدوي: مجموع المدين = مجموع الدائن).
 - إن طُلب "بدون ضريبة" لفاتورة بيع، اجعل vat_percent = 0.
+- العملة: أبقِ "currency" كما هي إلا إن طلب التعديل تغييرها صراحةً («خلّها بالدولار»)، فاضبطها
+  برمزها الدولي. المبالغ تبقى بعملة العملية — ⛔ لا تحوّلها. و"exchange_rate" لا يُملأ إلا إن
+  ذكر المستخدم سعراً صريحاً، وإلا فانقله كما كان.
 - يمكن تغيير نوع العملية (type) إذا كان التعديل يقتضيه.
 - المورّد/العميل (contact_name) إلزامي للفواتير.
 - ⛔ لا تسأل عن شيء — أنتج أفضل نسخة معدّلة. اضبط "status":"ready" دائماً.
@@ -474,6 +490,8 @@ ${accountsList}
   "type": "manual_journal" | "purchase_bill" | "sales_invoice",
   "date": "YYYY-MM-DD",
   "contact_name": "الاسم أو null",
+  "currency": "${baseCurrency}",
+  "exchange_rate": null,
   "summary": "وصف موجز بالعربية",
   "manual_journal": { "entries": [ { "account_code": "..", "account_name": "..", "debit": 0, "credit": 0, "description": ".." } ] },
   "bill": { "line_items": [ { "account_code": "..", "account_name": "..", "description": "..", "amount": 0 } ], "vat_percent": ${vatPercent} },

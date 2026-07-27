@@ -44,18 +44,24 @@ export async function deleteDocument(env, type, id) {
  *
  * @param {Array} accounts - شجرة الحسابات (لتعيين wafeq_account_id).
  * @param {Array} entries - أسطر القيد من Claude (account_code, debit, credit, ...).
- * @param {Array} attachmentIds - معرّفات المرفقات المرفوعة مسبقاً.
+ * @param {object} opts
+ * @param {string} opts.description - مرجع القيد.
+ * @param {string|null} opts.date - تاريخ القيد YYYY-MM-DD.
+ * @param {Array} opts.attachmentIds - معرّفات المرفقات المرفوعة مسبقاً.
+ * @param {string} opts.currency - عملة العملية (الافتراضي: عملة الدفاتر).
+ * @param {number} opts.exchangeRate - سعر صرف العملة مقابل عملة الدفاتر.
  * @returns {Promise<{id: string, raw: object}>}
  */
-export async function postJournalEntryDraft(
-  env,
-  accounts,
-  entries,
-  description = 'قيد آلي — ناف لو',
-  date = null,
-  attachmentIds = []
-) {
-  const currency = env.WAFEQ_CURRENCY || 'SAR';
+export async function postJournalEntryDraft(env, accounts, entries, opts = {}) {
+  const {
+    description = 'قيد آلي — ناف لو',
+    date = null,
+    attachmentIds = [],
+    currency = env.WAFEQ_CURRENCY || 'SAR',
+    exchangeRate = 1,
+  } = opts;
+
+  const rate = Number(exchangeRate) > 0 ? Number(exchangeRate) : 1;
 
   // خريطة رمز الحساب -> معرّف وافق
   const codeToWafeqId = {};
@@ -75,9 +81,10 @@ export async function postJournalEntryDraft(
     return {
       account,
       amount,
-      // المبلغ بالعملة الأساسية للشركة. بما أن العملة نفسها الأساسية فالقيمة متطابقة.
-      // (لو اختلفت العملات مستقبلاً، اضرب في سعر الصرف هنا.)
-      amount_to_bcy: amount,
+      // المبلغ مقابل عملة الدفاتر الأساسية. يتطابق مع amount حين تكون العملة
+      // هي الأساسية (السعر 1)، ويُضرب في سعر الصرف حين تختلف — وبدون ذلك
+      // يدخل مبلغ الدولار الدفاتر كأنه ريال فيختلّ الميزان.
+      amount_to_bcy: +(amount * rate).toFixed(2),
       currency,
       description: e.description || '',
     };
@@ -88,6 +95,8 @@ export async function postJournalEntryDraft(
     date: date || new Date().toISOString().slice(0, 10),
     reference: description,
     currency,
+    // لا نرسل حقل سعر صرف على مستوى القيد: التحويل محمولٌ في amount_to_bcy
+    // لكل سطر، وهو المسار الموثّق. وإضافة حقل غير موثّق تخاطر برفض القيد كلّه.
     line_items: lineItems,
     // المصدر يُرفق بالقيد كما يُرفق بالفاتورة — القيد يحتاج مستنده المؤيِّد مثلها.
     ...(attachmentIds && attachmentIds.length ? { attachments: attachmentIds } : {}),

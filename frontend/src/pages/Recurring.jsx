@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import Money from '../components/Money.jsx';
+import Amount from '../components/Amount.jsx';
 import { fmtNumber } from '../lib/format.js';
 import { Select } from '../naf/ui/select.jsx';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
@@ -21,7 +21,7 @@ const TYPE_AR = {
   sales_invoice: 'فاتورة مبيعات',
 };
 
-/** ملخّص القالب — المبلغ عبر Money لا نصّاً، فالرمز U+20C1 لا «ر.س». */
+/** ملخّص القالب — المبلغ عبر Amount: الريال بالرمز U+20C1، وغيره برمزه الدولي. */
 function TemplateSummary({ json }) {
   let r;
   try {
@@ -38,7 +38,7 @@ function TemplateSummary({ json }) {
   const total = items.reduce((s, n) => s + n, 0);
   return (
     <span>
-      {TYPE_AR[r.type] || r.type} — <Money value={total} />
+      {TYPE_AR[r.type] || r.type} — <Amount value={total} currency={r.currency} />
       {r.contact_name ? <> — {r.contact_name}</> : null}
     </span>
   );

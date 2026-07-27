@@ -183,14 +183,20 @@ dashboard.get('/analytics', async (c) => {
   const byMonth = {};      // الاتجاه الشهري { expenses, revenue }
   const byVendor = {};     // أكبر الموردين
 
+  // كل المبالغ تُجمع بعملة الدفاتر الأساسية. عملية بالدولار تدخل الرسم
+  // بمقابلها بالريال — جمع 500 دولار إلى 500 ريال في عمود واحد رقمٌ لا يعني
+  // شيئاً، والرسم لا يحمل عمودَ عملة يفرّق بينهما.
   for (const row of results || []) {
     let r;
     try { r = JSON.parse(row.processed_json); } catch (_) { continue; }
     const ym = String(row.created_at).slice(0, 7);
     byMonth[ym] = byMonth[ym] || { month: ym, expenses: 0, revenue: 0 };
 
+    const rate = Number(r.exchange_rate) > 0 ? Number(r.exchange_rate) : 1;
+    const toBase = (v) => +(Number(v || 0) * rate).toFixed(2);
+
     if (r.type === 'sales_invoice') {
-      const total = (r.invoice?.line_items || []).reduce((s, li) => s + Number(li.amount || 0), 0);
+      const total = (r.invoice?.line_items || []).reduce((s, li) => s + toBase(li.amount), 0);
       byMonth[ym].revenue += total;
     } else {
       const items =
@@ -200,14 +206,14 @@ dashboard.get('/analytics', async (c) => {
               .filter((e) => Number(e.debit || 0) > 0)
               .map((e) => ({ account_name: e.account_name, amount: e.debit }));
       for (const li of items) {
-        const amt = Number(li.amount || 0);
+        const amt = toBase(li.amount);
         if (!amt) continue;
         const name = li.account_name || 'غير مصنّف';
         byCategory[name] = (byCategory[name] || 0) + amt;
         byMonth[ym].expenses += amt;
       }
       if (r.type === 'purchase_bill' && r.contact_name) {
-        const total = (r.bill?.line_items || []).reduce((s, li) => s + Number(li.amount || 0), 0);
+        const total = (r.bill?.line_items || []).reduce((s, li) => s + toBase(li.amount), 0);
         byVendor[r.contact_name] = (byVendor[r.contact_name] || 0) + total;
       }
     }
