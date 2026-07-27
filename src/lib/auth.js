@@ -104,6 +104,11 @@ export async function countUsers(db) {
  * يُرجع كائن المستخدم، أو { apiKey: true } للمفتاح الآلي، أو null.
  */
 export async function authenticate(c) {
+  // الدخول الموحّد: الوسيط حقن { id, role, perms } في سياق الطلب، فهذا هو
+  // المستخدم ولا حاجة لرمز في الترويسة. (المسارات العامة لا يحقن لها شيئاً.)
+  const injected = c.get('user');
+  if (injected && injected.id) return injected;
+
   const token = (c.req.header('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) return null;
   if (c.env.DASHBOARD_API_KEY && token === c.env.DASHBOARD_API_KEY) return { apiKey: true };

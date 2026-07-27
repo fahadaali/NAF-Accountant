@@ -15,6 +15,10 @@ import dashboardRoute from './routes/dashboard.js';
 import basecampOauthRoute from './routes/basecamp_oauth.js';
 import authRoute from './routes/auth.js';
 import adminRoute from './routes/admin.js';
+import membersRoute from './routes/members.js';
+import { ssoMiddleware } from './auth/middleware.js';
+import { ssoCallback } from './auth/callback.js';
+import { ssoLogout } from './auth/logout.js';
 import { syncChartOfAccounts } from './services/sync.js';
 import { runDueRecurring } from './services/recurring.js';
 import { notifyAdmins } from './services/telegram.js';
@@ -29,6 +33,16 @@ app.use('/api/*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
+// ----------------------------------------------------------------------------
+// الدخول الموحّد (naf-auth).
+// الوسيط يُسجّل قبل كل المسارات لأن وسيط Hono يُطبّق على ما يليه وحده،
+// وقائمة المسارات العامة داخل src/auth/config.js هي ما يمرّ منه — وأي مسار
+// جديد خارجها محمي افتراضياً.
+// ----------------------------------------------------------------------------
+app.use('*', ssoMiddleware);
+app.get('/auth/callback', ssoCallback);
+app.post('/auth/logout', ssoLogout);
+
 // فحص الصحة
 app.get('/api/health', (c) => c.json({ ok: true }));
 
@@ -40,6 +54,7 @@ app.route('/api', telegramRoute);
 app.route('/api', reportsRoute);
 app.route('/api', basecampOauthRoute);
 app.route('/api', adminRoute);
+app.route('/api', membersRoute);
 app.route('/api', dashboardRoute);
 
 // مسار API غير موجود → 404 JSON (لا تُخدم صفحة SPA لطلبات الـ API).
