@@ -10,15 +10,27 @@ import Team from './pages/Team.jsx';
 import Recurring from './pages/Recurring.jsx';
 import Analytics from './pages/Analytics.jsx';
 import Login from './pages/Login.jsx';
-import { auth, getToken, clearToken } from './lib/api.js';
+import Members from './pages/Members.jsx';
+import Denied from './pages/Denied.jsx';
+import { api, auth, getToken, clearToken } from './lib/api.js';
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
 
-  // عند الإقلاع: تحقّق من صلاحية الرمز المخزّن.
+  // عند الإقلاع: الدخول الموحّد أولاً — الجلسة كوكي HttpOnly، والوسيط لا
+  // يُحمّل اللوحة أصلاً لغير المسجَّل. وإن لم تكن هناك جلسة موحّدة يُجرَّب
+  // الرمز المخزّن من نظام الدخول السابق.
   useEffect(() => {
     (async () => {
+      try {
+        const res = await api.me();
+        setUser(res.user);
+        setReady(true);
+        return;
+      } catch (_) {
+        /* لا جلسة موحّدة — جرّب الرمز المخزّن */
+      }
       if (!getToken()) {
         setReady(true);
         return;
@@ -35,13 +47,24 @@ export default function App() {
   }, []);
 
   const logout = async () => {
+    // رمز نظام الدخول السابق، إن كان لا يزال موجوداً.
+    if (getToken()) {
+      try {
+        await auth.logout();
+      } catch (_) {
+        /* تجاهل */
+      }
+      clearToken();
+    }
+    // جلسة الدخول الموحّد: تُمسح من KV ويُمسح كوكيها، ثم يعيد الجذرُ الطلبَ
+    // إلى المركز عبر الوسيط.
     try {
-      await auth.logout();
+      await fetch('/auth/logout', { method: 'POST' });
     } catch (_) {
       /* تجاهل */
     }
-    clearToken();
     setUser(null);
+    window.location.href = '/';
   };
 
   if (!ready) {
@@ -50,6 +73,11 @@ export default function App() {
         جارٍ التحميل…
       </div>
     );
+  }
+
+  // صفحة الرفض تُعرض بلا جلسة — الوسيط يمرّرها عامةً، وإليها يحوّل من مُنع.
+  if (window.location.pathname === '/denied') {
+    return <Denied />;
   }
 
   if (!user) {
@@ -67,6 +95,7 @@ export default function App() {
         <Route path="/accounts" element={<Accounts isAdmin={isAdmin} />} />
         {isAdmin && <Route path="/recurring" element={<Recurring />} />}
         {isAdmin && <Route path="/team" element={<Team />} />}
+        {isAdmin && <Route path="/members" element={<Members />} />}
         <Route path="/logs" element={<Logs />} />
         <Route path="/settings" element={<Settings user={user} onLogout={logout} />} />
       </Routes>

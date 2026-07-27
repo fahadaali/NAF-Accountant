@@ -75,6 +75,13 @@ export const api = {
   addUser: (body) => request('/users', { method: 'POST', body: JSON.stringify(body) }),
   updateUser: (body) => request('/users/update', { method: 'POST', body: JSON.stringify(body) }),
 
+  // ---- أعضاء المنصة تحت الدخول الموحّد ----
+  // الجلسة كوكي HttpOnly، فلا رمز يُرسَل في الترويسة.
+  me: () => request('/me'),
+  members: () => request('/members'),
+  updateMember: (body) =>
+    request('/members/update', { method: 'POST', body: JSON.stringify(body) }),
+
   // ---- محادثات تليجرام ----
   chats: () => request('/chats'),
   saveChat: (body) => request('/chats', { method: 'POST', body: JSON.stringify(body) }),
