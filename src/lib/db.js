@@ -106,6 +106,8 @@ function toTarget(row) {
     return {
       id: row.id,
       wafeqId: row.wafeq_draft_id,
+      // مفتاح المرفق يرافق الهدف كي ينتقل إلى النسخة المعدّلة عند التعديل.
+      mediaR2Key: row.media_r2_key || null,
       result: JSON.parse(row.processed_json),
     };
   } catch (_) {
@@ -117,13 +119,13 @@ const POSTED_WHERE = `telegram_chat_id = ? AND status = 'posted' AND wafeq_draft
 
 /**
  * العملية المُرحّلة رقم n من الآخر (1 = الأخيرة، 2 = قبل الأخيرة...).
- * @returns {Promise<null | {id:number, wafeqId:string, result:object}>}
+ * @returns {Promise<null | {id:number, wafeqId:string, mediaR2Key:string|null, result:object}>}
  */
 export async function getPostedTransactionByOffset(db, chatId, n = 1) {
   const offset = Math.max(0, (Number(n) || 1) - 1);
   const row = await db
     .prepare(
-      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+      `SELECT id, wafeq_draft_id, media_r2_key, processed_json FROM transactions
        WHERE ${POSTED_WHERE} ORDER BY id DESC LIMIT 1 OFFSET ?`
     )
     .bind(String(chatId), offset)
@@ -135,7 +137,7 @@ export async function getPostedTransactionByOffset(db, chatId, n = 1) {
 export async function getPostedTransactionByWafeqId(db, chatId, wafeqId) {
   const row = await db
     .prepare(
-      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+      `SELECT id, wafeq_draft_id, media_r2_key, processed_json FROM transactions
        WHERE ${POSTED_WHERE} AND wafeq_draft_id LIKE ?
        ORDER BY id DESC LIMIT 1`
     )
@@ -148,7 +150,7 @@ export async function getPostedTransactionByWafeqId(db, chatId, wafeqId) {
 export async function searchPostedTransactions(db, chatId, query, limit = 5) {
   const { results } = await db
     .prepare(
-      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+      `SELECT id, wafeq_draft_id, media_r2_key, processed_json FROM transactions
        WHERE ${POSTED_WHERE} AND (raw_text LIKE ? OR processed_json LIKE ?)
        ORDER BY id DESC LIMIT ?`
     )
@@ -161,7 +163,7 @@ export async function searchPostedTransactions(db, chatId, query, limit = 5) {
 export async function listPostedTransactions(db, chatId, limit = 10) {
   const { results } = await db
     .prepare(
-      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+      `SELECT id, wafeq_draft_id, media_r2_key, processed_json FROM transactions
        WHERE ${POSTED_WHERE} ORDER BY id DESC LIMIT ?`
     )
     .bind(String(chatId), limit)
@@ -249,7 +251,7 @@ export async function isMessageProcessed(db, chatId, messageId) {
 export async function findSimilarPostedToday(db, chatId, { type, total, contactName, date }) {
   const { results } = await db
     .prepare(
-      `SELECT id, wafeq_draft_id, processed_json FROM transactions
+      `SELECT id, wafeq_draft_id, media_r2_key, processed_json FROM transactions
        WHERE telegram_chat_id = ? AND status = 'posted' AND wafeq_draft_id IS NOT NULL
          AND date(created_at) = date('now')
        ORDER BY id DESC LIMIT 20`

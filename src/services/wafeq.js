@@ -44,9 +44,17 @@ export async function deleteDocument(env, type, id) {
  *
  * @param {Array} accounts - شجرة الحسابات (لتعيين wafeq_account_id).
  * @param {Array} entries - أسطر القيد من Claude (account_code, debit, credit, ...).
+ * @param {Array} attachmentIds - معرّفات المرفقات المرفوعة مسبقاً.
  * @returns {Promise<{id: string, raw: object}>}
  */
-export async function postJournalEntryDraft(env, accounts, entries, description = 'قيد آلي — ناف لو', date = null) {
+export async function postJournalEntryDraft(
+  env,
+  accounts,
+  entries,
+  description = 'قيد آلي — ناف لو',
+  date = null,
+  attachmentIds = []
+) {
   const currency = env.WAFEQ_CURRENCY || 'SAR';
 
   // خريطة رمز الحساب -> معرّف وافق
@@ -81,6 +89,8 @@ export async function postJournalEntryDraft(env, accounts, entries, description 
     reference: description,
     currency,
     line_items: lineItems,
+    // المصدر يُرفق بالقيد كما يُرفق بالفاتورة — القيد يحتاج مستنده المؤيِّد مثلها.
+    ...(attachmentIds && attachmentIds.length ? { attachments: attachmentIds } : {}),
   };
 
   const res = await fetch(`${env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1'}/manual-journals/`, {
@@ -192,7 +202,26 @@ export async function createContact(env, name) {
 // ============================================================================
 
 /**
- * يرفع ملفاً (صورة فاتورة) إلى وافق ويُرجع معرّفه لإرفاقه بالمستند.
+ * فحص المستند الذي أنشأته وافق: هل وصلت المرفقات فعلاً؟
+ *
+ * الحقل `attachments` في حمولة الإنشاء غير موثّق، وواجهات REST كثيرة تتجاهل
+ * الحقول التي لا تعرفها بصمت — فيُنشأ المستند بلا مرفق ولا يُرفع أي خطأ.
+ * لذلك نقرأ ردّ الإنشاء بدل افتراض النجاح.
+ *
+ * @returns {'linked'|'dropped'|'unknown'}
+ *   linked  : الردّ يذكر مرفقاً واحداً على الأقل.
+ *   dropped : الردّ يذكر الحقل فارغاً — أي أن وافق أسقط ما أرسلناه.
+ *   unknown : الحقل غائب عن الردّ — لا يمكن الجزم من الردّ وحده.
+ */
+export function attachmentLinkState(raw) {
+  const list = raw?.attachments ?? raw?.attachment_ids ?? raw?.files;
+  if (list === undefined || list === null) return 'unknown';
+  if (Array.isArray(list)) return list.length > 0 ? 'linked' : 'dropped';
+  return 'linked';
+}
+
+/**
+ * يرفع ملفاً (صورة فاتورة أو ملف PDF) إلى وافق ويُرجع معرّفه لإرفاقه بالمستند.
  * ملاحظة: صيغة نقطة النهاية تقديرية وتُضبط بالاختبار.
  */
 export async function uploadAttachment(env, buffer, filename, contentType) {

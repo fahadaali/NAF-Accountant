@@ -32,6 +32,7 @@ import {
   createInvoiceDraft,
   createContact,
   uploadAttachment,
+  attachmentLinkState,
   deleteDocument,
   getWafeqDraftSummary,
 } from '../services/wafeq.js';
@@ -171,8 +172,15 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
 
   if (result.type === 'manual_journal') {
     const entries = result.manual_journal?.entries || [];
-    const { id } = await postJournalEntryDraft(env, accounts, entries, ref, result.date);
-    return { wafeqId: id, confirm: confirmManualJournal(result, id) };
+    const { id, raw } = await postJournalEntryDraft(
+      env,
+      accounts,
+      entries,
+      ref,
+      result.date,
+      attachmentIds
+    );
+    return { wafeqId: id, raw, confirm: confirmManualJournal(result, id) };
   }
 
   if (result.type === 'purchase_bill') {
@@ -185,13 +193,13 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
       amount: li.amount,
       taxRateId: billTaxRate,
     }));
-    const { id } = await createBillDraft(env, {
+    const { id, raw } = await createBillDraft(env, {
       contactId,
       date: result.date,
       lineItems,
       attachmentIds,
     });
-    return { wafeqId: id, confirm: confirmBill(result, id) };
+    return { wafeqId: id, raw, confirm: confirmBill(result, id) };
   }
 
   if (result.type === 'sales_invoice') {
@@ -200,14 +208,14 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
       description: li.description,
       amount: li.amount,
     }));
-    const { id } = await createInvoiceDraft(env, {
+    const { id, raw } = await createInvoiceDraft(env, {
       contactId,
       date: result.date,
       lineItems,
       taxRateId: env.VAT_TAX_RATE_ID || null,
       attachmentIds,
     });
-    return { wafeqId: id, confirm: confirmInvoice(result, id) };
+    return { wafeqId: id, raw, confirm: confirmInvoice(result, id) };
   }
 
   throw new Error(`نوع عملية غير معروف: ${result.type}`);
@@ -227,42 +235,93 @@ function normName(s) {
 
 /**
  * رفع المرفق (إن وُجد) ثم الترحيل إلى وافق وإنهاء العملية.
+ *
+ * كل مصدر يحمل ملفاً — صورة فاتورة، ملف PDF، تسجيل صوتي — يُرفق بالمستند
+ * الذي يُنشأ في وافق، أياً كان نوعه: فاتورة مبيعات أو مشتريات أو قيد محاسبي.
+ * القيد يحتاج مستنده المؤيِّد كما تحتاجه الفاتورة.
  */
 async function finalizeAndPost(env, ctx) {
   const { txId, chatId, result, accounts, messageId, contactId, mediaR2Key, mediaType, prefix } = ctx;
 
-  let attachmentIds = [];
-  if (mediaR2Key && (result.type === 'purchase_bill' || result.type === 'sales_invoice')) {
+  // تحذير يُلحق برسالة التأكيد حين لا يصل المرفق إلى المستند — الصمت هنا
+  // يجعل المستخدم يظنّ الملف مرفقاً وهو ليس كذلك.
+  let attachmentWarning = '';
+  const attachmentIds = [];
+
+  if (mediaR2Key) {
     try {
       const obj = await env.MEDIA.get(mediaR2Key);
-      if (obj) {
-        const buf = await obj.arrayBuffer();
-        const fname = mediaR2Key.split('/').pop() || 'attachment.jpg';
-        const attId = await uploadAttachment(
-          env,
-          buf,
-          fname,
-          mediaType || obj.httpMetadata?.contentType || 'image/jpeg'
-        );
-        if (attId) attachmentIds.push(attId);
-      }
+      if (!obj) throw new Error('الملف غير موجود في التخزين');
+
+      const buf = await obj.arrayBuffer();
+      const fname = mediaR2Key.split('/').pop() || 'attachment';
+      const attId = await uploadAttachment(
+        env,
+        buf,
+        fname,
+        mediaType || obj.httpMetadata?.contentType || 'application/octet-stream'
+      );
+      if (!attId) throw new Error('وافق لم يُرجع معرّفاً للمرفق');
+      attachmentIds.push(attId);
     } catch (e) {
       await writeLog(env.DB, {
         transactionId: txId,
         action: 'wafeq_attachment',
         status: 'error',
-        errorDetails: e.message,
+        errorDetails: `upload failed: ${e.message}`,
       });
+      attachmentWarning =
+        `\n\n📎 <b>لم يُرفق الملف</b> — تعذّر رفعه إلى وافق (${e.message}).` +
+        `\nالملف محفوظ في اللوحة، أرفقه يدوياً بالمستند.`;
     }
   }
 
   const ref = `${result.summary || 'عملية آلية'} — تليجرام #${messageId}`;
-  const { wafeqId, confirm } = await postToWafeq(env, result, accounts, ref, attachmentIds, contactId);
+
+  // حقل `attachments` في حمولة الإنشاء غير موثّق في وافق. إن رفضته الواجهة
+  // (رفض 4xx = لم يُنشأ شيء) نعيد المحاولة بلا مرفق: عمليةٌ بلا مرفق أفضل من
+  // عملية ضائعة، والمستخدم يُخبَر بالفرق.
+  let posted;
+  try {
+    posted = await postToWafeq(env, result, accounts, ref, attachmentIds, contactId);
+  } catch (e) {
+    const rejected = /failed: 4\d\d/.test(e.message || '');
+    if (!attachmentIds.length || !rejected) throw e;
+
+    await writeLog(env.DB, {
+      transactionId: txId,
+      action: 'wafeq_attachment',
+      status: 'error',
+      errorDetails: `document rejected with attachments, retrying without: ${e.message.slice(0, 200)}`,
+    });
+    posted = await postToWafeq(env, result, accounts, ref, [], contactId);
+    attachmentIds.length = 0;
+    attachmentWarning =
+      `\n\n📎 <b>لم يُرفق الملف</b> — رفضت وافق المستند حين حمل مرفقاً، فأُنشئ بدونه.` +
+      `\nالملف محفوظ في اللوحة، أرفقه يدوياً.`;
+  }
+  const { wafeqId, raw, confirm } = posted;
+
+  // رُفع الملف — لكن هل ربطته وافق بالمستند فعلاً؟ نقرأ ردّ الإنشاء ولا نفترض.
+  if (attachmentIds.length) {
+    const state = attachmentLinkState(raw);
+    await writeLog(env.DB, {
+      transactionId: txId,
+      action: 'wafeq_attachment',
+      status: state === 'dropped' ? 'error' : 'success',
+      errorDetails: `link=${state} id=${attachmentIds[0]} doc=${wafeqId}`,
+    });
+    if (state === 'dropped') {
+      attachmentWarning =
+        `\n\n📎 <b>لم يُرفق الملف</b> — رُفع إلى وافق لكن المستند أُنشئ بلا مرفق.` +
+        `\nأرفقه يدوياً، وأبلغ الدعم بهذا الرقم: ${iso(attachmentIds[0])}`;
+    }
+  }
 
   await updateTransaction(env.DB, txId, { wafeqDraftId: wafeqId, status: 'posted' });
   await writeLog(env.DB, { transactionId: txId, action: 'wafeq_post', status: 'success' });
   await clearConversationState(env.DB, chatId);
-  await sendTelegramMessage(env, chatId, (prefix || '') + confirm);
+  await sendTelegramMessage(env, chatId, (prefix || '') + confirm + attachmentWarning);
 }
 
 /**
@@ -321,7 +380,9 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
     accounts,
     messageId,
     contactId,
-    mediaR2Key: null,
+    // المرفق ينتقل مع العملية إلى نسختها المعدّلة — التعديل يعيد إنشاء المستند
+    // في وافق، فلولا هذا لضاع مرفق الفاتورة عند أول تعديل على المبلغ.
+    mediaR2Key: chosen.mediaR2Key || null,
     mediaType: null,
     prefix: '✏️ <b>تم تعديل العملية</b> (حُذفت النسخة السابقة وأُنشئت محدّثة)\n\n',
   });
