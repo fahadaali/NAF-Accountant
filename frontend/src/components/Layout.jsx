@@ -4,7 +4,7 @@ import { ThemeToggle } from '../naf/ui/theme-toggle.jsx';
 import { NavLink } from 'react-router-dom';
 import {
   LogOut, LayoutDashboard, ArrowLeftRight, TrendingUp, ListTree,
-  Repeat, Users, ClipboardList, Settings,
+  Repeat, Users, ClipboardList, Settings, ShieldCheck,
 } from 'lucide-react';
 
 // الأيقونات من خريطة ناف (naf-icons.md) — مقاس ٢٤ للتنقّل.
@@ -15,6 +15,7 @@ const links = [
   { to: '/accounts', label: 'شجرة الحسابات', Icon: ListTree },
   { to: '/recurring', label: 'العمليات المتكرّرة', Icon: Repeat, adminOnly: true },
   { to: '/team', label: 'الفريق والصلاحيات', Icon: Users, adminOnly: true },
+  { to: '/members', label: 'المستخدمون والصلاحيات', Icon: ShieldCheck, adminOnly: true },
   { to: '/logs', label: 'سجلّ النظام', Icon: ClipboardList },
   { to: '/settings', label: 'الإعدادات', Icon: Settings },
 ];

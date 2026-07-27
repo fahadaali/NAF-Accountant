@@ -11,6 +11,7 @@
     "db:migrate": "wrangler d1 execute naf-accountant-db --file=./migrations/0001_init.sql --remote",
     "db:migrate:local": "wrangler d1 execute naf-accountant-db --file=./migrations/0001_init.sql --local",
     "db:seed": "wrangler d1 execute naf-accountant-db --file=./migrations/0002_seed_chart_of_accounts.sql --remote",
+    "db:migrate:sso": "wrangler d1 execute naf-accountant-db --file=./migrations/0006_sso_members.sql --remote",
     "r2:create": "wrangler r2 bucket create naf-accountant-media",
     "tail": "wrangler tail"
   },
@@ -26,7 +27,8 @@
   "author": "NAF Law",
   "license": "UNLICENSED",
   "dependencies": {
-    "hono": "^4.6.14"
+    "hono": "^4.6.14",
+    "naf-auth": "github:fahadaali/naf-auth#v1.0.0"
   },
   "devDependencies": {
     "wrangler": "^4.20.0"
