@@ -183,8 +183,27 @@
   --brand-threads: #000000;
   --brand-google: #4285F4;
 
+  /* [جديد] مقدّمة رقع العلامات الخارجية. بيضاء في الوضعين لأن الخلفية
+     لون علامة ثابت لا سطح ثيم — ولذلك لا يصلح --primary-foreground
+     الذي ينقلب في الوضع الداكن، فكانت المنصات تكتب #fff خاماً.
+     لمقدّمات رقع العلامات حصراً، كأخواتها أعلاه. */
+  --brand-on-color: #FFFFFF;
+
   --tracking-normal: 0em;
   --spacing: 0.25rem;
+
+  /* [جديد] سلّم المسافات رموزاً — --spacing كان معرّفاً وحده، متاحاً
+     لمنصات Tailwind دون غيرها، فالمنصات التي تكتب CSS خاماً كانت تضبط
+     كل مسافة بالبكسل. القيم مضاعفات --spacing نفسها لا سلّم جديد.
+     الدرجات الثماني تغطّي ما وُجد في المنصات المربوطة. */
+  --space-1: calc(var(--spacing) * 1);   /* 4  */
+  --space-2: calc(var(--spacing) * 2);   /* 8  */
+  --space-3: calc(var(--spacing) * 3);   /* 12 */
+  --space-4: calc(var(--spacing) * 4);   /* 16 */
+  --space-5: calc(var(--spacing) * 5);   /* 20 */
+  --space-6: calc(var(--spacing) * 6);   /* 24 */
+  --space-7: calc(var(--spacing) * 7);   /* 28 */
+  --space-9: calc(var(--spacing) * 9);   /* 36 */
 }
 
 .dark {
@@ -336,6 +355,17 @@
   --color-brand-snapchat-foreground: var(--brand-snapchat-foreground);
   --color-brand-threads: var(--brand-threads);
   --color-brand-google: var(--brand-google);
+  --color-brand-on-color: var(--brand-on-color);
+
+  /* [جديد] سلّم المسافات */
+  --spacing-1: var(--space-1);
+  --spacing-2: var(--space-2);
+  --spacing-3: var(--space-3);
+  --spacing-4: var(--space-4);
+  --spacing-5: var(--space-5);
+  --spacing-6: var(--space-6);
+  --spacing-7: var(--space-7);
+  --spacing-9: var(--space-9);
 
   --color-border: var(--border);
   --color-input: var(--input);

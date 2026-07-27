@@ -16,9 +16,12 @@ export {
   formatDualDate,
   formatTime,
   formatPhone,
+  formatMonth,
+  formatDateTime,
+  isolate,
 } from '../naf/lib/format.js';
 
-import { formatNumber, formatAmount, formatDate, formatTime } from '../naf/lib/format.js';
+import { formatNumber, formatAmount, formatDate, formatDateTime } from '../naf/lib/format.js';
 
 export const fmtNumber = (n) => formatNumber(Number(n || 0));
 export const fmtAmount = (n) => formatAmount(Number(n || 0));
@@ -36,4 +39,4 @@ function toUtc(value) {
 }
 
 export const fmtDate = (v) => { const d = toUtc(v); return d ? formatDate(d) : '—'; };
-export const fmtDateTime = (v) => { const d = toUtc(v); return d ? `${formatDate(d)} ${formatTime(d)}` : '—'; };
+export const fmtDateTime = (v) => { const d = toUtc(v); return d ? formatDateTime(d) : '—'; };

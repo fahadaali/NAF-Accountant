@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { fmtNumber } from '../lib/format.js';
-import { LogOut, LoaderCircle, CircleCheck, CircleSlash, Send, ChartColumn, CircleAlert, CircleHelp } from 'lucide-react';
+import { fmtNumber, isolate } from '../lib/format.js';
+import { LogOut, LoaderCircle, CircleCheck, ShieldCheck, ShieldAlert, Send, ChartColumn, CircleAlert, CircleHelp } from 'lucide-react';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
 import { Card } from '../naf/ui/card.jsx';
@@ -72,7 +72,7 @@ export default function Settings({ user, onLogout }) {
     setError('');
     try {
       const r = await api.sendFinancialReport(period);
-      setMsg(`تم إرسال التقرير المالي إلى بيسكامب — ${r.label}.`);
+      setMsg(`تم إرسال التقرير المالي إلى بيسكامب — ${isolate(r.label)}.`);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -147,9 +147,9 @@ export default function Settings({ user, onLogout }) {
                 {status == null ? (
                   <Badge><CircleHelp size={16} aria-hidden="true" /> غير معروف</Badge>
                 ) : ok ? (
-                  <Badge variant="success"><CircleCheck size={16} aria-hidden="true" /> مُهيّأ</Badge>
+                  <Badge variant="success"><ShieldCheck size={16} aria-hidden="true" /> مضبوط</Badge>
                 ) : (
-                  <Badge variant="destructive"><CircleSlash size={16} aria-hidden="true" /> غير مُهيّأ</Badge>
+                  <Badge variant="destructive"><ShieldAlert size={16} aria-hidden="true" /> غير مضبوط</Badge>
                 )}
               </div>
             );

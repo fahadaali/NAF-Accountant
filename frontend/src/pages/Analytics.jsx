@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { fmtNumber, fmtAmount, CURRENCY } from '../lib/format.js';
+import { fmtNumber, fmtAmount, CURRENCY, formatMonth } from '../lib/format.js';
 import Money from '../components/Money.jsx';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { CircleAlert } from 'lucide-react';
@@ -15,8 +15,6 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 const CLS_REVENUE = 'chart-2';
 const CLS_EXPENSE = 'chart-3';
 
-const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-
 // الأرقام غربية بفاصل آلاف — من lib/format.js لا داخل الصفحة.
 const fmt = (n) => fmtNumber(n);
 // <title> داخل SVG نصّ خالص لا يقبل عنصراً، فتعذّر استعمال Money هنا
@@ -25,9 +23,11 @@ const fmt = (n) => fmtNumber(n);
 // نصّ عادي: في الخلية والفقرة يُستعمل Money.
 const fmtAmountText = (n) => `${fmtAmount(n)} ${CURRENCY}`;
 
+// الشهر من naf-format: «2026/07». أسماء الأشهر العربية ليست صيغة
+// معتمدة لعرض قيمة تاريخ — نصّ عليه توثيق formatMonth في السجلّ.
 function monthLabel(ym) {
   const [y, m] = ym.split('-');
-  return `${AR_MONTHS[Number(m) - 1] || m} ${String(y).slice(2)}`;
+  return formatMonth(new Date(Number(y), Number(m) - 1, 1));
 }
 
 /** شريط أفقي — مقارنة مقادير بين فئات. */

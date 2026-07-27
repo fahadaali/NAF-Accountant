@@ -123,6 +123,11 @@ function resultTotal(result) {
   return (result.invoice?.line_items || []).reduce((s, li) => s + Number(li.amount || 0), 0);
 }
 
+/* عزل اتجاهي للقيم داخل الجمل العربية — U+2068 و U+2069.
+   نفس تعريف `isolate` في naf-format بالسجلّ؛ يُكرَّر هنا لأن الخادم
+   لا يستورد من frontend/src/naf. أي تغيير يحدث في السجلّ أولاً. */
+const iso = (v) => `\u2068${v}\u2069`;
+
 /** وصف عربي لنوع العملية. */
 function describeType(type) {
   return type === 'manual_journal'
@@ -155,8 +160,8 @@ function confirmManualJournal(result, wafeqId) {
   const total = entries.reduce((s, e) => s + Number(e.debit || 0), 0);
   return (
     `✅ <b>تم إنشاء قيد محاسبي في وافق</b>\n\n` +
-    `📅 التاريخ: ${result.date}\n${lines}\n\n` +
-    `💰 الإجمالي: ${total}\n🧾 المرجع: ${wafeqId || 'غير متوفر'}\n\n` +
+    `📅 التاريخ: ${iso(result.date)}\n${lines}\n\n` +
+    `💰 الإجمالي: ${iso(total)}\n🧾 المرجع: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
     `ℹ️ ملاحظة: القيود اليدوية تُرحّل مباشرة في وافق (لا تدعم المسودة عبر الـ API).`
   );
 }
@@ -169,11 +174,11 @@ function confirmBill(result, wafeqId) {
   const vat = +((sub * vatPercent) / 100).toFixed(2);
   return (
     `✅ <b>تم إنشاء فاتورة مشتريات (مسودة) في وافق</b>\n\n` +
-    `📅 التاريخ: ${result.date}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n${lines}\n\n` +
+    `📅 التاريخ: ${iso(result.date)}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n${lines}\n\n` +
     (vatPercent > 0
-      ? `💰 قبل الضريبة: ${sub}\n➕ ضريبة ${vatPercent}%: ${vat}\n💵 الإجمالي: ${(sub + vat).toFixed(2)}\n`
+      ? `💰 قبل الضريبة: ${iso(sub)}\n➕ ضريبة ${iso(vatPercent + '%')}: ${iso(vat)}\n💵 الإجمالي: ${iso((sub + vat).toFixed(2))}\n`
       : `💰 الإجمالي: ${sub} (بدون ضريبة)\n`) +
-    `🧾 رقم المسودة: ${wafeqId || 'غير متوفر'}\n\n` +
+    `🧾 رقم المسودة: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
     `⚠️ فاتورة <b>مسودة</b> تتطلب مراجعتك واعتمادك في وافق.`
   );
 }
@@ -186,9 +191,9 @@ function confirmInvoice(result, wafeqId) {
   const lines = items.map((li) => `• ${li.account_name} — ${li.amount}`).join('\n');
   return (
     `✅ <b>تم إنشاء فاتورة مبيعات (مسودة) في وافق</b>\n\n` +
-    `📅 التاريخ: ${result.date}\n👤 العميل: ${result.contact_name || 'غير محدّد'}\n${lines}\n\n` +
-    `💰 قبل الضريبة: ${sub}\n➕ ضريبة ${vatPercent}%: ${vat}\n💵 الإجمالي: ${(sub + vat).toFixed(2)}\n` +
-    `🧾 رقم المسودة: ${wafeqId || 'غير متوفر'}\n\n` +
+    `📅 التاريخ: ${iso(result.date)}\n👤 العميل: ${result.contact_name ? iso(result.contact_name) : 'غير محدّد'}\n${lines}\n\n` +
+    `💰 قبل الضريبة: ${iso(sub)}\n➕ ضريبة ${iso(vatPercent + '%')}: ${iso(vat)}\n💵 الإجمالي: ${iso((sub + vat).toFixed(2))}\n` +
+    `🧾 رقم المسودة: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
     `⚠️ فاتورة <b>مسودة</b> تتطلب مراجعتك واعتمادك في وافق.`
   );
 }

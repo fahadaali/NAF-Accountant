@@ -86,7 +86,7 @@ export default function Recurring() {
           open={!!pending}
           onOpenChange={(v) => !v && setPending(null)}
           title="حذف القالب"
-          description={`سيتوقّف إنشاء العملية المتكرّرة «${pending.label}» شهرياً. العمليات التي أُنشئت من قبل تبقى كما هي.`}
+          description={<>سيتوقّف إنشاء العملية المتكرّرة «<bdi>{pending.label}</bdi>» شهرياً. العمليات التي أُنشئت من قبل تبقى كما هي.</>}
           actionLabel="حذف"
           onConfirm={() => run(() => api.deleteRecurring(pending.id), 'تم الحذف.')}
         />
