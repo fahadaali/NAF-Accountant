@@ -19,6 +19,12 @@ directory = "./frontend/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 
+# طبقة الأصول تخدم الملف المطابق قبل تشغيل الـ Worker افتراضياً، فيصل الزائر
+# إلى index.html على الجذر دون أن يمرّ بوسيط الدخول الموحّد إطلاقاً.
+# هذا يجعل الـ Worker يعمل أولاً دائماً، فتُطبَّق الحماية على كل مسار،
+# والأصول الساكنة تُخدم بعده من قائمة المسارات العامة (بادئة /assets/).
+run_worker_first = true
+
 # ----------------------------------------------------------------------------
 # Cloudflare D1 Database (قاعدة البيانات)
 # أنشئ القاعدة أولاً:  wrangler d1 create naf-accountant-db
