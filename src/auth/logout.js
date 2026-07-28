@@ -17,7 +17,21 @@
 // وهذا خروج من هذه المنصة وحدها، لا من المركز — والدخول التالي يمرّ به.
 // ============================================================================
 
-import { handleLogout } from 'naf-auth';
+import { handleBackchannelLogout, handleLogout } from 'naf-auth';
 import { authConfig } from './config.js';
 
 export const ssoLogout = (c) => handleLogout(c.req.raw, c.env, authConfig(c.env));
+
+/**
+ * إشعار الخروج الخلفي — المركز يُنهي جلسات عضوٍ هنا.
+ *
+ * الخروج من هذه المنصة محليّ كما فوق، أمّا الخروج من المركز فهو الباب نفسه:
+ * يُنهي جلسات صاحبه في المنصات الخمس. وبلا هذا المسار تبقى جلسته هنا حيّة
+ * حتى ينتهي رمزها، فيفتح رابط المنصة بعد خروجه من المركز فيدخل.
+ *
+ * والمنادي هو المركز خادماً لخادم لا متصفّح له جلسة هنا، فالمسار عامّ في
+ * قائمة الحارس، وحراستُه توقيعُ المركز — تتحقّق منه الحزمة بمفتاح `JWKS`
+ * الذي تعرفه أصلاً.
+ */
+export const ssoBackchannelLogout = (c) =>
+  handleBackchannelLogout(c.req.raw, c.env, authConfig(c.env));

@@ -18,7 +18,7 @@ import adminRoute from './routes/admin.js';
 import membersRoute from './routes/members.js';
 import { ssoMiddleware, requireWriter } from './auth/middleware.js';
 import { ssoCallback } from './auth/callback.js';
-import { ssoLogout } from './auth/logout.js';
+import { ssoBackchannelLogout, ssoLogout } from './auth/logout.js';
 import { syncChartOfAccounts } from './services/sync.js';
 import { runDueRecurring } from './services/recurring.js';
 import { notifyAdmins } from './services/telegram.js';
@@ -45,6 +45,7 @@ app.use('*', ssoMiddleware);
 app.use('*', requireWriter);
 app.get('/auth/callback', ssoCallback);
 app.post('/auth/logout', ssoLogout);
+app.post('/auth/backchannel-logout', ssoBackchannelLogout);
 
 // فحص الصحة
 app.get('/api/health', (c) => c.json({ ok: true }));

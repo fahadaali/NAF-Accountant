@@ -5,10 +5,11 @@
 import assert from 'node:assert/strict';
 import { authConfig } from '../src/auth/config.js';
 import { authenticate } from 'naf-auth';
-import { handleCallback, reportAccessChange } from 'naf-auth';
+import { handleBackchannelLogout, handleCallback, isPublicPath, reportAccessChange } from 'naf-auth';
 
 const ISSUER = 'https://naf-id.pages.dev';
 const PLATFORM = 'NAF-Accountant';
+const ORIGIN = 'https://naf-accountant.naflaw-sa.workers.dev';
 const SECRET = 'the-platform-secret';
 const ALGO = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
 
@@ -116,6 +117,20 @@ const kv = {
   async get(k, t) { const v = kvStore.get(k); return v === undefined ? null : (t === 'json' ? JSON.parse(v) : v); },
   async put(k, v, o) { kvStore.set(k, v); kvStore.set(`__ttl:${k}`, o?.expirationTtl); },
   async delete(k) { kvStore.delete(k); },
+  /* `list` بصفحاتٍ صغيرة عمداً: KV الحقيقي يردّ صفحة محدودة ومعها مؤشّر،
+     ومن قرأ الصفحة الأولى وحدها ظنّ أنه استوفى. */
+  async list({ prefix = '', cursor, limit = 2 } = {}) {
+    const all = [...kvStore.keys()].filter((k) => k.startsWith(prefix)).sort();
+    const start = cursor ? Number(cursor) : 0;
+    const slice = all.slice(start, start + limit);
+    const end = start + slice.length;
+    const complete = end >= all.length;
+    return {
+      keys: slice.map((name) => ({ name })),
+      list_complete: complete,
+      cursor: complete ? undefined : String(end),
+    };
+  },
 };
 const memberRow = { id: 'user-1', role: 'admin', is_active: 1, perms: null };
 const DB = { prepare() { return { bind() { return this; }, async first() { return memberRow; }, async run() { return {}; } }; } };
@@ -336,4 +351,70 @@ let sessionCookie;
   ok('وجهة عدائية من ردّ المبادلة تُنقّى إلى الجذر');
 }
 
-console.log(`\n${pass}/15 فحصاً مرّت.`);
+// -- إشعار الخروج الخلفي: الخروج من المركز يُنهي الجلسة هنا --
+{
+  const now = Math.floor(Date.now() / 1000);
+  const sid = 'sid-backchannel';
+  await kv.put(
+    `sess:${sid}`,
+    JSON.stringify({
+      sub: 'user-1',
+      token: await signToken({ sub: 'user-1', iss: ISSUER, aud: PLATFORM, iat: now, exp: now + 900 }),
+      exp: now + 900,
+    }),
+  );
+  await kv.put(`usr:user-1:${sid}`, '1');
+
+  /* الرمز يُوقَّع هنا كما يوقّعه المركز حرفياً — و`purpose` مكتوبة نصّاً لا
+     مستوردة: تغييرها في أحد الطرفين دون الآخر يُبطل كل إشعار بلا رسالة
+     تدلّ عليه، وهذا السطر هو ما يمسك ذلك. */
+  const notice = (extra) =>
+    new Request(`${ORIGIN}/auth/backchannel-logout`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(extra),
+    });
+
+  const res = await handleBackchannelLogout(
+    notice({
+      logoutToken: await signToken({
+        sub: 'user-1', iss: ISSUER, aud: PLATFORM,
+        purpose: 'backchannel-logout', iat: now, exp: now + 60,
+      }),
+    }),
+    env,
+    config,
+  );
+  assert.equal(res.status, 200, 'المركز رُدّ إشعارُه');
+  const { ended } = await res.json();
+  assert.ok(ended >= 1, `لم يُنهَ شيء (${ended})`);
+  assert.equal(kvStore.has(`sess:${sid}`), false, 'بقيت الجلسة بعد الإشعار');
+  assert.deepEqual(
+    [...kvStore.keys()].filter((k) => k.startsWith('usr:user-1:')),
+    [],
+    'بقي دليلُ جلسةٍ بعد الإشعار',
+  );
+
+  // ورمز الدخول لا يصلح إشعاراً — وهو يصل إلى مسار عامّ لا حراسة عليه.
+  const asSession = await handleBackchannelLogout(
+    notice({
+      logoutToken: await signToken({
+        sub: 'user-1', iss: ISSUER, aud: PLATFORM, iat: now, exp: now + 900,
+      }),
+    }),
+    env,
+    config,
+  );
+  assert.equal(asSession.status, 401, 'رمز جلسة قُبل إشعارَ خروج');
+
+  // والمسار عامّ: المنادي هو المركز خادماً لخادم، ولا جلسة له هنا يُحرَس بها.
+  assert.equal(isPublicPath('/auth/backchannel-logout', config), true, 'المسار محروس');
+
+  ok('إشعار الخروج الخلفي يُنهي الجلسة، ومساره عامّ، ورمز الدخول لا يصلح إشعاراً');
+}
+
+/* العدد يُتحقَّق منه لا يُطبع وحده: فحصٌ يسقط من الملف بحذفٍ أو بخطأ في دمج
+   يبقى العدّاد معه أقلّ، وسطرٌ يقول «١٥/١٦» يُقرأ نجاحاً بلمحة عين. */
+const EXPECTED = 16;
+assert.equal(pass, EXPECTED, `عدد الفحوص ${pass} لا ${EXPECTED}`);
+console.log(`\n${pass}/${EXPECTED} فحصاً مرّت.`);
