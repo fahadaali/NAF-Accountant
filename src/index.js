@@ -16,7 +16,7 @@ import basecampOauthRoute from './routes/basecamp_oauth.js';
 import authRoute from './routes/auth.js';
 import adminRoute from './routes/admin.js';
 import membersRoute from './routes/members.js';
-import { ssoMiddleware } from './auth/middleware.js';
+import { ssoMiddleware, requireWriter } from './auth/middleware.js';
 import { ssoCallback } from './auth/callback.js';
 import { ssoLogout } from './auth/logout.js';
 import { syncChartOfAccounts } from './services/sync.js';
@@ -40,6 +40,9 @@ app.use('/api/*', cors({
 // جديد خارجها محمي افتراضياً.
 // ----------------------------------------------------------------------------
 app.use('*', ssoMiddleware);
+// القارئ يقرأ ولا يكتب — بعد الوسيط لأنه يقرأ الدور الذي يحقنه، وقبل كل
+// مسار لأن الحكم بالطريقة لا بالمسار. تفصيله في `src/auth/middleware.js`.
+app.use('*', requireWriter);
 app.get('/auth/callback', ssoCallback);
 app.post('/auth/logout', ssoLogout);
 
