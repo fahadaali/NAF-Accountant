@@ -115,7 +115,42 @@ export default function App() {
         {isAdmin && <Route path="/members" element={<Members />} />}
         <Route path="/logs" element={<Logs />} />
         <Route path="/settings" element={<Settings user={user} onLogout={logout} />} />
+        {/* بلا هذا المسار كانت الشاشة تُترك فارغة.
+
+            مسارات المسؤول الثلاثة أعلاه لا تُسجَّل أصلاً لغيره، فعضوٌ يبلغ
+            `‎/members` من مفضّلته أو من رابط قديم لا يطابق مساراً — و
+            `Routes` لا يعرض شيئاً حين لا يطابق شيء. فيرى إطار اللوحة
+            وقائمتها ومنطقة محتوى خاوية بلا كلمة تقول ما جرى، فيظنّ العطل
+            في المنصة.
+
+            والرسالتان اثنتان لا واحدة: من طلب شاشةَ مسؤولٍ وليس مسؤولاً
+            يُقال له إنه لا يملكها، ومن طلب مساراً لا وجود له يُقال له إنها
+            غير موجودة. وخلطهما يخبر الأول أن الشاشة غير موجودة وهي قائمة
+            يفتحها زميله. */}
+        <Route path="*" element={<Unmatched isAdmin={isAdmin} />} />
       </Routes>
     </Layout>
+  );
+}
+
+/** مسارات لا يراها إلا المسؤول — تُقرأ لتمييز «لا صلاحية» من «غير موجودة». */
+const ADMIN_PATHS = ['/recurring', '/team', '/members'];
+
+/**
+ * شاشة المسار غير المطابق. النصّان من `naf-terms.md` §٧ · الأخطاء:
+ * «لا صلاحية» و«غير موجود».
+ *
+ * وبلا أيقونة: `naf-icons.md` تُسجّل `ShieldX` لمنع الوصول إلى **منصة**
+ * وحدها، ولا مقابل مسجَّل لصفحةٍ داخل منصة يدخلها القارئ. واختيار الأقرب
+ * شكلاً هو ما تمنعه القاعدة، فتُترك حتى تُسجَّل.
+ */
+function Unmatched({ isAdmin }) {
+  const needsAdmin = !isAdmin && ADMIN_PATHS.includes(window.location.pathname);
+  return (
+    <main className="grid place-items-center p-6">
+      <p className="max-w-prose text-center text-base text-muted-foreground" role="status">
+        {needsAdmin ? 'لا تملك صلاحية الوصول لهذه الصفحة' : 'الصفحة غير موجودة'}
+      </p>
+    </main>
   );
 }
