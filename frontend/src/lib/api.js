@@ -28,12 +28,33 @@ export function clearToken() {
  *
  * ويعيد `true` إن تولّى الردّ، فيتوقّف النداء عن المتابعة.
  */
+/**
+ * تصحيح وجهة العودة في عنوان الباب.
+ *
+ * الوسيط يبني `next` من مسار الطلب الذي ردّ عليه، وهو هنا مسار برمجي:
+ * فينتهي الأمر بـ`next=/api/me` ويعود المستخدم بعد دخوله إلى ردّ JSON
+ * لا إلى الشاشة التي كان فيها. والمتصفّح وحده يعرف موضعه الحقيقي.
+ *
+ * ومسار الرفض يُستثنى: العودة إليه تعيد الدورة نفسها.
+ */
+function withCurrentNext(login) {
+  try {
+    const url = new URL(login, window.location.origin);
+    const here = window.location.pathname + window.location.search;
+    if (window.location.pathname === '/denied') url.searchParams.delete('next');
+    else url.searchParams.set('next', here);
+    return url.toString();
+  } catch (_) {
+    return login;
+  }
+}
+
 function handleUnauthorized(res, data) {
   if (res.status !== 401) return false;
   // رمز نظام الدخول السابق، إن كان لا يزال مخزّناً.
   clearToken();
   if (data && data.login) {
-    window.location.href = data.login;
+    window.location.href = withCurrentNext(data.login);
     return true;
   }
   return false;
