@@ -236,6 +236,44 @@ let sessionCookie;
   ok('قائمة المسارات العامة مضبوطة — ودخول كلمة المرور خلف الحارس');
 }
 
+// -- ١١ب: شكل الردّ يتبع طبيعة الطلب لا بادئة المسار --
+{
+  const H = (p, headers) =>
+    new Request(`https://naf-accountant.naflaw-sa.workers.dev${p}`, { headers });
+
+  // تنقّلٌ إلى مسار برمجي — رابط تنزيل يفتحه المستخدم. تحويلة لا JSON،
+  // وإلا عُرض عليه نصّ خام مكان أن يعود إلى الدخول.
+  const nav = await authenticate(H('/api/transactions/export', { 'sec-fetch-mode': 'navigate' }), env, config);
+  assert.equal(nav.response.status, 302, 'رابط تنزيل يجب أن يُحوَّل');
+
+  // ونداءُ fetch إلى المسار نفسه — رمز حالة وجسم يُقرأ.
+  const call = await authenticate(H('/api/transactions/export', { 'sec-fetch-mode': 'cors' }), env, config);
+  assert.equal(call.response.status, 401);
+
+  // ورفضُ عضوٍ موقوف على نداء برمجي: ٤٠٣ بجسم، لا تحويلة داخلية يتبعها
+  // fetch بنجاح فيستقبل صفحة الواجهة نصّاً.
+  const now = Math.floor(Date.now() / 1000);
+  memberRow.is_active = 0;
+  kvStore.set('sess:off', JSON.stringify({
+    sub: 'user-1',
+    token: await signToken({ sub: 'user-1', iss: ISSUER, aud: PLATFORM, iat: now, exp: now + 900 }),
+    exp: now + 900,
+  }));
+
+  const denied = await authenticate(
+    H('/api/stats', { cookie: 'naf_sid=off', 'sec-fetch-mode': 'cors' }),
+    env, config,
+  );
+  assert.equal(denied.response.status, 403);
+  assert.equal(denied.response.headers.get('location'), null);
+  const body = await denied.response.json();
+  assert.equal(body.reason, 'inactive');
+  assert.equal(body.denied, '/denied?r=inactive');
+  memberRow.is_active = 1;
+
+  ok('شكل الردّ يتبع طبيعة الطلب — والرفض البرمجي ٤٠٣ بجسم يُقرأ');
+}
+
 // -- ١٢: التبليغ العكسي يصل ويُقبل --
 {
   failures.length = 0;
@@ -257,4 +295,4 @@ let sessionCookie;
   ok('وجهة عدائية من ردّ المبادلة تُنقّى إلى الجذر');
 }
 
-console.log(`\n${pass}/13 فحصاً مرّت.`);
+console.log(`\n${pass}/14 فحصاً مرّت.`);
