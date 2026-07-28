@@ -39,6 +39,37 @@ function handleUnauthorized(res, data) {
   return false;
 }
 
+/**
+ * الرفض — عضو أُوقف ولوحتُه مفتوحة.
+ *
+ * لا يأتي عند الدخول بل في أول طلب تالٍ، وهو ما يفعله بالضبط التبليغُ
+ * العكسي من شاشة الأعضاء. وله صورتان حسب إصدار `naf-auth`:
+ *
+ * **٤٠٣ وجسم فيه `denied`** — الصورة الصحيحة، من `v2.0.1` فصاعداً.
+ *
+ * **تحويلة ٣٠٢ إلى `‎/denied`** — صورة `v2.0.0` المثبَّتة اليوم. وهي
+ * تحويلة *داخلية*، فيتبعها `fetch` بنجاح ويستقبل صفحة الواجهة نصّاً:
+ * فيصير `res.ok` صادقاً و`res.json()` يسقط، فتقرأ اللوحة كائناً فارغاً
+ * وتعرض شاشةً خاوية بلا سبب. ولذلك تُقرأ `redirected` و`url` — وهما
+ * الأثر الوحيد الباقي من التحويلة بعد اتّباعها.
+ *
+ * ويعيد `true` إن تولّى الردّ.
+ */
+function handleDenied(res, data) {
+  if (res.status === 403 && data && data.denied) {
+    window.location.href = data.denied;
+    return true;
+  }
+  if (res.redirected) {
+    const target = new URL(res.url, window.location.origin);
+    if (target.pathname === '/denied') {
+      window.location.href = target.pathname + target.search;
+      return true;
+    }
+  }
+  return false;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}/api${path}`, {
     ...options,
@@ -50,8 +81,8 @@ async function request(path, options = {}) {
   });
   const data = await res.json().catch(() => ({}));
 
-  if (handleUnauthorized(res, data)) {
-    // التحويل جارٍ — لا تُكمل، ولا تُظهر خطأً لجلسة انتهت طبيعياً.
+  if (handleUnauthorized(res, data) || handleDenied(res, data)) {
+    // التحويل جارٍ — لا تُكمل، ولا تُظهر خطأً لجلسة انتهت أو عضوية أُوقفت.
     return new Promise(() => {});
   }
 
@@ -67,9 +98,9 @@ async function requestBlob(path, failure) {
     headers: { ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
   });
 
-  if (res.status === 401) {
-    const data = await res.json().catch(() => ({}));
-    if (handleUnauthorized(res, data)) return new Promise(() => {});
+  if (res.status === 401 || res.status === 403 || res.redirected) {
+    const data = await res.clone().json().catch(() => ({}));
+    if (handleUnauthorized(res, data) || handleDenied(res, data)) return new Promise(() => {});
   }
 
   if (!res.ok) throw new Error(failure);
