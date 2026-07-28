@@ -53,7 +53,7 @@ members.post('/members/update', async (c) => {
 
   // البريد يُقرأ هنا لأن المركز يطابق صفّ الوصول به لا بالمعرّف المركزي.
   const member = await c.env.DB.prepare(
-    `SELECT user_id, email, is_active FROM members WHERE user_id = ?`,
+    `SELECT user_id, email, is_active, role FROM members WHERE user_id = ?`,
   )
     .bind(userId)
     .first();
@@ -66,7 +66,30 @@ members.post('/members/update', async (c) => {
       .run();
   }
 
-  if (isActive === undefined) return c.json({ ok: true, reported: null });
+  // الدور المعروض في المركز بعد هذا الطلب — لا الذي كان قبله.
+  const currentRole = role || member.role;
+
+  /* تغيير دورٍ وحده يُبلَّغ به المركز ليعرضه في صفّ الوصول.
+
+     مسؤول النظام يمنح وصولاً إلى هذه المنصة ولا تقول له أي شاشة ماذا صار
+     يرى الممنوح. والقرار يبقى هنا: المركز يعرض ولا يقرأ هذه القيمة في أي
+     قرار دخول.
+
+     وبلا `state`: المنح لم يتغيّر، وكتابته مع كل ترقية تمحو سحباً صادراً
+     من المركز. والفشل لا يُرفع — الترقية نافذة محلياً فور كتابتها. */
+  if (isActive === undefined) {
+    if (!role || !member.email) return c.json({ ok: true, reported: null });
+    try {
+      await reportAccessChange(c.env, authConfig(c.env), {
+        email: member.email,
+        role: currentRole,
+      });
+      return c.json({ ok: true, reported: true });
+    } catch (err) {
+      console.error('naf-auth: access_report_failed');
+      return c.json({ ok: true, reported: false });
+    }
+  }
 
   const next = isActive ? 1 : 0;
   const wasActive = Number(member.is_active) === 1;
@@ -97,6 +120,9 @@ members.post('/members/update', async (c) => {
       email: member.email,
       state: next ? 'granted' : 'revoked',
       reason: String(reason || '').trim() || undefined,
+      // والصلاحية مع الحالة: السحب لا يمحوها في المركز — يُبقيها `COALESCE`
+      // هناك — فيبقى المسؤول يرى ما كان يملكه المسحوب حين يحتاج معرفته.
+      role: currentRole,
     });
     return c.json({ ok: true, reported: true });
   } catch (err) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { Lock } from 'lucide-react';
 import Layout from './components/Layout.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Transactions from './pages/Transactions.jsx';
@@ -67,15 +68,21 @@ export default function App() {
       }
       clearToken();
     }
-    // جلسة الدخول الموحّد: تُمسح من KV ويُمسح كوكيها، ثم يعيد الجذرُ الطلبَ
-    // إلى المركز عبر الوسيط.
+    // جلسة الدخول الموحّد: تُمسح من KV ويُمسح كوكيها، ثم يقول الخادم الوجهة
+    // — وهي المركز لا جذر هذه المنصة.
+    //
+    // والجذر كان يعيد الخارجَ إلى شاشته في الحال: هو محميّ، فيحوّله الوسيط
+    // إلى `/go/NAF-Accountant`، وجلسة المركز لم تُمسّ فتُصدر رمزاً جديداً.
+    let next = '/';
     try {
-      await fetch('/auth/logout', { method: 'POST' });
+      const res = await fetch('/auth/logout', { method: 'POST' });
+      const data = await res.json().catch(() => null);
+      if (data && typeof data.next === 'string' && data.next) next = data.next;
     } catch (_) {
-      /* تجاهل */
+      /* تجاهل — الوجهة تبقى الجذر، والوسيط يردّه إلى الباب */
     }
     setUser(null);
-    window.location.href = '/';
+    window.location.href = next;
   };
 
   if (!ready) {
@@ -109,7 +116,48 @@ export default function App() {
         {isAdmin && <Route path="/members" element={<Members />} />}
         <Route path="/logs" element={<Logs />} />
         <Route path="/settings" element={<Settings user={user} onLogout={logout} />} />
+        {/* بلا هذا المسار كانت الشاشة تُترك فارغة.
+
+            مسارات المسؤول الثلاثة أعلاه لا تُسجَّل أصلاً لغيره، فعضوٌ يبلغ
+            `‎/members` من مفضّلته أو من رابط قديم لا يطابق مساراً — و
+            `Routes` لا يعرض شيئاً حين لا يطابق شيء. فيرى إطار اللوحة
+            وقائمتها ومنطقة محتوى خاوية بلا كلمة تقول ما جرى، فيظنّ العطل
+            في المنصة.
+
+            والرسالتان اثنتان لا واحدة: من طلب شاشةَ مسؤولٍ وليس مسؤولاً
+            يُقال له إنه لا يملكها، ومن طلب مساراً لا وجود له يُقال له إنها
+            غير موجودة. وخلطهما يخبر الأول أن الشاشة غير موجودة وهي قائمة
+            يفتحها زميله. */}
+        <Route path="*" element={<Unmatched isAdmin={isAdmin} />} />
       </Routes>
     </Layout>
+  );
+}
+
+/** مسارات لا يراها إلا المسؤول — تُقرأ لتمييز «لا صلاحية» من «غير موجودة». */
+const ADMIN_PATHS = ['/recurring', '/team', '/members'];
+
+/**
+ * شاشة المسار غير المطابق. النصّان من `naf-terms.md` §٧ · الأخطاء:
+ * «لا صلاحية» و«غير موجود».
+ *
+ * والأيقونة `Lock` من `naf-icons.md`: «محتوى مقفل يراه المستخدم ولا يفتحه»
+ * — وهي حال هذه الشاشة. ولا تُستعار `ShieldX`: تلك لمن رُدّ على باب منصة
+ * فلم يدخلها، واستعارتها هنا تجعل من يقف داخلها يقرأ أنه مُنع منها.
+ *
+ * وتظهر مع «لا صلاحية» وحدها: المسار غير الموجود ليس حكماً على القارئ،
+ * فلا قفل عليه.
+ */
+function Unmatched({ isAdmin }) {
+  const needsAdmin = !isAdmin && ADMIN_PATHS.includes(window.location.pathname);
+  return (
+    <main className="grid place-items-center p-6">
+      <div className="grid justify-items-center gap-4 max-w-prose text-center">
+        {needsAdmin && <Lock className="text-muted-foreground" size={40} aria-hidden="true" />}
+        <p className="text-base text-muted-foreground" role="status">
+          {needsAdmin ? 'لا تملك صلاحية الوصول لهذه الصفحة' : 'الصفحة غير موجودة'}
+        </p>
+      </div>
+    </main>
   );
 }

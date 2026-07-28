@@ -50,7 +50,15 @@ export default function Members() {
     load();
   }, []);
 
-  const run = async (fn, successMsg) => {
+  /* `unreportedMsg` نصُّ تعذّر التبليغ لهذا الفعل بعينه.
+
+     كان واحداً لكل الأفعال: «تعذّر الاتصال. تحقق من الشبكة وأعد المحاولة» —
+     وهي مسجَّلة في §٧ لطلبٍ **لم يصل**، والحال هنا أن الفعل وصل ونُفِّذ ولم
+     يُبلَّغ به المركز. فيقرؤها المسؤول فشلاً فيعيد فعلاً قائماً.
+
+     والثلاثة مسجَّلة في `naf-terms.md` §١٠ · رسائل الصلاحية، وكلٌّ منها تخبر
+     بما تمّ أوّلاً ثم بما لم يبلغ. */
+  const run = async (fn, successMsg, unreportedMsg) => {
     setMsg('');
     setError('');
     setWarning('');
@@ -59,7 +67,7 @@ export default function Members() {
       setMsg(successMsg);
       // التغيير المحلي وقع، وتبليغ المركز وحده هو ما تعذّر.
       if (res && res.reported === false) {
-        setWarning('تعذّر الاتصال. تحقق من الشبكة وأعد المحاولة');
+        setWarning(unreportedMsg);
       }
       await load();
     } catch (e) {
@@ -73,6 +81,7 @@ export default function Members() {
     run(
       () => api.updateMember({ user_id: member.user_id, is_active: 0, reason: reason.trim() }),
       'تم السحب',
+      'سُحب الوصول في هذه المنصة، ولم يبلغ السحبُ المركزَ. أعد المحاولة',
     );
     setReason('');
   };
@@ -153,6 +162,7 @@ export default function Members() {
                       run(
                         () => api.updateMember({ user_id: m.user_id, role: e.target.value }),
                         'تم تحديث الصلاحية',
+                        'تغيّرت الصلاحية في هذه المنصة، ولم يبلغ التغيّرُ المركزَ. أعد المحاولة',
                       )
                     }
                   >
@@ -188,6 +198,7 @@ export default function Members() {
                         run(
                           () => api.updateMember({ user_id: m.user_id, is_active: 1 }),
                           'تم المنح',
+                          'مُنح الوصول في هذه المنصة، ولم يبلغ المنحُ المركزَ. أعد المحاولة',
                         )
                       }
                     >
