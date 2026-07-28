@@ -79,10 +79,25 @@ function centerAccess(body) {
   }
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   if (!email) { failures.push('access:invalid_body'); return new Response('{}', { status: 400 }); }
-  if (!['granted', 'revoked'].includes(body.state)) {
+
+  /* الحالة اختيارية منذ أن صار المركز يقبل تبليغ الصلاحية وحدها — والدخول
+     يبلّغ بها في كل مرة. وإلزامُها هنا يجعل المحاكاة تخالف المركز الحيّ،
+     فيسقط الفحص على تدفّق يعمل في الإنتاج. */
+  const hasState = body.state !== undefined && body.state !== null;
+  if (hasState && !['granted', 'revoked'].includes(body.state)) {
     failures.push('access:invalid_state'); return new Response('{}', { status: 400 });
   }
-  accessRows.push({ email, state: body.state, reason: body.reason ?? null });
+  const role = typeof body.role === 'string' && body.role.trim() ? body.role.trim() : null;
+  if (!hasState && !role) {
+    failures.push('access:invalid_body'); return new Response('{}', { status: 400 });
+  }
+
+  accessRows.push({
+    email,
+    state: hasState ? body.state : null,
+    reason: body.reason ?? null,
+    role,
+  });
   return Response.json({ ok: true });
 }
 
@@ -279,8 +294,34 @@ let sessionCookie;
   failures.length = 0;
   await reportAccessChange(env, config, { email: 'F@NafLaw.sa', state: 'revoked', reason: 'انتهى التعاقد' });
   assert.deepEqual(failures, []);
-  assert.deepEqual(accessRows.at(-1), { email: 'f@naflaw.sa', state: 'revoked', reason: 'انتهى التعاقد' });
+  assert.deepEqual(accessRows.at(-1), {
+    email: 'f@naflaw.sa', state: 'revoked', reason: 'انتهى التعاقد', role: null,
+  });
   ok('التبليغ العكسي يُقبل ويكتب صفّ الوصول');
+}
+
+// -- ١٣: الدخول يبلّغ المركز بالصلاحية، بلا حالة --
+//
+// بدونه يبقى عمود الصلاحية في لوحة المركز فارغاً إلى الأبد: التبليغ اليدوي
+// في مسارات إدارة الأعضاء وحدها، وكلها أفعال مسؤول لا أفعال عضو.
+{
+  failures.length = 0;
+  const before = accessRows.length;
+
+  const { response } = await authenticate(R('/transactions'), env, config);
+  const { code, state } = centerGo(response.headers.get('location'));
+  const res = await handleCallback(R(`/auth/callback?code=${code}&state=${state}`), env, config);
+  assert.equal(res.status, 302, 'الدخول يجب أن ينجح');
+
+  const reported = accessRows.slice(before);
+  assert.equal(reported.length, 1, 'الدخول يبلّغ مرة واحدة');
+  assert.equal(reported[0].email, 'f@naflaw.sa');
+  assert.equal(reported[0].role, memberRow.role);
+  // بلا حالة: الدخول لا يغيّر منحاً ولا سحباً، وكتابتها تمحو سحباً مركزياً.
+  assert.equal(reported[0].state, null);
+  assert.deepEqual(failures, []);
+
+  ok('الدخول يبلّغ المركز بالصلاحية بلا حالة');
 }
 
 // -- ١٣: next عدائي لا يخرج بالمستخدم --
@@ -295,4 +336,4 @@ let sessionCookie;
   ok('وجهة عدائية من ردّ المبادلة تُنقّى إلى الجذر');
 }
 
-console.log(`\n${pass}/14 فحصاً مرّت.`);
+console.log(`\n${pass}/15 فحصاً مرّت.`);
