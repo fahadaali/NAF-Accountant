@@ -17,6 +17,28 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_STORAGE);
 }
 
+/**
+ * انتهاء الجلسة يعيد المتصفّح إلى باب المركز.
+ *
+ * رمز المركز يعيش خمس عشرة دقيقة، فلوحةٌ مفتوحة أطول من ذلك تبلغ هذه
+ * الحال في مجرى العمل العادي لا عند خطأ. والوسيط يردّ ٤٠١ ومعه عنوان
+ * الباب لأن `fetch` لا يستطيع اتّباع تحويلة إلى أصل آخر بلا ترويسات
+ * `CORS` — فالتحويل يقع هنا، والمركز يعيد إصدار رمز بلا تدخّل من
+ * المستخدم ما دامت جلسته هناك قائمة.
+ *
+ * ويعيد `true` إن تولّى الردّ، فيتوقّف النداء عن المتابعة.
+ */
+function handleUnauthorized(res, data) {
+  if (res.status !== 401) return false;
+  // رمز نظام الدخول السابق، إن كان لا يزال مخزّناً.
+  clearToken();
+  if (data && data.login) {
+    window.location.href = data.login;
+    return true;
+  }
+  return false;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}/api${path}`, {
     ...options,
@@ -27,14 +49,31 @@ async function request(path, options = {}) {
     },
   });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) {
-    // رمز غير صالح/منتهٍ — أزله.
-    clearToken();
+
+  if (handleUnauthorized(res, data)) {
+    // التحويل جارٍ — لا تُكمل، ولا تُظهر خطأً لجلسة انتهت طبيعياً.
+    return new Promise(() => {});
   }
+
   if (!res.ok) {
     throw new Error(data.error || `فشل الطلب (${res.status})`);
   }
   return data;
+}
+
+/** كما `request` لكن للردود الثنائية: المرفقات والتصدير. */
+async function requestBlob(path, failure) {
+  const res = await fetch(`${API_BASE}/api${path}`, {
+    headers: { ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
+  });
+
+  if (res.status === 401) {
+    const data = await res.json().catch(() => ({}));
+    if (handleUnauthorized(res, data)) return new Promise(() => {});
+  }
+
+  if (!res.ok) throw new Error(failure);
+  return res.blob();
 }
 
 // ---- المصادقة ----
@@ -103,11 +142,10 @@ export const api = {
  * نستخدم fetch لأن الوسم <img>/<audio> لا يستطيع إرسال ترويسة المصادقة.
  */
 export async function fetchMediaUrl(key) {
-  const res = await fetch(`${API_BASE}/api/media?key=${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('تعذّر فتح المرفق. أعد المحاولة بعد قليل');
-  const blob = await res.blob();
+  const blob = await requestBlob(
+    `/media?key=${encodeURIComponent(key)}`,
+    'تعذّر فتح المرفق. أعد المحاولة بعد قليل',
+  );
   return { url: URL.createObjectURL(blob), type: blob.type };
 }
 
@@ -117,11 +155,7 @@ export async function downloadTransactionsCsv(filters = {}) {
   Object.entries(filters).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== '') qs.append(k, v);
   });
-  const res = await fetch(`${API_BASE}/api/transactions/export?${qs.toString()}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('تعذّر التصدير');
-  const blob = await res.blob();
+  const blob = await requestBlob(`/transactions/export?${qs.toString()}`, 'تعذّر التصدير');
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

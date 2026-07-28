@@ -51,8 +51,9 @@ members.post('/members/update', async (c) => {
 
   if (!userId) return c.json({ ok: false, error: 'هذا الحقل مطلوب' }, 400);
 
+  // البريد يُقرأ هنا لأن المركز يطابق صفّ الوصول به لا بالمعرّف المركزي.
   const member = await c.env.DB.prepare(
-    `SELECT user_id, is_active FROM members WHERE user_id = ?`,
+    `SELECT user_id, email, is_active FROM members WHERE user_id = ?`,
   )
     .bind(userId)
     .first();
@@ -85,12 +86,16 @@ members.post('/members/update', async (c) => {
   // لا تبليغ بلا تغيّر فعلي في الحالة.
   if (!!next === wasActive) return c.json({ ok: true, reported: null });
 
+  // عضوٌ بلا بريد لا يمكن تبليغ المركز عنه: جدول الوصول هناك يُطابَق
+  // بالبريد. والتغيير المحلي قائم على أي حال — والباب مغلق من هنا.
+  if (!member.email) return c.json({ ok: true, reported: false });
+
   // التغيير المحلي وقع أولاً فالوصول ممنوع الآن، ثم يُبلَّغ المركز.
   // وفشل التبليغ لا يُعيد فتح الباب — يُعاد المحاولة من اللوحة.
   try {
     await reportAccessChange(c.env, authConfig(c.env), {
-      userId,
-      status: next ? 'granted' : 'revoked',
+      email: member.email,
+      state: next ? 'granted' : 'revoked',
       reason: String(reason || '').trim() || undefined,
     });
     return c.json({ ok: true, reported: true });
