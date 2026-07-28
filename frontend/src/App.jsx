@@ -67,15 +67,21 @@ export default function App() {
       }
       clearToken();
     }
-    // جلسة الدخول الموحّد: تُمسح من KV ويُمسح كوكيها، ثم يعيد الجذرُ الطلبَ
-    // إلى المركز عبر الوسيط.
+    // جلسة الدخول الموحّد: تُمسح من KV ويُمسح كوكيها، ثم يقول الخادم الوجهة
+    // — وهي المركز لا جذر هذه المنصة.
+    //
+    // والجذر كان يعيد الخارجَ إلى شاشته في الحال: هو محميّ، فيحوّله الوسيط
+    // إلى `/go/NAF-Accountant`، وجلسة المركز لم تُمسّ فتُصدر رمزاً جديداً.
+    let next = '/';
     try {
-      await fetch('/auth/logout', { method: 'POST' });
+      const res = await fetch('/auth/logout', { method: 'POST' });
+      const data = await res.json().catch(() => null);
+      if (data && typeof data.next === 'string' && data.next) next = data.next;
     } catch (_) {
-      /* تجاهل */
+      /* تجاهل — الوجهة تبقى الجذر، والوسيط يردّه إلى الباب */
     }
     setUser(null);
-    window.location.href = '/';
+    window.location.href = next;
   };
 
   if (!ready) {
