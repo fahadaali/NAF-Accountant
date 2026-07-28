@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { Lock } from 'lucide-react';
 import Layout from './components/Layout.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Transactions from './pages/Transactions.jsx';
@@ -140,17 +141,23 @@ const ADMIN_PATHS = ['/recurring', '/team', '/members'];
  * شاشة المسار غير المطابق. النصّان من `naf-terms.md` §٧ · الأخطاء:
  * «لا صلاحية» و«غير موجود».
  *
- * وبلا أيقونة: `naf-icons.md` تُسجّل `ShieldX` لمنع الوصول إلى **منصة**
- * وحدها، ولا مقابل مسجَّل لصفحةٍ داخل منصة يدخلها القارئ. واختيار الأقرب
- * شكلاً هو ما تمنعه القاعدة، فتُترك حتى تُسجَّل.
+ * والأيقونة `Lock` من `naf-icons.md`: «محتوى مقفل يراه المستخدم ولا يفتحه»
+ * — وهي حال هذه الشاشة. ولا تُستعار `ShieldX`: تلك لمن رُدّ على باب منصة
+ * فلم يدخلها، واستعارتها هنا تجعل من يقف داخلها يقرأ أنه مُنع منها.
+ *
+ * وتظهر مع «لا صلاحية» وحدها: المسار غير الموجود ليس حكماً على القارئ،
+ * فلا قفل عليه.
  */
 function Unmatched({ isAdmin }) {
   const needsAdmin = !isAdmin && ADMIN_PATHS.includes(window.location.pathname);
   return (
     <main className="grid place-items-center p-6">
-      <p className="max-w-prose text-center text-base text-muted-foreground" role="status">
-        {needsAdmin ? 'لا تملك صلاحية الوصول لهذه الصفحة' : 'الصفحة غير موجودة'}
-      </p>
+      <div className="grid justify-items-center gap-4 max-w-prose text-center">
+        {needsAdmin && <Lock className="text-muted-foreground" size={40} aria-hidden="true" />}
+        <p className="text-base text-muted-foreground" role="status">
+          {needsAdmin ? 'لا تملك صلاحية الوصول لهذه الصفحة' : 'الصفحة غير موجودة'}
+        </p>
+      </div>
     </main>
   );
 }
