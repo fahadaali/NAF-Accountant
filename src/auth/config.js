@@ -106,7 +106,16 @@ export function authConfig(env) {
     publicPaths: PUBLIC_PATHS,
     publicPrefixes: PUBLIC_PREFIXES,
     onClaims: linkLegacyMember,
-    // رمز الخطأ وحده يُسجَّل — لا الرمز ولا السرّ ولا نصّ استجابة المركز.
-    onError: (code) => console.error('naf-auth:', code),
+
+    /**
+     * الرمز ورسالته وحدهما — ولا الرمز الموقّع ولا السرّ ولا نصّ استجابة
+     * المركز. والرسالة تحمل حالةَ الردّ لا جسمه، فهي آمنة ولازمة:
+     * `exchange_failed` وحده يحتمل سرّاً خاطئاً (٤٠١) ورمزاً مستهلَكاً
+     * (٤٠٠) وعضواً غير مخوَّل (٤٠٣) — والتفريق بينها بلا الحالة تخمين.
+     */
+    onError: (code, err) => {
+      const status = err && err.message && err.message !== code ? ` — ${err.message}` : '';
+      console.error(`naf-auth: ${code}${status}`);
+    },
   });
 }

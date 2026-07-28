@@ -17,6 +17,80 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_STORAGE);
 }
 
+/**
+ * انتهاء الجلسة يعيد المتصفّح إلى باب المركز.
+ *
+ * رمز المركز يعيش خمس عشرة دقيقة، فلوحةٌ مفتوحة أطول من ذلك تبلغ هذه
+ * الحال في مجرى العمل العادي لا عند خطأ. والوسيط يردّ ٤٠١ ومعه عنوان
+ * الباب لأن `fetch` لا يستطيع اتّباع تحويلة إلى أصل آخر بلا ترويسات
+ * `CORS` — فالتحويل يقع هنا، والمركز يعيد إصدار رمز بلا تدخّل من
+ * المستخدم ما دامت جلسته هناك قائمة.
+ *
+ * ويعيد `true` إن تولّى الردّ، فيتوقّف النداء عن المتابعة.
+ */
+/**
+ * تصحيح وجهة العودة في عنوان الباب.
+ *
+ * الوسيط يبني `next` من مسار الطلب الذي ردّ عليه، وهو هنا مسار برمجي:
+ * فينتهي الأمر بـ`next=/api/me` ويعود المستخدم بعد دخوله إلى ردّ JSON
+ * لا إلى الشاشة التي كان فيها. والمتصفّح وحده يعرف موضعه الحقيقي.
+ *
+ * ومسار الرفض يُستثنى: العودة إليه تعيد الدورة نفسها.
+ */
+function withCurrentNext(login) {
+  try {
+    const url = new URL(login, window.location.origin);
+    const here = window.location.pathname + window.location.search;
+    if (window.location.pathname === '/denied') url.searchParams.delete('next');
+    else url.searchParams.set('next', here);
+    return url.toString();
+  } catch (_) {
+    return login;
+  }
+}
+
+function handleUnauthorized(res, data) {
+  if (res.status !== 401) return false;
+  // رمز نظام الدخول السابق، إن كان لا يزال مخزّناً.
+  clearToken();
+  if (data && data.login) {
+    window.location.href = withCurrentNext(data.login);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * الرفض — عضو أُوقف ولوحتُه مفتوحة.
+ *
+ * لا يأتي عند الدخول بل في أول طلب تالٍ، وهو ما يفعله بالضبط التبليغُ
+ * العكسي من شاشة الأعضاء. وله صورتان حسب إصدار `naf-auth`:
+ *
+ * **٤٠٣ وجسم فيه `denied`** — الصورة الصحيحة، من `v2.0.1` فصاعداً.
+ *
+ * **تحويلة ٣٠٢ إلى `‎/denied`** — صورة `v2.0.0` المثبَّتة اليوم. وهي
+ * تحويلة *داخلية*، فيتبعها `fetch` بنجاح ويستقبل صفحة الواجهة نصّاً:
+ * فيصير `res.ok` صادقاً و`res.json()` يسقط، فتقرأ اللوحة كائناً فارغاً
+ * وتعرض شاشةً خاوية بلا سبب. ولذلك تُقرأ `redirected` و`url` — وهما
+ * الأثر الوحيد الباقي من التحويلة بعد اتّباعها.
+ *
+ * ويعيد `true` إن تولّى الردّ.
+ */
+function handleDenied(res, data) {
+  if (res.status === 403 && data && data.denied) {
+    window.location.href = data.denied;
+    return true;
+  }
+  if (res.redirected) {
+    const target = new URL(res.url, window.location.origin);
+    if (target.pathname === '/denied') {
+      window.location.href = target.pathname + target.search;
+      return true;
+    }
+  }
+  return false;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}/api${path}`, {
     ...options,
@@ -27,14 +101,31 @@ async function request(path, options = {}) {
     },
   });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) {
-    // رمز غير صالح/منتهٍ — أزله.
-    clearToken();
+
+  if (handleUnauthorized(res, data) || handleDenied(res, data)) {
+    // التحويل جارٍ — لا تُكمل، ولا تُظهر خطأً لجلسة انتهت أو عضوية أُوقفت.
+    return new Promise(() => {});
   }
+
   if (!res.ok) {
     throw new Error(data.error || `فشل الطلب (${res.status})`);
   }
   return data;
+}
+
+/** كما `request` لكن للردود الثنائية: المرفقات والتصدير. */
+async function requestBlob(path, failure) {
+  const res = await fetch(`${API_BASE}/api${path}`, {
+    headers: { ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
+  });
+
+  if (res.status === 401 || res.status === 403 || res.redirected) {
+    const data = await res.clone().json().catch(() => ({}));
+    if (handleUnauthorized(res, data) || handleDenied(res, data)) return new Promise(() => {});
+  }
+
+  if (!res.ok) throw new Error(failure);
+  return res.blob();
 }
 
 // ---- المصادقة ----
@@ -103,11 +194,10 @@ export const api = {
  * نستخدم fetch لأن الوسم <img>/<audio> لا يستطيع إرسال ترويسة المصادقة.
  */
 export async function fetchMediaUrl(key) {
-  const res = await fetch(`${API_BASE}/api/media?key=${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('تعذّر فتح المرفق. أعد المحاولة بعد قليل');
-  const blob = await res.blob();
+  const blob = await requestBlob(
+    `/media?key=${encodeURIComponent(key)}`,
+    'تعذّر فتح المرفق. أعد المحاولة بعد قليل',
+  );
   return { url: URL.createObjectURL(blob), type: blob.type };
 }
 
@@ -117,11 +207,7 @@ export async function downloadTransactionsCsv(filters = {}) {
   Object.entries(filters).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== '') qs.append(k, v);
   });
-  const res = await fetch(`${API_BASE}/api/transactions/export?${qs.toString()}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('تعذّر التصدير');
-  const blob = await res.blob();
+  const blob = await requestBlob(`/transactions/export?${qs.toString()}`, 'تعذّر التصدير');
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
