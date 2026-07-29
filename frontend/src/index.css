@@ -12,6 +12,9 @@
 /* رمز الريال U+20C1 — عنصر naf-currency من السجلّ */
 @import './naf/currency/naf-currency.css';
 
+/* هيكل ناف — الشريط والترويسة وقائمة الحساب والدرج. عنصر naf-app-shell */
+@import './naf/naf-app-shell.css';
+
 /* الجسر المؤقت (@config) والثيم الموازي `naf` حُذفا في الدفعة ١.
    المصدر الوحيد للرموز الآن هو naf-theme.css. */
 
