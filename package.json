@@ -30,7 +30,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "hono": "^4.6.14",
-    "naf-auth": "github:fahadaali/naf-auth#v3.2.0"
+    "naf-auth": "github:fahadaali/naf-auth#v3.3.0"
   },
   "devDependencies": {
     "wrangler": "^4.20.0"
