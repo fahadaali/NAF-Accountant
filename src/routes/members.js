@@ -29,7 +29,9 @@ members.get('/me', (c) => {
 members.use('/members/*', async (c, next) => {
   const who = await authenticate(c);
   if (!who) return c.json({ ok: false, error: 'unauthorized' }, 401);
-  if (!who.apiKey && who.role !== 'admin') {
+  /* ولا هنا: ترقيةُ عضوٍ وإيقافُه قرارُ بشرٍ يمرّ بالمركز ويُسجَّل باسمه.
+     انظر شرحه في `routes/admin.js` وفي `auth/middleware.js`. */
+  if (who.apiKey || who.role !== 'admin') {
     return c.json({ ok: false, error: 'هذه العملية تتطلب صلاحية مسؤول' }, 403);
   }
   await next();

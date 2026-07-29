@@ -9,15 +9,52 @@ import { honoMiddleware, timingSafeEqual } from 'naf-auth';
 import { authConfig } from './config.js';
 
 /**
- * المفتاح الآلي يمرّ قبل الوسيط.
+ * المفتاح الآلي يمرّ قبل الوسيط — على مساراته وحدها.
  *
  * `DASHBOARD_API_KEY` استعمال آليّ قائم — مزامنة و curl وأتمتة — لا متصفّح
  * فيه ولا كوكي، فلا معنى لتحويله إلى المركز. وبلا هذا الاستثناء تنكسر كل
  * أتمتة تعتمده، وهو انحدار في وظيفة قائمة.
  *
  * والمقارنة زمنية ثابتة، والمفتاح من الأسرار لا من الكود.
- * وما بعده يُعامَل في `authenticate` كما كان: مسؤولاً آلياً.
+ *
+ * ═══ لكنه كان يفتح كل شيء ═══
+ *
+ * `next()` قبل بناء الإعداد يعني أن المفتاح يتجاوز الدخول الموحّد على
+ * **كل** مسار، و`who.apiKey` كان يساوي `admin` في `admin.js` و`members.js`.
+ * فسرٌّ ثابتٌ واحد في ترويسة كان يفتح إدارة الأعضاء وترقيتهم وإيقافهم — وله
+ * من الخصائص: لا هوية (كل فعلٍ باسم «المفتاح»)، ولا انتهاء، ولا إبطال
+ * مركزيّ (لا يمسّه تعليقُ حسابٍ ولا سحبُ وصولٍ ولا القناة الخلفية)، ولا
+ * حدّ معدّل. فنافذةُ من يحمله **بلا نهاية** — وهو ما يُبطل «الإيقاف المركزي
+ * يسري خلال ربع ساعة» على هذه المنصة.
+ *
+ * وذلك لم يكن غرضه: التعليقات تقول «مزامنة و curl»، والمسارات المقصودة هي
+ * لوحةُ القراءة والتقارير. أمّا إدارةُ الأعضاء فقرارُ بشرٍ يمرّ بالمركز.
+ *
+ * فصار مقصوراً على سطحه المُعلن أدناه. وأيُّ مسار خارجه يمرّ بالدخول
+ * الموحّد كأيّ طلب — والقائمة صريحة لا نمطية: مسارٌ جديد يُحمى افتراضياً،
+ * وهو المطلوب.
  */
+const MACHINE_PATHS = new Set([
+  // لوحة القراءة والتصدير — الغرض المُعلن للمفتاح
+  '/api/transactions',
+  '/api/transactions/export',
+  '/api/transactions/delete',
+  '/api/media',
+  '/api/analytics',
+  '/api/stats',
+  '/api/accounts',
+  '/api/accounts/sync',
+  '/api/logs',
+  '/api/settings/status',
+  // التشغيل اليدوي للتقارير
+  '/api/reports/basecamp',
+  '/api/reports/financial',
+]);
+
+function isMachinePath(pathname) {
+  return MACHINE_PATHS.has(pathname);
+}
+
 function isMachineKey(c) {
   const key = c.env.DASHBOARD_API_KEY;
   if (!key) return false;
@@ -26,7 +63,25 @@ function isMachineKey(c) {
 }
 
 export const ssoMiddleware = (c, next) => {
-  if (isMachineKey(c)) return next();
+  /* والفحص على مسارات الواجهة البرمجية وحدها: طلبٌ يحمل المفتاح إلى صفحةٍ
+     أو أصلٍ ساكن يمرّ بالدخول الموحّد كأيّ طلب، فلا يُردّ من يجلب قشرة
+     التطبيق لأن في ترويسته مفتاحاً لا يخصّ الصفحات. */
+  if (isMachineKey(c) && new URL(c.req.url).pathname.startsWith('/api/')) {
+    if (isMachinePath(new URL(c.req.url).pathname)) {
+      /* أثرٌ يُقرأ: المفتاح لا هوية له، فبلا هذا السطر لا يقول شيءٌ من
+         سِجلّات المنصة ولا من سجلّ المركز إن كان الفاعل بشراً أم أتمتة. */
+      console.log('machine_key_used', new URL(c.req.url).pathname);
+      return next();
+    }
+    /* مفتاحٌ صحيح على مسارٍ خارج سطحه: يُردّ صراحةً ولا يسقط إلى الدخول
+       الموحّد. فالسقوط يعطي تحويلةً إلى المركز لعميلٍ لا متصفّح له، فيقرأ
+       صاحبُ الأتمتة صفحةَ HTML مكان سببِ الرفض. */
+    console.warn('machine_key_out_of_scope', new URL(c.req.url).pathname);
+    return c.json(
+      { ok: false, error: 'هذه العملية تتطلب صلاحية مسؤول' },
+      403,
+    );
+  }
   return honoMiddleware(authConfig(c.env))(c, next);
 };
 

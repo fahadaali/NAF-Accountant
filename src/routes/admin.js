@@ -13,8 +13,13 @@ const admin = new Hono();
 admin.use('*', async (c, next) => {
   const who = await authenticate(c);
   if (!who) return c.json({ ok: false, error: 'unauthorized' }, 401);
-  // مفتاح الـ API الآلي يُعامل كمسؤول؛ المستخدم يجب أن يكون admin.
-  if (!who.apiKey && who.role !== 'admin') {
+  /* المفتاح الآلي لم يعد يساوي مسؤولاً.
+     هذه الشاشة تُنشئ الحسابات وتوقفها وتدير قنوات تليجرام والعمليات
+     المتكرّرة — وهي أفعال بشرٍ لها هوية في سجلّ المركز، لا أفعال أتمتة.
+     والمفتاح لا هوية له ولا انتهاء ولا إبطال مركزيّ، فمنحُه إيّاها كان
+     يجعل نافذةَ من يحمله بلا نهاية. وسطحُه المُعلن في `auth/middleware.js`
+     يمنعه من بلوغ هذا المسار أصلاً — وهذا الحارس ثانيهما. */
+  if (who.apiKey || who.role !== 'admin') {
     return c.json({ ok: false, error: 'هذه العملية تتطلب صلاحية مسؤول.' }, 403);
   }
   await next();
