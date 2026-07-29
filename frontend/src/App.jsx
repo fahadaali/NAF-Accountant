@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Lock } from 'lucide-react';
+import { Button } from './naf/ui/button.jsx';
+import { Card } from './naf/ui/card.jsx';
 import Layout from './components/Layout.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Transactions from './pages/Transactions.jsx';
@@ -105,8 +107,33 @@ export default function App() {
     return <Denied />;
   }
 
+  /* لا شاشة دخولٍ محلية بعد الدخول الموحّد.
+     الوسيط يحرس `‎/`، فلا يبلغ هذه الشيفرةَ مجهولٌ أصلاً: من لا جلسة له
+     يُحوَّل إلى المركز قبل أن تُحمَّل الواجهة. فبلوغُ هذا الفرع يعني جلسةً
+     قائمة تعذّرت قراءةُ عضوها — عطلٌ عابر لا انعدامُ دخول.
+     وعرضُ نموذج بريدٍ وكلمة مرور عليه يدعو صاحبه إلى بابٍ لم يعد يُركَّب.
+     و`‎/auth/logout` يُنهي جلسة المنصة ويعيده إلى المركز ليدخل من جديد. */
   if (!user) {
-    return <Login onAuthed={setUser} />;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 text-center space-y-4">
+          <h1 className="text-2xl font-bold text-foreground">تعذّر الدخول</h1>
+          <p className="text-muted-foreground">تعذّر التحقق من دخولك. أعد المحاولة.</p>
+          <Button
+            className="w-full justify-center"
+            onClick={() => {
+              const form = document.createElement('form');
+              form.method = 'POST';
+              form.action = '/auth/logout';
+              document.body.appendChild(form);
+              form.submit();
+            }}
+          >
+            تسجيل الدخول
+          </Button>
+        </Card>
+      </div>
+    );
   }
 
   const isAdmin = user.role === 'admin';

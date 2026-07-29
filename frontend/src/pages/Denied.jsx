@@ -12,21 +12,27 @@ const REASONS = {
     text: 'عضويتك في هذه المنصة معطّلة. راجع مسؤول المنصة.',
     Icon: CircleSlash,
     tone: 'text-muted-foreground',
+    // المحاولة لا تُجدي: الحال في القاعدة لا في الجلسة.
+    retry: false,
   },
   not_member: {
     text: 'لا تملك صلاحية الوصول لهذه المنصة',
     Icon: ShieldX,
     tone: 'text-destructive',
+    retry: false,
   },
   bad_state: {
     text: 'انتهت جلسة دخولك. سجّل الدخول من جديد',
     Icon: CircleAlert,
     tone: 'text-destructive',
+    // هنا تُجدي: جلسةٌ انتهت تُستأنف بدخولٍ جديد.
+    retry: true,
   },
   auth_failed: {
     text: 'تعذّر التحقق من دخولك. أعد المحاولة.',
     Icon: CircleAlert,
     tone: 'text-destructive',
+    retry: true,
   },
 };
 
@@ -37,6 +43,8 @@ export default function Denied() {
     text: raw || REASONS.not_member.text,
     Icon: ShieldX,
     tone: 'text-destructive',
+    // سببٌ نصّيّ من المركز: قرارُ مسؤولٍ لا عطلُ جلسة، فلا تُعرض إعادة محاولة.
+    retry: false,
   };
   const { Icon } = reason;
 
@@ -46,9 +54,20 @@ export default function Denied() {
         <Icon className={`size-12 mx-auto ${reason.tone}`} aria-hidden="true" />
         <h1 className="text-2xl font-bold text-foreground">تعذّر الدخول</h1>
         <p className="text-muted-foreground">{reason.text}</p>
-        <Button className="w-full justify-center" onClick={() => { window.location.href = '/'; }}>
-          تسجيل الدخول
-        </Button>
+        {/* زرُّ الدخول لِما تُجدي فيه المحاولة وحده.
+
+            كان يُعرض في الحالات الأربع، وفي اثنتين منها يدور بلا نهاية:
+            من عضويتُه معطّلة أو لا صلاحية له يضغط «تسجيل الدخول» فيبلغ `‎/`
+            — وهو محميّ — فيحوّله الوسيط إلى المركز، وجلسةُ المركز قائمة
+            فيصدر رمزاً، فيعود إلى المنصة فيُردّ للسبب نفسه. فيقرأ أن الزرّ
+            لا يعمل، وهو يعمل — والمانع في القاعدة لا في الجلسة.
+
+            ونصُّ الحالتين يقول ما يُفعل أصلاً: «راجع مسؤول المنصة». */}
+        {reason.retry ? (
+          <Button className="w-full justify-center" onClick={() => { window.location.href = '/'; }}>
+            تسجيل الدخول
+          </Button>
+        ) : null}
       </Card>
     </div>
   );

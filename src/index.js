@@ -13,7 +13,8 @@ import reportsRoute, {
 } from './routes/reports.js';
 import dashboardRoute from './routes/dashboard.js';
 import basecampOauthRoute from './routes/basecamp_oauth.js';
-import authRoute from './routes/auth.js';
+// باب الدخول المحلي لم يعد يُركَّب — انظر الشرح عند موضع تركيبه أدناه.
+// import authRoute from './routes/auth.js';
 import adminRoute from './routes/admin.js';
 import membersRoute from './routes/members.js';
 import { ssoMiddleware, requireWriter } from './auth/middleware.js';
@@ -53,7 +54,26 @@ app.get('/api/health', (c) => c.json({ ok: true }));
 // مسارات الـ API
 // ملاحظة: المسارات العامة (auth, telegram, reports, basecamp_oauth) تُسجّل قبل
 // لوحة التحكم، لأن وسيط حماية اللوحة (use '*') يُطبّق على ما يليه من مسارات /api.
-app.route('/api', authRoute);
+/* ═══ باب الدخول المحلي لم يعد يُركَّب ═══
+
+   `routes/auth.js` نظامُ الدخول السابق: `‎/api/auth/login` يطابق كلمة مرورٍ
+   بجدول `users` القديم ويُصدر رمز جلسة، و`‎/api/auth/bootstrap` يُنشئ
+   مسؤولاً فيه.
+
+   وهو خلف وسيط الدخول الموحّد، فلا يبلغه مجهول — لكنّ ذلك ليس كافياً:
+
+   `bootstrap` لا يشترط إلا أن يكون جدول `users` القديم فارغاً، وحمايتُه
+   بـ`ADMIN_BOOTSTRAP_TOKEN` **اختيارية** بنصّ تعليقها. فأيّ عضوٍ داخلٍ —
+   ولو كان `viewer` — يستطيع أن يُدرج صفّاً دورُه `admin` ببريدٍ يختاره.
+   ثم يقرأ `linkLegacyMember` في `auth/config.js` ذلك الصفَّ عند أوّل دخولٍ
+   لصاحب البريد فيمنحه `admin` في `members`. فترقيةٌ تقع بلا مسؤولٍ يقرّرها.
+
+   والمصادقة صارت مركزية، فلا حاجة إلى بابٍ ثانٍ أصلاً. والملف يبقى في
+   مكانه للمراجعة ولا يُحذف — يكفي ألّا يُركَّب.
+
+   ويُستثنى منه ما لا يُنشئ ولا يمنح: لا شيء. الأربعة كلها إمّا تُصدر جلسةً
+   محلية وإمّا تقرأ حالة نظامٍ لم يعد قائماً. */
+// app.route('/api', authRoute);
 app.route('/api', telegramRoute);
 app.route('/api', reportsRoute);
 app.route('/api', basecampOauthRoute);
