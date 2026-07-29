@@ -85,8 +85,11 @@ function ShellBody({ children, user, onLogout, isAdmin }) {
             {/* الخروج داخل قائمة الحساب لا زرّاً ظاهراً بجوار مُبدِّل
                 المظهر: زرّان ومُبدِّل ثلاثيّ في ترويسة 375 بكسل يتزاحمون،
                 وإنهاء الجلسة لا رجعة فيه فلا يُترك تحت نقرة سهو. */}
+            {/* الاسم كما هو ولو كان فارغاً — البديل في المكوّن المسجَّل.
+                كان البريد يحلّ محلّ الاسم الغائب، والبريد معرّف دخول
+                لا يُخاطَب به أحد. */}
             <AccountMenu
-              name={user?.name ?? user?.email ?? 'مستخدم'}
+              name={user?.name}
               email={user?.email}
               appearance={<ThemeToggle />}
               onLogout={onLogout}

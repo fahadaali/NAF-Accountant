@@ -25,6 +25,8 @@ const TERMS = {
   account: "الحساب",
   signOut: "تسجيل الخروج",
   appearance: "المظهر",
+  /** حسابٌ بلا اسم مسجَّل. لا البريد مكانه — naf-terms.md §١٠. */
+  noName: "مستخدم",
 }
 
 /* ── حالة الدرج ── */
@@ -217,6 +219,9 @@ export function AccountMenu({
   const wrapRef = React.useRef(null)
   const triggerRef = React.useRef(null)
 
+  // البديل يُحسم هنا مرّة واحدة للمنصات الخمس
+  const shown = name?.trim() || TERMS.noName
+
   // النقر خارج القائمة يغلقها، وEsc يغلقها ويعيد التركيز إلى زرّها —
   // وإلا ضاع التركيز في أوّل الصفحة بعد الإغلاق بلوحة المفاتيح.
   React.useEffect(() => {
@@ -249,11 +254,12 @@ export function AccountMenu({
         onClick={() => setOpen((v) => !v)}
       >
         <span className="naf-avatar" aria-hidden="true">
-          {initial(name)}
+          {initial(shown)}
         </span>
+        {/* الاسم وحده في الترويسة — لا الدور ولا البريد. الدرجة والبريد
+            في صدر القائمة، حيث يُطلبان عن قصد. */}
         <span className="naf-account-text">
-          <span className="naf-account-name">{name}</span>
-          {role ? <span className="naf-account-role">{role}</span> : null}
+          <span className="naf-account-name">{shown}</span>
         </span>
         <ChevronDown size={16} className="naf-account-chevron" aria-hidden="true" />
       </button>
@@ -261,7 +267,8 @@ export function AccountMenu({
       {open ? (
         <div className="naf-account-menu" role="menu">
           <div className="naf-account-menu-header">
-            <div className="naf-account-name">{name}</div>
+            <div className="naf-account-name">{shown}</div>
+            {role ? <div className="naf-account-role">{role}</div> : null}
             {/* البريد يخلط لاتينياً بعربية الواجهة، فيُعزل اتجاهه */}
             {email ? <bdi className="naf-account-menu-email">{email}</bdi> : null}
           </div>

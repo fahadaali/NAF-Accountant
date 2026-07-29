@@ -19,10 +19,31 @@ const ROLES = ['admin', 'editor', 'viewer'];
 // ---- العضو الحالي ----
 // يُسجَّل قبل وسيط «مسؤول فقط» أدناه فلا يخضع له: كل عضو يقرأ نفسه.
 // اللوحة تعرفه من كوكي الجلسة لا من رمز في الترويسة.
-members.get('/me', (c) => {
+members.get('/me', async (c) => {
   const user = c.get('user');
   if (!user) return c.json({ ok: false, error: 'unauthorized' }, 401);
-  return c.json({ ok: true, user });
+
+  // الوسيط يحقن { id, role, perms } من الرمز الموقَّع — بلا اسم ولا بريد،
+  // فكانت الترويسة تعرض البريد مكان الاسم. الاسم مخزَّن في `members`
+  // منذ أول دخول (display_name من مطالبة name في المركز)، فيُقرأ هنا.
+  //
+  // ولا يُقرأ من الرمز: المستخدم قد يغيّر اسمه في المركز، ورمزه في يده
+  // لا يتغيّر حتى ينتهي. والصفّ يُحدَّث عند كل دخول.
+  let name = null;
+  let email = user.email ?? null;
+  if (user.id) {
+    const row = await c.env.DB.prepare(
+      `SELECT display_name, email FROM members WHERE user_id = ?`,
+    )
+      .bind(user.id)
+      .first();
+    if (row) {
+      name = row.display_name ?? null;
+      email = email ?? row.email ?? null;
+    }
+  }
+
+  return c.json({ ok: true, user: { ...user, name, email } });
 });
 
 // ---- الحماية: مسؤول فقط ----
