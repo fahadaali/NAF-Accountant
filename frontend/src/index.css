@@ -14,6 +14,7 @@
 
 /* هيكل ناف — الشريط والترويسة وقائمة الحساب والدرج. عنصر naf-app-shell */
 @import './naf/naf-app-shell.css';
+@import './naf-safe-area.css';
 
 /* الجسر المؤقت (@config) والثيم الموازي `naf` حُذفا في الدفعة ١.
    المصدر الوحيد للرموز الآن هو naf-theme.css. */
