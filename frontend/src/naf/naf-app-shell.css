@@ -227,6 +227,9 @@
   place-items: center;
   border-radius: var(--radius-md);
   border: none;
+  /* صفر صراحةً: منصةٌ تنسّق `button` المجرّد تحقن حشواً هنا فينتفخ الزرّ
+     عن مقاسه. وقع في مولّد التقارير — حشو 0.85rem على كل زرّ. */
+  padding: 0;
   background: none;
   color: var(--muted-foreground);
   cursor: pointer;
@@ -290,7 +293,10 @@
   text-align: start;
 }
 
+/* سطران لا سطر: كلاهما span، والافتراضي inline — فيلتصق البريد بالدرجة
+   ويُقرآن كلمةً واحدة («fahad@naf.saمسؤول النظام»). ظهر في التصيير. */
 .naf-account-name {
+  display: block;
   font-size: var(--text-sm);
   line-height: var(--text-sm--line-height);
   font-weight: 600;
@@ -300,6 +306,7 @@
 }
 
 .naf-account-role {
+  display: block;
   font-size: var(--text-xs);
   line-height: var(--text-xs--line-height);
   color: var(--muted-foreground);
