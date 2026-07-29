@@ -51,6 +51,28 @@ members.post('/members/update', async (c) => {
 
   if (!userId) return c.json({ ok: false, error: 'هذا الحقل مطلوب' }, 400);
 
+  /* ═══ حارسان على النفس ═══
+
+     لا يوقف مسؤولُ المنصة حسابَه ولا ينزع عن نفسه صفته. وكلاهما يقفل
+     الشاشة على صاحبها بلا طريق عودة: `‎/members/*` لا يُفتح إلا لمسؤول،
+     فآخرُ مسؤولٍ يخفض نفسه يترك المنصة بلا من يرقّي أحداً — ولا يُصلَح إلا
+     بكتابةٍ يدوية في القاعدة.
+
+     والمركز يحرس هذا في `functions/api/admin/users.js` منذ البداية، وهذه
+     الشاشة كانت لا تحرسه — والخطأ فيها أيسر وقوعاً: قائمةُ أعضاءٍ يظهر فيها
+     المسؤول بين البقية بلا ما يميّزه.
+
+     ويُستثنى المفتاح الآلي: لا نفس له تُحرَس. */
+  const actor = await authenticate(c);
+  if (actor && !actor.apiKey && actor.id === userId) {
+    if (isActive === false || isActive === 0) {
+      return c.json({ ok: false, error: 'لا يمكنك إيقاف حسابك' }, 400);
+    }
+    if (role && role !== 'admin') {
+      return c.json({ ok: false, error: 'لا يمكنك خفض صلاحيتك' }, 400);
+    }
+  }
+
   // البريد يُقرأ هنا لأن المركز يطابق صفّ الوصول به لا بالمعرّف المركزي.
   const member = await c.env.DB.prepare(
     `SELECT user_id, email, is_active, role FROM members WHERE user_id = ?`,
