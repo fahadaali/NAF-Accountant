@@ -12,9 +12,9 @@ import { handleBackchannelLogout, handleCallback, isPublicPath, reportAccessChan
 import { sessionKeyFor, userIndexKeyFor } from 'naf-auth/safe';
 import { bindCookieName } from 'naf-auth/middleware';
 
-const ISSUER = 'https://naf-id.pages.dev';
+const ISSUER = 'https://app.naflaw.sa';
 const PLATFORM = 'NAF-Accountant';
-const ORIGIN = 'https://naf-accountant.naflaw-sa.workers.dev';
+const ORIGIN = 'https://acc.naflaw.sa';
 const SECRET = 'the-platform-secret';
 const ALGO = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
 
@@ -156,7 +156,7 @@ const env = {
 };
 const config = authConfig(env);
 
-const R = (p, cookie) => new Request(`https://naf-accountant.naflaw-sa.workers.dev${p}`,
+const R = (p, cookie) => new Request(`https://acc.naflaw.sa${p}`,
   cookie ? { headers: { cookie } } : undefined);
 
 let pass = 0;
@@ -332,7 +332,7 @@ let sessionCookie;
 // -- ١١ب: شكل الردّ يتبع طبيعة الطلب لا بادئة المسار --
 {
   const H = (p, headers) =>
-    new Request(`https://naf-accountant.naflaw-sa.workers.dev${p}`, { headers });
+    new Request(`https://acc.naflaw.sa${p}`, { headers });
 
   // تنقّلٌ إلى مسار برمجي — رابط تنزيل يفتحه المستخدم. تحويلة لا JSON،
   // وإلا عُرض عليه نصّ خام مكان أن يعود إلى الدخول.
