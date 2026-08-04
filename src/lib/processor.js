@@ -18,7 +18,11 @@ import {
   isMessageProcessed,
   findSimilarPostedToday,
 } from './db.js';
-import { sendTelegramMessage, downloadTelegramFile } from '../services/telegram.js';
+import {
+  sendTelegramMessage,
+  downloadTelegramFile,
+  diagnoseWebhook,
+} from '../services/telegram.js';
 import { transcribeAudio } from '../services/transcription.js';
 import {
   analyzeTransaction,
@@ -516,6 +520,69 @@ function formatProbeReport(report) {
   );
 }
 
+/**
+ * تقرير حالة القناة والمنصة، يُقرأ داخل المحادثة.
+ *
+ * يشمل الطرفين معاً: الوارد (ويبهوك تليجرام) والصادر (الرمز)، ثم ما يلزم
+ * لإتمام عملية (شجرة الحسابات ومفاتيح الخدمات). فالسؤال «هل رُحّل القيد
+ * ولم يصلني الرد أم المنصة متوقفة؟» له هنا جوابٌ واحد لا يحتاج تخميناً.
+ */
+async function formatHealthReport(env, chatId) {
+  const mark = (ok) => (ok ? '✅' : '❌');
+
+  let accounts = 0;
+  let dbError = null;
+  try {
+    accounts = (await getActiveAccounts(env.DB)).length;
+  } catch (e) {
+    dbError = e.message || String(e);
+  }
+
+  const report = await diagnoseWebhook(env);
+  const w = report.webhook;
+
+  /* كل سطر يقول حاله بالكلمة لا بالعلامة وحدها: العلامة تُقرأ بسرعة، لكن
+     قارئ الشاشة ينطقها باسمٍ غير مقصود، ورسالةً منقولةً قد تُجرَّد منها. */
+  const state = (ok, good, bad) => `${mark(ok)} ${ok ? good : bad}`;
+
+  const lines = [
+    `<b>حالة المحاسب الذكي</b> — ${state(report.healthy, 'سليمة', 'تحتاج إصلاحاً')}`,
+    '',
+    `<b>القناة الواردة</b>`,
+    `${mark(!!report.bot)} البوت: ${report.bot ? iso('@' + report.bot) : 'رمز البوت لا يعمل'}`,
+    `${mark(!!w && !!w.url)} الويبهوك: ${w && w.url ? `<code>${w.url}</code>` : 'غير مسجّل'}`,
+  ];
+  if (report.expectedUrl) {
+    const same = !!w && w.url === report.expectedUrl;
+    lines.push(
+      `${mark(same)} المطابقة: ` +
+        (same ? 'الرابط مطابق للمنصة' : `غير مطابق — المتوقّع <code>${report.expectedUrl}</code>`)
+    );
+  }
+  if (w) {
+    lines.push(`${mark(w.pendingUpdateCount === 0)} تحديثات معلّقة: ${iso(w.pendingUpdateCount)}`);
+    if (w.lastErrorMessage) lines.push(`⚠️ آخر خطأ تسليم: ${w.lastErrorMessage}`);
+  }
+  lines.push(`${state(report.secretSet, 'سرّ الويبهوك مضبوط', 'سرّ الويبهوك غير مضبوط')}`);
+
+  lines.push(
+    '',
+    `<b>ما يلزم لإتمام عملية</b>`,
+    `${mark(!dbError)} قاعدة البيانات: ${dbError ? dbError : 'تعمل'}`,
+    `${mark(accounts > 0)} شجرة الحسابات: ${iso(accounts)} حساباً قابلاً للترحيل`,
+    state(!!env.CLAUDE_API_KEY, 'مفتاح التحليل مضبوط', 'مفتاح التحليل غير مضبوط'),
+    state(!!env.WAFEQ_API_KEY, 'مفتاح وافق مضبوط', 'مفتاح وافق غير مضبوط'),
+    '',
+    `🆔 معرّف هذه المحادثة: <code>${chatId}</code>`
+  );
+
+  if (!report.healthy) {
+    lines.push('', '<b>ما يحتاج إصلاحاً</b>', ...report.problems.map((p) => `• ${p}`));
+  }
+
+  return lines.join('\n');
+}
+
 /** نص المساعدة (يظهر عند /help أو /start أو «مساعدة»). */
 const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانونية</b>
 
@@ -548,6 +615,7 @@ const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانوني
 
 <b>4) أوامر أخرى</b>
 • <code>جديد</code> — إلغاء أي عملية جارية والبدء من نظيف
+• <code>حالة</code> — فحص القناة والمنصة ومعرّف هذه المحادثة
 • <code>تشخيص</code> — فحص اتصال المرفقات بوافق (قراءة فقط)
 • <code>/help</code> — هذه الرسالة
 
@@ -577,13 +645,59 @@ function looksLikePdf(document) {
   );
 }
 
+/**
+ * إبلاغ المستخدم بفشلٍ ما، وتسجيلُ فشل الإبلاغ نفسه.
+ *
+ * فشلُ `sendTelegramMessage` كان يُبتلع بتعليق «تجاهل». وهو أخطر ما يُبتلع:
+ * رمزُ بوتٍ بُدّل، أو حدُّ معدّل، يجعل **كل** رسالة تفشل — فيرى المستخدم
+ * صمتاً تامّاً في كل مسار، ولا يبقى في أي سجلّ سطرٌ يقول لماذا. فالسبب
+ * يُكتب هنا ولو تعذّر إيصاله.
+ */
+async function notifyFailure(env, chatId, text, transactionId = null) {
+  try {
+    await sendTelegramMessage(env, chatId, text);
+  } catch (e) {
+    await writeLog(env.DB, {
+      transactionId,
+      action: 'telegram_notify',
+      status: 'error',
+      errorDetails: `تعذّر إرسال رسالة الخطأ إلى ${chatId}: ${e.message || String(e)}`,
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // المعالجة الرئيسية لرسالة تليجرام.
+//
+// الغلاف والمعالج منفصلان عمداً: كان أوّلُ ستين سطراً من المعالجة يقع
+// **خارج** `try` — قراءةُ منع التكرار، وإنشاء صفّ العملية، وإرسالُ نصّ
+// المساعدة. وثلاثتها تلمس قاعدة البيانات أو الشبكة، فأيُّ عطلٍ فيها كان
+// يرفض وعد `waitUntil` بلا سجلّ ولا رسالة — أي صمتاً تامّاً قبل أن يُنشأ
+// للعملية صفٌّ تُنسب إليه. فصار المعالج كلّه داخل حارسٍ واحد.
 // ---------------------------------------------------------------------------
 export async function processTelegramUpdate(env, update) {
   const message = update.message || update.edited_message;
-  if (!message) return;
+  if (!message || !message.chat) return;
+  const chatId = message.chat.id;
 
+  try {
+    await handleTelegramMessage(env, message);
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    await writeLog(env.DB, {
+      action: 'process_error',
+      status: 'error',
+      errorDetails: `فشل قبل تسجيل العملية (chat=${chatId}): ${msg}`,
+    });
+    await notifyFailure(
+      env,
+      chatId,
+      `❌ <b>تعذّرت معالجة الرسالة</b>\n\nالسبب: ${msg}\n\nأعد المحاولة، أو تواصل مع الدعم إن تكرّر.`
+    );
+  }
+}
+
+async function handleTelegramMessage(env, message) {
   const chatId = message.chat.id;
   const messageId = message.message_id;
   const dateISO = messageDateISO(message.date);
@@ -606,6 +720,18 @@ export async function processTelegramUpdate(env, update) {
     } catch (e) {
       await sendTelegramMessage(env, chatId, `⚠️ تعذّر التشخيص: ${e.message}`);
     }
+    return;
+  }
+
+  // ---- أمر حالة القناة (لا يُسجّل كعملية) ----
+  // يجيب على السؤال الذي لا تجيب عنه اللوحة: هل يصل تليجرام إلى المنصة؟
+  // ووصولُ الجواب نفسه دليلٌ على أن الوارد يعمل — أمّا إن لم يصل، فالجواب
+  // في `‎/api/telegram/status` من اللوحة، أو في تنبيه المهمة الليلية.
+  if (
+    /^\/(status|health)\b/i.test(incomingText.trim()) ||
+    /^(حالة|الحالة|حالة البوت)$/.test(incomingText.trim())
+  ) {
+    await sendTelegramMessage(env, chatId, await formatHealthReport(env, chatId));
     return;
   }
 
@@ -1141,14 +1267,11 @@ export async function processTelegramUpdate(env, update) {
       status: 'error',
       errorDetails: msg,
     });
-    try {
-      await sendTelegramMessage(
-        env,
-        chatId,
-        `❌ <b>تعذّرت معالجة العملية</b>\n\nالسبب: ${msg}\n\nأعد المحاولة، أو تواصل مع الدعم إن تكرّر.`
-      );
-    } catch (_) {
-      /* تجاهل فشل إرسال رسالة الخطأ */
-    }
+    await notifyFailure(
+      env,
+      chatId,
+      `❌ <b>تعذّرت معالجة العملية</b>\n\nالسبب: ${msg}\n\nأعد المحاولة، أو تواصل مع الدعم إن تكرّر.`,
+      txId
+    );
   }
 }

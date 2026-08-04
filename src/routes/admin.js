@@ -6,6 +6,8 @@
 import { Hono } from 'hono';
 import { authenticate, hashPassword } from '../lib/auth.js';
 import { probeAttachmentApi } from '../services/wafeq.js';
+import { diagnoseWebhook, repairWebhook } from '../services/telegram.js';
+import { writeLog } from '../lib/db.js';
 
 const admin = new Hono();
 
@@ -197,6 +199,34 @@ admin.get('/wafeq-probe', async (c) => {
   }
   const report = await probeAttachmentApi(c.env);
   return c.json({ ok: true, report });
+});
+
+// ======================= حالة قناة تليجرام الواردة =======================
+//
+// الاتجاهان مستقلّان: المنصة قد ترسل ولا تستقبل. ورابطُ ويبهوك بقي على
+// نطاقٍ سابق، أو سرٌّ اختلف طرفاه، يقطعان الوارد وحده بلا أثرٍ في أي سجلّ
+// — لأن الطلب لا يصل. فالجواب يُطلب من تليجرام نفسه لا يُستنتج من هنا.
+//
+// وهما خلف حارس المسؤول لا خلف المفتاح الآلي: `‎POST` منهما يغيّر إعداد
+// البوت عند تليجرام، وذاك قرارُ بشرٍ له هوية في سجلّ المركز — والمفتاح لا
+// هوية له ولا انتهاء ولا إبطال مركزي. وسطحُه المُعلن في
+// `src/auth/middleware.js` لا يشملهما، وهو المقصود.
+
+admin.get('/telegram/status', async (c) => {
+  const report = await diagnoseWebhook(c.env);
+  return c.json({ ok: true, report });
+});
+
+/** إعادة تسجيل الويبهوك على رابط المنصة الحالي — إصلاحُ نقلِ النطاق. */
+admin.post('/telegram/webhook', async (c) => {
+  const who = await authenticate(c);
+  const { changed, reason, report } = await repairWebhook(c.env);
+  await writeLog(c.env.DB, {
+    action: 'telegram_webhook',
+    status: changed ? 'success' : 'info',
+    errorDetails: `إعادة تسجيل يدوية (بواسطة ${who?.id ?? 'مسؤول'}): ${reason}`,
+  });
+  return c.json({ ok: true, changed, reason, report });
 });
 
 export default admin;

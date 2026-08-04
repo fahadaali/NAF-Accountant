@@ -147,11 +147,32 @@ npm run deploy
 ```
 
 ### 6) ربط ويبهوك تليجرام
+
+الرابط يُقرأ من `PUBLIC_ORIGIN` في `wrangler.toml`، فالربط والإصلاح من داخل
+المنصة — لا حاجة إلى وضع رمز البوت في سطر أوامر:
+
+```js
+// من متصفّح مسجَّل الدخول على اللوحة (Console):
+await fetch('/api/telegram/webhook', { method: 'POST' }).then((r) => r.json());
+```
+
+وحالة القناة تُقرأ من `‎/api/telegram/status` — يفتحها المسؤول في المتصفّح
+مباشرة. وهي تُفحص كل ليلة تلقائياً، ويُصحَّح الرابط من نفسه إن اختلف عن
+`PUBLIC_ORIGIN`، ويُنبَّه المسؤولون عبر تليجرام.
+
+<details>
+<summary>الربط اليدوي (عند أول إنشاء للبوت، قبل أول نشر)</summary>
+
 ```bash
 curl "https://api.telegram.org/bot<TOKEN>/setWebhook" \
-  -d "url=https://naf-accountant.<subdomain>.workers.dev/api/telegram-webhook" \
+  -d "url=https://acc.naflaw.sa/api/telegram-webhook" \
   -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
 ```
+</details>
+
+> ⚠️ **الويبهوك مسجَّل عند تليجرام لا في هذا المستودع.** نقلُ المنصة إلى نطاق
+> جديد لا ينقله معها: يبقى يسلّم إلى النطاق السابق حتى يُعاد تسجيله. ولذلك
+> يُضبط `PUBLIC_ORIGIN` مع كل نقل نطاق — وهو ما يجعل الفحص الليلي يصلحه.
 
 ### 7) لوحة التحكم (Frontend)
 ```bash
