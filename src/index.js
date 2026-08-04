@@ -22,7 +22,7 @@ import { ssoCallback } from './auth/callback.js';
 import { ssoBackchannelLogout, ssoLogout } from './auth/logout.js';
 import { syncChartOfAccounts } from './services/sync.js';
 import { runDueRecurring } from './services/recurring.js';
-import { notifyAdmins } from './services/telegram.js';
+import { notifyAdmins, runWebhookWatchdog } from './services/telegram.js';
 import { writeLog } from './lib/db.js';
 
 const app = new Hono();
@@ -126,6 +126,10 @@ export default {
 
     switch (event.cron) {
       case '0 22 * * *': // كل ليلة — مزامنة الحسابات + العمليات المتكرّرة المستحقّة
+        /* وفحصُ القناة الواردة معها. المنصة كانت تعرف حال وافق وحسابها
+           ولا تعرف هل يصل إليها تليجرام أصلاً — وانقطاعُ الوارد لا يترك
+           أثراً في أي سجلّ هنا، لأن الطلب لا يبلغها. فتُسأل تليجرام. */
+        runSafe('telegram_webhook', 'فحص قناة تليجرام', () => runWebhookWatchdog(env));
         runSafe('cron_accounts_sync', 'مزامنة شجرة الحسابات', () => syncChartOfAccounts(env));
         runSafe('cron_recurring', 'تنفيذ العمليات المتكرّرة', () => runDueRecurring(env));
         return;
