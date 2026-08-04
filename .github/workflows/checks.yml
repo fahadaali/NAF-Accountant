@@ -1,0 +1,56 @@
+name: الفحوص
+
+# ═══ لماذا قبل الدمج لا بعده ═══
+#
+# `release.yml` يعمل على `push: main` — أي **بعد** أن يصير الكود في الفرع
+# الرئيسي وبعد أن ينشره Cloudflare. فبوابته تمنع إصدار وسمٍ من بناءٍ معطوب،
+# ولا تمنع وصوله إلى الإنتاج. وهذا لا يكفي لعقدين يُقاس عليهما هذا المستودع:
+#
+#   check:sso       — الدخول الموحّد: أيّ مسارٍ عامّ، ومن يُردّ، وكيف.
+#   check:telegram  — لا مسار يصمت: كل رفضٍ في باب الويبهوك يترك أثراً يُقرأ.
+#
+# والثاني بالذات: انحداره لا يظهر في أي شاشة — يعود البوت صامتاً كما كان،
+# ويُكتشف حين يشتكي مستخدم بعد يوم أو أسبوع. فيُفحص هنا، على طلب الدمج،
+# قبل أن يبلغ `main`.
+#
+# ولا شبكة في الفحصين: `fetch` وD1 مُستبدلان فيهما، فيصلحان لبيئة معزولة.
+
+on:
+  pull_request:
+    branches: [main]
+
+# طلب دمج يُدفع إليه مرّتين متتاليتين: تكفي نتيجة الدفعة الأخيرة.
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: تهيئة Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          # نفس مسار القفل المستعمل في `release.yml` — الجذر عامل Cloudflare.
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: تركيب الحزم
+        run: npm install --no-audit --no-fund
+
+      - name: عقد الدخول الموحّد
+        run: npm run check:sso
+
+      - name: عقد قناة تليجرام — لا مسار يصمت
+        run: npm run check:telegram
+
+      - name: بناء اللوحة
+        run: |
+          npm --prefix frontend install --no-audit --no-fund
+          npm --prefix frontend run build
