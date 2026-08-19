@@ -6,6 +6,19 @@
     <title>ناف القانونية — المحاسب الذكي</title>
     <!-- الخط من عنصر naf-font في السجلّ — مستضاف ذاتياً عبر @fontsource،
          بلا طلبات لخوادم خارجية. حلّ محلّ تحميل Cairo/Tajawal من Google Fonts. -->
+    <!-- المظهر قبل الرسم الأول: بدونه تومض الصفحة فاتحة ثم تسودّ.
+         المنطق كاملاً في src/lib/theme.js — هذا سطر التطبيق الأولي وحده. -->
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem('naf_theme');
+          var dark =
+            m === 'dark' ||
+            (m !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

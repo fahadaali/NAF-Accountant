@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
+import { getThemeMode, setThemeMode } from '../lib/theme.js';
 import { LogOut, LoaderCircle, CircleCheck, CircleSlash, Send, ChartColumn, CircleAlert, CircleHelp } from 'lucide-react';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
@@ -29,12 +30,20 @@ const ASR_LABELS = {
   cloudflare: { name: 'Cloudflare Whisper', note: 'دقة محدودة للعربية — أضِف مفتاح ElevenLabs لرفعها', variant: 'warning' },
 };
 
+// المصطلحات من naf-terms.md §٩ (المظهر والاتجاه).
+const THEME_OPTIONS = [
+  { v: 'light', label: 'الوضع الفاتح' },
+  { v: 'dark', label: 'الوضع الداكن' },
+  { v: 'system', label: 'حسب النظام' },
+];
+
 export default function Settings({ user, onLogout }) {
   const [status, setStatus] = useState(null);
   const [asr, setAsr] = useState(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [reporting, setReporting] = useState(false);
+  const [theme, setTheme] = useState(getThemeMode);
 
   const loadStatus = async () => {
     try {
@@ -100,6 +109,29 @@ export default function Settings({ user, onLogout }) {
             </div>
           </div>
           <Button variant="ghost" onClick={onLogout}><LogOut size={20} className="rtl:-scale-x-100" /> تسجيل الخروج</Button>
+        </div>
+      </Card>
+
+      {/* المظهر */}
+      <Card className="p-6">
+        <h3 className="font-bold text-foreground mb-1">المظهر</h3>
+        <p className="text-muted-foreground text-sm mb-4">
+          «حسب النظام» يتبع إعداد جهازك ويتغيّر معه.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {THEME_OPTIONS.map((o) => (
+            <Button
+              key={o.v}
+              variant={theme === o.v ? 'default' : 'outline'}
+              aria-pressed={theme === o.v}
+              onClick={() => {
+                setThemeMode(o.v);
+                setTheme(o.v);
+              }}
+            >
+              {o.label}
+            </Button>
+          ))}
         </div>
       </Card>
 

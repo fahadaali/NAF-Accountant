@@ -238,7 +238,11 @@ export default function Transactions({ isAdmin }) {
               </TableHeader>
               <TableBody>
                 {rows.map((t) => (
-                  <TableRow key={t.id} className="align-top" data-state={selected.has(t.id) ? 'bg-accent' : '' ? "selected" : undefined}>
+                  <TableRow
+                    key={t.id}
+                    className="align-top"
+                    data-state={selected.has(t.id) ? 'selected' : undefined}
+                  >
                     {isAdmin && (
                       <TableCell>
                         <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />

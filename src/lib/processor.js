@@ -660,7 +660,10 @@ export async function processTelegramUpdate(env, update) {
       const answer = (finalText || '').trim();
       await clearConversationState(env.DB, chatId);
       if (!/^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
-        await markControlReply(env, txId, 'cancel_duplicate');
+        // «مكرّرة» حالة مسجّلة في naf-terms.md ولم تكن تُنتَج أبداً — وهذا
+        // موضعها بالضبط: عملية مشابهة رفض المستخدم ترحيلها.
+        await updateTransaction(env.DB, txId, { status: 'duplicate' });
+        await writeLog(env.DB, { transactionId: txId, action: 'control_cancel_duplicate', status: 'info' });
         await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الترحيل. لم تُسجّل العملية.');
         return;
       }

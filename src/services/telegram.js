@@ -2,6 +2,8 @@
 // خدمة تليجرام (Telegram Bot API)
 // ============================================================================
 
+import { getAdminChats } from '../lib/db.js';
+
 const TG_API = 'https://api.telegram.org';
 
 /**
@@ -115,10 +117,7 @@ export async function isAuthorizedChat(env, chatId) {
  */
 export async function notifyAdmins(env, text) {
   try {
-    const { results } = await env.DB.prepare(
-      `SELECT chat_id FROM telegram_chats WHERE is_active = 1 AND is_admin = 1`
-    ).all();
-    let chats = (results || []).map((r) => r.chat_id);
+    let chats = await getAdminChats(env.DB);
 
     // احتياطي: أول معرّف في قائمة الأسرار.
     if (chats.length === 0) {

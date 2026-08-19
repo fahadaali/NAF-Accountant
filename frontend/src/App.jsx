@@ -11,10 +11,14 @@ import Recurring from './pages/Recurring.jsx';
 import Analytics from './pages/Analytics.jsx';
 import Login from './pages/Login.jsx';
 import { auth, getToken, clearToken } from './lib/api.js';
+import { watchSystemTheme } from './lib/theme.js';
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
+
+  // «حسب النظام» يتبع تبديل المستخدم في نظامه دون إعادة تحميل.
+  useEffect(watchSystemTheme, []);
 
   // عند الإقلاع: تحقّق من صلاحية الرمز المخزّن.
   useEffect(() => {

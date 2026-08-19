@@ -288,15 +288,11 @@ export async function findSimilarPostedToday(db, chatId, { type, total, contactN
 // محادثات تليجرام المصرّح لها
 // ----------------------------------------------------------------------------
 
-/** المحادثات النشطة المصرّح لها. */
-export async function getActiveChats(db) {
-  const { results } = await db
-    .prepare(`SELECT chat_id, label, is_admin FROM telegram_chats WHERE is_active = 1`)
-    .all();
-  return results || [];
-}
-
-/** محادثات المسؤولين (لتنبيهات فشل المهام). */
+/**
+ * محادثات المسؤولين (لتنبيهات فشل المهام).
+ * (حُذف getActiveChats المجاور: لم يكن يُستدعى من أي موضع، و isAuthorizedChat
+ * يستعلم عن محادثة بعينها لا عن القائمة كلّها.)
+ */
 export async function getAdminChats(db) {
   const { results } = await db
     .prepare(`SELECT chat_id FROM telegram_chats WHERE is_active = 1 AND is_admin = 1`)
