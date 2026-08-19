@@ -18,7 +18,7 @@ const DOC_PATHS = {
 };
 
 /**
- * حذف مستند من وافق (قيد يومية / فاتورة مشتريات / فاتورة بيع).
+ * حذف مستند من وافق (قيد محاسبي / فاتورة مشتريات / فاتورة مبيعات).
  * @param {string} type - manual_journal | purchase_bill | sales_invoice
  * @param {string} id   - معرّف المستند في وافق.
  */
@@ -152,7 +152,7 @@ export async function getWafeqDraftSummary(env) {
   }
 
   await pull('bills', 'فاتورة مشتريات', 'purchase_bill');
-  await pull('invoices', 'فاتورة بيع', 'sales_invoice');
+  await pull('invoices', 'فاتورة مبيعات', 'sales_invoice');
 
   return { count: items.length, items, partial };
 }
@@ -282,11 +282,11 @@ export async function createBillDraft(env, opts) {
 }
 
 // ============================================================================
-// فاتورة بيع (Invoice) — مسار الوارد (دفعات/اشتراكات) + ضريبة القيمة المضافة.
+// فاتورة مبيعات (Invoice) — مسار الوارد (دفعات/اشتراكات) + ضريبة القيمة المضافة.
 // ============================================================================
 
 /**
- * إنشاء فاتورة بيع كمسودة مع ضريبة القيمة المضافة.
+ * إنشاء فاتورة مبيعات كمسودة مع ضريبة القيمة المضافة.
  * @param {object} opts { contactId, date, currency, lineItems, taxRateId, attachmentIds }
  *   lineItems: [{ account, description, amount }]
  */

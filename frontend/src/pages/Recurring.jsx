@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { fmtAmount, CURRENCY } from '../lib/format.js';
+import Money from '../components/Money.jsx';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { CircleAlert, CircleCheck, CircleSlash } from 'lucide-react';
 import { Button } from '../naf/ui/button.jsx';
@@ -11,25 +11,39 @@ import ConfirmDialog from '../components/ConfirmDialog.jsx';
 import { Badge } from '../naf/ui/badge.jsx';
 
 const TYPE_AR = {
-  manual_journal: 'قيد يومية',
+  manual_journal: 'قيد محاسبي',
   purchase_bill: 'فاتورة مشتريات',
-  sales_invoice: 'فاتورة بيع',
+  sales_invoice: 'فاتورة مبيعات',
 };
 
-function templateSummary(json) {
+/** ملخّص القالب — المبلغ عبر Money من naf-currency لا نصّاً (CLAUDE.md §10-11). */
+function TemplateSummary({ json }) {
+  let r;
   try {
-    const r = JSON.parse(json);
-    const items =
-      r.type === 'manual_journal'
-        ? (r.manual_journal?.entries || []).map((e) => Number(e.debit || 0))
-        : r.type === 'purchase_bill'
-          ? (r.bill?.line_items || []).map((li) => Number(li.amount || 0))
-          : (r.invoice?.line_items || []).map((li) => Number(li.amount || 0));
-    const total = items.reduce((s, n) => s + n, 0);
-    return `${TYPE_AR[r.type] || r.type} — ${fmtAmount(total)} ${CURRENCY}${r.contact_name ? ` — ${r.contact_name}` : ''}`;
+    r = JSON.parse(json);
   } catch {
-    return '—';
+    return <span className="text-muted-foreground/60">—</span>;
   }
+  const items =
+    r.type === 'manual_journal'
+      ? (r.manual_journal?.entries || []).map((e) => Number(e.debit || 0))
+      : r.type === 'purchase_bill'
+        ? (r.bill?.line_items || []).map((li) => Number(li.amount || 0))
+        : (r.invoice?.line_items || []).map((li) => Number(li.amount || 0));
+  const total = items.reduce((s, n) => s + n, 0);
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-1">
+      <span>{TYPE_AR[r.type] || r.type}</span>
+      <span aria-hidden="true">—</span>
+      <Money value={total} />
+      {r.contact_name ? (
+        <>
+          <span aria-hidden="true">—</span>
+          <span>{r.contact_name}</span>
+        </>
+      ) : null}
+    </span>
+  );
 }
 
 export default function Recurring() {
@@ -132,7 +146,7 @@ export default function Recurring() {
             <Button className="flex-1 justify-center" type="submit">إضافة</Button>
           </div>
         </form>
-        <p className="text-xs text-muted-foreground mt-2">يوم التنفيذ من ١ إلى ٢٨ (لضمان وجوده في كل الشهور).</p>
+        <p className="text-xs text-muted-foreground mt-2">يوم التنفيذ من 1 إلى 28 (لضمان وجوده في كل الشهور).</p>
       </Card>
 
       <Card className="p-6">
@@ -158,7 +172,9 @@ export default function Recurring() {
                 rows.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-semibold text-foreground">{r.label}</TableCell>
-                    <TableCell className="text-foreground text-sm">{templateSummary(r.template_json)}</TableCell>
+                    <TableCell className="text-foreground text-sm">
+                      <TemplateSummary json={r.template_json} />
+                    </TableCell>
                     <TableCell className="text-foreground">{r.day_of_month}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{r.last_run_ym || 'لم يُنفّذ بعد'}</TableCell>
                     <TableCell>

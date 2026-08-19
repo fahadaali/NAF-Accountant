@@ -177,9 +177,9 @@ export default function Analytics() {
           value={months}
           onChange={(e) => setMonths(Number(e.target.value))}
         >
-          <option value={3}>آخر ٣ أشهر</option>
-          <option value={6}>آخر ٦ أشهر</option>
-          <option value={12}>آخر ١٢ شهراً</option>
+          <option value={3}>آخر 3 أشهر</option>
+          <option value={6}>آخر 6 أشهر</option>
+          <option value={12}>آخر 12 شهراً</option>
         </select>
       </div>
 
@@ -220,10 +220,10 @@ export default function Analytics() {
                     {data.monthly.map((m) => (
                       <TableRow key={m.month}>
                         <TableCell className="text-foreground">{monthLabel(m.month)}</TableCell>
-                        <TableCell className="tabular-nums text-foreground">{fmt(m.revenue)}</TableCell>
-                        <TableCell className="tabular-nums text-foreground">{fmt(m.expenses)}</TableCell>
-                        <TableCell className="tabular-nums font-semibold text-foreground">
-                          {fmt(m.revenue - m.expenses)}
+                        <TableCell className="text-foreground"><Money value={m.revenue} /></TableCell>
+                        <TableCell className="text-foreground"><Money value={m.expenses} /></TableCell>
+                        <TableCell className="font-semibold text-foreground">
+                          <Money value={m.revenue - m.expenses} />
                         </TableCell>
                       </TableRow>
                     ))}

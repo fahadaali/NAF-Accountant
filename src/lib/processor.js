@@ -144,11 +144,11 @@ function resultTotal(result) {
 /** وصف عربي لنوع العملية. */
 function describeType(type) {
   return type === 'manual_journal'
-    ? 'قيد يومية'
+    ? 'قيد محاسبي'
     : type === 'purchase_bill'
       ? 'فاتورة مشتريات'
       : type === 'sales_invoice'
-        ? 'فاتورة بيع'
+        ? 'فاتورة مبيعات'
         : type;
 }
 
@@ -199,7 +199,7 @@ function confirmManualJournal(result, wafeqId) {
     .join('\n');
   const total = entries.reduce((s, e) => s + Number(e.debit || 0), 0);
   return (
-    `✅ <b>تم إنشاء قيد يومية في وافق</b>\n\n` +
+    `✅ <b>تم إنشاء قيد محاسبي في وافق</b>\n\n` +
     `📅 التاريخ: ${esc(result.date)}\n${lines}\n\n` +
     `💰 الإجمالي: ${total}\n🧾 المرجع: ${esc(wafeqId) || 'غير متوفر'}\n\n` +
     `ℹ️ ملاحظة: القيود اليدوية تُرحّل مباشرة في وافق (لا تدعم المسودة عبر الـ API).`
@@ -224,7 +224,7 @@ function confirmInvoice(result, wafeqId, appliedVat = 0) {
   const sub = items.reduce((s, li) => s + Number(li.amount || 0), 0);
   const lines = items.map((li) => `• ${esc(li.account_name)} — ${esc(li.amount)}`).join('\n');
   return (
-    `✅ <b>تم إنشاء فاتورة بيع (مسودة) في وافق</b>\n\n` +
+    `✅ <b>تم إنشاء فاتورة مبيعات (مسودة) في وافق</b>\n\n` +
     `📅 التاريخ: ${esc(result.date)}\n👤 العميل: ${esc(result.contact_name) || 'غير محدّد'}\n${lines}\n\n` +
     vatLines(sub, Number(result.invoice?.vat_percent ?? 15), appliedVat) +
     `🧾 رقم المسودة: ${esc(wafeqId) || 'غير متوفر'}\n\n` +
@@ -436,29 +436,29 @@ async function postEdited(env, { txId, chatId, edited, accounts, messageId, cont
 /** نص المساعدة (يظهر عند /help أو /start أو «مساعدة»). */
 const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانونية</b>
 
-<b>١) تسجيل عملية</b> — أرسل نصاً أو تسجيلاً صوتياً أو صورة فاتورة:
-• <code>دفعت ٥٠٠ ريال إيجار المكتب</code>
-• <code>شريت أدوات بـ٣٠٠ من جرير</code>
-• <code>استلمت اشتراك ٥٧٥٠ من شركة الأفق</code>
+<b>1) تسجيل عملية</b> — أرسل نصاً أو تسجيلاً صوتياً أو صورة فاتورة:
+• <code>دفعت 500 ريال إيجار المكتب</code>
+• <code>شريت أدوات بـ300 من جرير</code>
+• <code>استلمت اشتراك 5750 من شركة الأفق</code>
 
 <b>التوجيه التلقائي:</b>
-• رواتب/تحويلات صادرة ← قيد يومية
+• رواتب/تحويلات صادرة ← قيد محاسبي
 • سداد/مشتريات ← فاتورة مشتريات (مسودة)
-• وارد من عميل ← فاتورة بيع + ضريبة ١٥٪ (مسودة)
+• وارد من عميل ← فاتورة مبيعات + ضريبة 15% (مسودة)
 
-<b>٢) تعديل عملية</b> — أرسل التعديل مباشرة:
-• <code>عدّل المبلغ إلى ٦٠٠</code>
+<b>2) تعديل عملية</b> — أرسل التعديل مباشرة:
+• <code>عدّل المبلغ إلى 600</code>
 • <code>خلّه بدون ضريبة</code>
 • <code>غيّر المورّد إلى جرير</code>
-• <code>عدّل المسودة قبل الأخيرة المبلغ ٩٠٠</code>
+• <code>عدّل المسودة قبل الأخيرة المبلغ 900</code>
 
-<b>٣) حذف عملية</b> (يطلب كتابة «تأكيد»):
+<b>3) حذف عملية</b> (يطلب كتابة «تأكيد»):
 • <code>احذف القيد</code>
 • <code>احذف فاتورة جرير</code>
 • <code>احذف المسودة mjou_xxx</code>
 • <code>احذف جميع المسودات في وافق</code>
 
-<b>٤) أوامر أخرى</b>
+<b>4) أوامر أخرى</b>
 • <code>جديد</code> — إلغاء أي عملية جارية والبدء من نظيف
 • <code>/help</code> — هذه الرسالة
 
