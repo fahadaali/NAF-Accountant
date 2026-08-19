@@ -13,8 +13,21 @@ telegram.post('/telegram-webhook', async (c) => {
   const env = c.env;
 
   // 1) التحقق من السر (Secret Token) الذي يرسله تليجرام في الترويسة.
+  //
+  // يفشل مغلقاً: كان الفحص كلّه يُتخطّى إن لم يُضبط السرّ، فيكفي من يعرف
+  // الرابط أن يرسل تحديثاً مزوّراً بمعرّف محادثة مصرّح له لينشئ قيوداً في
+  // وافق. غياب السرّ خطأ إعداد، لا إذن بالمرور.
+  if (!env.TELEGRAM_WEBHOOK_SECRET) {
+    await writeLog(env.DB, {
+      action: 'telegram_webhook',
+      status: 'error',
+      errorDetails: 'TELEGRAM_WEBHOOK_SECRET غير مضبوط — رُفض الطلب',
+    });
+    return c.json({ ok: false, error: 'webhook secret not configured' }, 503);
+  }
+
   const secret = c.req.header('X-Telegram-Bot-Api-Secret-Token');
-  if (env.TELEGRAM_WEBHOOK_SECRET && secret !== env.TELEGRAM_WEBHOOK_SECRET) {
+  if (secret !== env.TELEGRAM_WEBHOOK_SECRET) {
     return c.json({ ok: false, error: 'unauthorized' }, 401);
   }
 

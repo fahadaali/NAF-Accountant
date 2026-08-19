@@ -93,6 +93,20 @@ export async function deleteSession(db, token) {
   await db.prepare(`DELETE FROM sessions WHERE token = ?`).bind(token).run();
 }
 
+/**
+ * حذف الجلسات المنتهية.
+ * كانت تُنظَّف عند استعمالها وحدها، فينمو الجدول بلا حدّ. يُستدعى من الكرون
+ * الليلي.
+ * @returns {Promise<number>} عدد الصفوف المحذوفة.
+ */
+export async function purgeExpiredSessions(db) {
+  const res = await db
+    .prepare(`DELETE FROM sessions WHERE expires_at < ?`)
+    .bind(new Date().toISOString())
+    .run();
+  return res.meta?.changes ?? 0;
+}
+
 /** عدد المستخدمين الحاليين (لتحديد ما إذا كان الإعداد الأول مطلوباً). */
 export async function countUsers(db) {
   const row = await db.prepare(`SELECT COUNT(*) AS n FROM users`).first();

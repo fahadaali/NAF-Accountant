@@ -18,14 +18,28 @@ import adminRoute from './routes/admin.js';
 import { syncChartOfAccounts } from './services/sync.js';
 import { runDueRecurring } from './services/recurring.js';
 import { notifyAdmins, esc } from './services/telegram.js';
-import { requireSession } from './lib/auth.js';
+import { requireSession, purgeExpiredSessions } from './lib/auth.js';
 import { writeLog } from './lib/db.js';
 
 const app = new Hono();
 
-// CORS للسماح للوحة التحكم (Cloudflare Pages) بالاتصال.
+// ----------------------------------------------------------------------------
+// CORS — نفس الأصل افتراضياً.
+//
+// كان `origin: '*'` يفتح الـ API لكل نطاق. اللوحة تُخدَم من هذا الـ Worker
+// نفسه فلا تحتاجه أصلاً؛ ومن ينشرها منفصلة على Pages يضبط ALLOWED_ORIGINS
+// (قائمة بفواصل) — وهو أضيق وأصرح من النجمة.
+// ----------------------------------------------------------------------------
 app.use('/api/*', cors({
-  origin: '*',
+  origin: (origin, c) => {
+    if (!origin) return null; // طلب من نفس الأصل: لا ترويسة مطلوبة
+    const allowed = (c.env.ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (allowed.length) return allowed.includes(origin) ? origin : null;
+    return origin === new URL(c.req.url).origin ? origin : null;
+  },
   allowMethods: ['GET', 'POST', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
@@ -110,6 +124,9 @@ export default {
       case '0 22 * * *': // كل ليلة — مزامنة الحسابات + العمليات المتكرّرة المستحقّة
         runSafe('cron_accounts_sync', 'مزامنة شجرة الحسابات', () => syncChartOfAccounts(env));
         runSafe('cron_recurring', 'تنفيذ العمليات المتكرّرة', () => runDueRecurring(env));
+        runSafe('cron_sessions_purge', 'تنظيف الجلسات المنتهية', async () => ({
+          purged: await purgeExpiredSessions(env.DB),
+        }));
         return;
 
       case '0 6 1 * *': // أول الشهر — ملخص المسودات المعلّقة

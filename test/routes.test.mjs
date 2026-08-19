@@ -119,3 +119,45 @@ test('لا مسار /api محمي بلا مصادقة — جرد آلي', async 
     );
   }
 });
+
+// ---------------------------------------------------------------------------
+// الحماية عند حدود الإعداد
+// ---------------------------------------------------------------------------
+
+function callRaw(path, { env = ENV, method = 'GET', headers = {}, body } = {}) {
+  return app.fetch(new Request(`https://naf.test${path}`, { method, headers, body }), env, {
+    waitUntil() {},
+    passThroughOnException() {},
+  });
+}
+
+test('ويبهوك تليجرام يفشل مغلقاً بلا سرّ', async () => {
+  const res = await callRaw('/api/telegram-webhook', {
+    env: { DB: fakeDb() }, // بلا TELEGRAM_WEBHOOK_SECRET
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  assert.equal(res.status, 503, 'غياب السرّ خطأ إعداد لا إذن بالمرور');
+});
+
+test('ويبهوك تليجرام يرفض السرّ الخاطئ', async () => {
+  const env = { DB: fakeDb(), TELEGRAM_WEBHOOK_SECRET: 'right' };
+  assert.equal(
+    (await callRaw('/api/telegram-webhook', {
+      env,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': 'wrong' },
+      body: '{}',
+    })).status,
+    401
+  );
+});
+
+test('مسار إعداد بيسكامب يُغلق بعد اكتمال الربط', async () => {
+  const done = { DB: fakeDb(), BASECAMP_REFRESH_TOKEN: 'tok', BASECAMP_CLIENT_ID: 'id' };
+  assert.equal((await callRaw('/api/basecamp/start', { env: done })).status, 404);
+
+  const forced = { ...done, BASECAMP_OAUTH_SETUP: '1' };
+  assert.equal((await callRaw('/api/basecamp/start', { env: forced })).status, 302);
+});

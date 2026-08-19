@@ -19,6 +19,7 @@ export default function Team() {
   const [chatForm, setChatForm] = useState(EMPTY_CHAT);
   const [msg, setMsg] = useState('');
   const [pendingChat, setPendingChat] = useState(null);
+  const [pendingUser, setPendingUser] = useState(null);
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -50,6 +51,16 @@ export default function Team() {
 
   return (
     <div className="space-y-6">
+      {pendingUser && (
+        <ConfirmDialog
+          open={!!pendingUser}
+          onOpenChange={(v) => !v && setPendingUser(null)}
+          title="حذف المستخدم"
+          description={`سيُحذف حساب ${pendingUser.email} وتُنهى جلساته. لا يمكن التراجع عن هذا. للإيقاف المؤقت استخدم «تعطيل» بدلاً منه.`}
+          actionLabel="حذف"
+          onConfirm={() => run(() => api.deleteUser(pendingUser.id), 'تم حذف المستخدم.')}
+        />
+      )}
       {pendingChat && (
         <ConfirmDialog
           open={!!pendingChat}
@@ -116,6 +127,13 @@ export default function Team() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {users.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                    أنت العضو الوحيد. أضف زميلاً لمشاركة العمل.
+                  </TableCell>
+                </TableRow>
+              )}
               {users.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="text-foreground" dir="ltr">{u.email}</TableCell>
@@ -138,7 +156,7 @@ export default function Team() {
                         : <><CircleSlash size={16} aria-hidden="true" /> معطّل</>}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="flex gap-3">
                     <Button variant="link" size="sm"
                       className="px-0"
                       onClick={() =>
@@ -149,6 +167,12 @@ export default function Team() {
                       }
                     >
                       {u.is_active ? 'تعطيل' : 'تفعيل'}
+                    </Button>
+                    <Button variant="link" size="sm"
+                      className="px-0 text-destructive"
+                      onClick={() => setPendingUser(u)}
+                    >
+                      حذف
                     </Button>
                   </TableCell>
                 </TableRow>

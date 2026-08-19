@@ -15,6 +15,21 @@ const admin = new Hono();
 // كلّها فيحجبها عن صلاحية «مستخدم».
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * عدد المسؤولين النشطين غير هذا المستخدم.
+ * يمنع إقفال اللوحة على الجميع: لا شيء كان يمنع المسؤول الوحيد من تنزيل
+ * صلاحيته أو تعطيل نفسه، فتبقى المنصة بلا من يديرها.
+ */
+async function otherActiveAdmins(db, id) {
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND is_active = 1 AND id != ?`)
+    .bind(id)
+    .first();
+  return row ? row.n : 0;
+}
+
+const LAST_ADMIN = 'لا يمكن تنفيذ هذا: سيبقى النظام بلا مسؤول نشط. عيّن مسؤولاً آخر أولاً.';
+
 // ============================ المستخدمون ============================
 
 admin.get('/users', async (c) => {
@@ -56,6 +71,17 @@ admin.post('/users/update', async (c) => {
   const { id, role, is_active, password } = await c.req.json().catch(() => ({}));
   if (!id) return c.json({ ok: false, error: 'معرّف المستخدم مطلوب.' }, 400);
 
+  // تنزيل صلاحية آخر مسؤول أو تعطيله يُقفل اللوحة على الجميع.
+  const losesAdmin = role === 'user' || is_active === false || is_active === 0;
+  if (losesAdmin && (await otherActiveAdmins(c.env.DB, id)) === 0) {
+    const target = await c.env.DB.prepare(`SELECT role, is_active FROM users WHERE id = ?`)
+      .bind(id)
+      .first();
+    if (target && target.role === 'admin' && target.is_active) {
+      return c.json({ ok: false, error: LAST_ADMIN }, 409);
+    }
+  }
+
   if (role && ['admin', 'user'].includes(role)) {
     await c.env.DB.prepare(`UPDATE users SET role = ? WHERE id = ?`).bind(role, id).run();
   }
@@ -77,6 +103,27 @@ admin.post('/users/update', async (c) => {
       .bind(hash, salt, id)
       .run();
   }
+  return c.json({ ok: true });
+});
+
+admin.post('/users/delete', async (c) => {
+  const denied = requireAdmin(c);
+  if (denied) return denied;
+  const { id } = await c.req.json().catch(() => ({}));
+  if (!id) return c.json({ ok: false, error: 'معرّف المستخدم مطلوب.' }, 400);
+
+  if ((await otherActiveAdmins(c.env.DB, id)) === 0) {
+    const target = await c.env.DB.prepare(`SELECT role, is_active FROM users WHERE id = ?`)
+      .bind(id)
+      .first();
+    if (target && target.role === 'admin' && target.is_active) {
+      return c.json({ ok: false, error: LAST_ADMIN }, 409);
+    }
+  }
+
+  // الجلسات تُحذف بـ ON DELETE CASCADE، ونحذفها صراحةً احتياطاً.
+  await c.env.DB.prepare(`DELETE FROM sessions WHERE user_id = ?`).bind(id).run();
+  await c.env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(id).run();
   return c.json({ ok: true });
 });
 
