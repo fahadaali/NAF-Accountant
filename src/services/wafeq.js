@@ -107,37 +107,54 @@ export async function postJournalEntryDraft(env, accounts, entries, description 
  * سحب ملخص المسودات من وافق (للتقرير الشهري).
  * المسودات الفعلية هي فواتير البيع والمشتريات (القيود اليدوية تُرحّل مباشرة).
  * مرِن: يتجاوز أي نوع يفشل جلبه بدل إفشال التقرير كاملاً.
- * @returns {Promise<{count:number, items:Array}>}
+ * @returns {Promise<{count:number, items:Array, partial:string[]}>}
+ *   partial: أنواع بلغت سقف الصفحات — العدد أدنى من الحقيقي.
  */
 export async function getWafeqDraftSummary(env) {
   const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
   const headers = { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` };
   const items = [];
+  const partial = []; // أنواع بلغت سقف الصفحات فبقي منها ما لم يُجلب
+
+  // ترقيم الصفحات إلزامي هنا: بلا متابعة next كان السقف ١٠٠ لكل نوع، فيَعِد
+  // «احذف جميع المسودات» بحذف N ويحذف أول ١٠٠، ويُنشر عدد مبتور في تقرير
+  // بيسكامب على أنه الإجمالي. نفس نمط sync.js تماماً.
+  const PAGE_GUARD = 50; // سقف صفحات يحمي من حلقة لا نهائية
 
   async function pull(path, label, docType) {
+    let url = `${base}/${path}/?status=DRAFT&page_size=100`;
+    let guard = 0;
+    let truncated = false;
     try {
-      const res = await fetch(`${base}/${path}/?status=DRAFT&page_size=100`, { headers });
-      if (!res.ok) return;
-      const data = await res.json();
-      const list = data.results || data.data || [];
-      for (const d of list) {
-        items.push({
-          type: label,
-          docType, // المفتاح الداخلي (لعمليات الحذف)
-          id: String(d.id || d.uuid || ''),
-          number: d.bill_number || d.invoice_number || '',
-          date: d.bill_date || d.invoice_date || d.date || '',
-        });
+      while (url && guard < PAGE_GUARD) {
+        guard++;
+        const res = await fetch(url, { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = data.results || data.data || [];
+        for (const d of list) {
+          items.push({
+            type: label,
+            docType, // المفتاح الداخلي (لعمليات الحذف)
+            id: String(d.id || d.uuid || ''),
+            number: d.bill_number || d.invoice_number || '',
+            date: d.bill_date || d.invoice_date || d.date || '',
+          });
+        }
+        url = data.next || null;
+        if (url && guard >= PAGE_GUARD) truncated = true;
       }
     } catch (_) {
       /* تجاهل نوعاً فشل جلبه */
     }
+    // لا اقتطاع صامت: من يقرأ العدد يجب أن يعلم أنه ناقص.
+    if (truncated) partial.push(label);
   }
 
   await pull('bills', 'فاتورة مشتريات', 'purchase_bill');
   await pull('invoices', 'فاتورة بيع', 'sales_invoice');
 
-  return { count: items.length, items };
+  return { count: items.length, items, partial };
 }
 
 // ============================================================================

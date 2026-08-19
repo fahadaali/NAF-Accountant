@@ -50,6 +50,12 @@ function arrayBufferToBase64(buffer) {
 // حد Claude لحجم الصورة (~5MB). نبقى دونه بهامش أمان.
 const MAX_IMAGE_BYTES = 4.8 * 1024 * 1024;
 
+// مهلة سياق المحادثة — رقم واحد لكل القراءات.
+// كانت ٦٠ في فحص حالات التأكيد و٣٠ في استرجاع السياق المتراكم، والقراءة
+// الثانية تحذف المنتهي: فبين الدقيقة ٣٠ و٦٠ يُرى الحوار قائماً ثم يُمحى
+// سياقه، فتُحلَّل إجابة المستخدم كعملية جديدة بلا أي إشعار.
+const CONVERSATION_TTL_MINUTES = 60;
+
 /**
  * كشف نوع الصورة الحقيقي من البايتات الأولى (magic bytes) بدل الوثوق بما
  * يعلنه تليجرام. يُرجع نوع MIME مدعوماً من Claude أو null إن كان غير مدعوم.
@@ -103,6 +109,18 @@ async function resolveTarget(env, chatId, spec) {
   return t
     ? { ok: true, target: t }
     : { ok: false, reason: n > 1 ? `لا توجد عملية رقم ${n} من الآخر.` : 'لا توجد عملية سابقة.' };
+}
+
+/**
+ * رسالة تحكّم («تأكيد»، «لا»، رقم اختيار) ليست عملية محاسبية.
+ *
+ * كانت تُوسم `posted` — أي «مُرحّلة» — فتُحتسب في بطاقة «مسودات في وافق»
+ * وتظهر في جدول العمليات صفّاً مُرحّلاً بلا مستند في وافق. الصفّ يبقى
+ * (يمنع إعادة الويبهوك معالجتها مرتين) لكن بحالته الصادقة: مستلمة.
+ */
+async function markControlReply(env, txId, action) {
+  await updateTransaction(env.DB, txId, { status: 'received' });
+  await writeLog(env.DB, { transactionId: txId, action: `control_${action}`, status: 'info' });
 }
 
 /** سطر وصفي موجز لعملية. */
@@ -286,6 +304,9 @@ async function finalizeAndPost(env, ctx) {
   const { txId, chatId, result, accounts, messageId, contactId, mediaR2Key, mediaType, prefix } = ctx;
 
   let attachmentIds = [];
+  // فشل الرفع لا يُفشل الترحيل، لكنه لا يمرّ صامتاً: المستخدم أرسل صورة
+  // فاتورة وسيظنّها مرفقة. نقولها في رسالة التأكيد نفسها.
+  let attachmentError = null;
   if (mediaR2Key && (result.type === 'purchase_bill' || result.type === 'sales_invoice')) {
     try {
       const obj = await env.MEDIA.get(mediaR2Key);
@@ -294,8 +315,12 @@ async function finalizeAndPost(env, ctx) {
         const fname = mediaR2Key.split('/').pop() || 'attachment.jpg';
         const attId = await uploadAttachment(env, buf, fname, mediaType || 'image/jpeg');
         if (attId) attachmentIds.push(attId);
+        else attachmentError = 'لم يُرجع وافق معرّفاً للمرفق';
+      } else {
+        attachmentError = 'تعذّر قراءة الملف من التخزين';
       }
     } catch (e) {
+      attachmentError = e.message;
       await writeLog(env.DB, {
         transactionId: txId,
         action: 'wafeq_attachment',
@@ -311,7 +336,12 @@ async function finalizeAndPost(env, ctx) {
   await updateTransaction(env.DB, txId, { wafeqDraftId: wafeqId, status: 'posted' });
   await writeLog(env.DB, { transactionId: txId, action: 'wafeq_post', status: 'success' });
   await clearConversationState(env.DB, chatId);
-  await sendTelegramMessage(env, chatId, (prefix || '') + confirm);
+
+  const attachmentNote = attachmentError
+    ? `\n\n⚠️ الصورة لم تُرفق بالمستند في وافق (${esc(attachmentError)}). المستند أُنشئ، والصورة محفوظة في اللوحة — أرفقها يدوياً إن لزم.`
+    : '';
+
+  await sendTelegramMessage(env, chatId, (prefix || '') + confirm + attachmentNote);
 }
 
 /**
@@ -363,6 +393,33 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
   });
   await writeLog(env.DB, { transactionId: txId, action: 'apply_edit', status: 'success' });
 
+  // القديم حُذف بالفعل. فإن فشل إنشاء البديل فالمستند ضاع من وافق — والصمت
+  // هنا يترك المستخدم يظنّ عمليته قائمة. نقولها صراحةً بنصّ العملية كاملاً
+  // ليعيد إرسالها.
+  try {
+    await postEdited(env, { txId, chatId, edited, accounts, messageId, contactId });
+  } catch (e) {
+    const msg = e && e.message ? e.message : String(e);
+    await updateTransaction(env.DB, txId, { status: 'failed', errorMessage: msg });
+    await writeLog(env.DB, {
+      transactionId: txId,
+      action: 'apply_edit',
+      status: 'error',
+      errorDetails: `فشل إنشاء البديل بعد حذف ${chosen.wafeqId}: ${msg}`,
+    });
+    await sendTelegramMessage(
+      env,
+      chatId,
+      `❌ <b>حُذفت العملية القديمة ولم تُنشأ الجديدة</b>\n\n` +
+        `السبب: ${esc(msg)}\n\n` +
+        `لم يبقَ للعملية مستند في وافق. أعد إرسالها كعملية جديدة:\n` +
+        `<code>${esc(edited.summary || '')}</code>`
+    );
+  }
+}
+
+/** ترحيل النسخة المعدّلة — مفصولة ليُمسَك فشلها بعد حذف القديمة. */
+async function postEdited(env, { txId, chatId, edited, accounts, messageId, contactId }) {
   await finalizeAndPost(env, {
     txId,
     chatId,
@@ -426,6 +483,25 @@ export async function processTelegramUpdate(env, update) {
   // ---- أمر المساعدة (لا يُسجّل كعملية) ----
   if (/^\/(help|start)\b/i.test(incomingText.trim()) || /^(مساعدة|المساعدة|الأوامر)$/.test(incomingText.trim())) {
     await sendTelegramMessage(env, chatId, HELP_TEXT);
+    return;
+  }
+
+  // ---- رسالة معدَّلة ----
+  // تحمل معرّف الرسالة الأصلية، فكان فحص التكرار أدناه يبتلعها بصمت: المسار
+  // مكتوب ولا يعمل أبداً. والتعديل بعد الترحيل يحتاج تعديل مستند وافق نفسه،
+  // وله مسار مخصّص («عدّل المبلغ إلى ٦٠٠»). فنقولها صراحةً بدل الصمت.
+  if (update.edited_message) {
+    await writeLog(env.DB, {
+      action: 'telegram_edited_message',
+      status: 'info',
+      errorDetails: `chat=${chatId} msg=${messageId}`,
+    });
+    await sendTelegramMessage(
+      env,
+      chatId,
+      'ℹ️ تعديل رسالة سابقة لا يُعالَج. لتصحيح عملية مُرحّلة أرسل التعديل رسالةً جديدة — مثل: ' +
+        '<code>عدّل المبلغ إلى 600</code>.'
+    );
     return;
   }
 
@@ -517,13 +593,13 @@ export async function processTelegramUpdate(env, update) {
     }
 
     // ---- تأكيد الحذف (رداً على سؤال التأكيد) ----
-    const pendingState = await getConversationState(env.DB, chatId, 60);
+    const pendingState = await getConversationState(env.DB, chatId, CONVERSATION_TTL_MINUTES);
     if (pendingState && pendingState.kind === 'confirm_delete') {
       const answer = (finalText || '').trim();
       await clearConversationState(env.DB, chatId);
 
       if (!/^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
-        await updateTransaction(env.DB, txId, { status: 'posted' });
+        await markControlReply(env, txId, 'cancel_delete');
         await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الحذف. لم يُحذف شيء.');
         return;
       }
@@ -537,16 +613,16 @@ export async function processTelegramUpdate(env, update) {
             await deleteDocument(env, d.docType, d.id);
             await env.DB.prepare(
               `UPDATE transactions SET status='deleted', updated_at=datetime('now')
-               WHERE wafeq_draft_id = ?`
+               WHERE wafeq_draft_id = ? AND telegram_chat_id = ?`
             )
-              .bind(d.id)
+              .bind(d.id, String(chatId))
               .run();
             done++;
           } catch (e) {
             failed.push(`${esc(d.id)}: ${esc(e.message)}`);
           }
         }
-        await updateTransaction(env.DB, txId, { status: 'posted' });
+        await markControlReply(env, txId, 'confirm_bulk_delete');
         await writeLog(env.DB, {
           transactionId: txId,
           action: 'wafeq_bulk_delete',
@@ -565,7 +641,7 @@ export async function processTelegramUpdate(env, update) {
       // --- حذف مستند واحد ---
       await deleteDocument(env, pendingState.docType, pendingState.wafeqId);
       await updateTransaction(env.DB, pendingState.targetTxId, { status: 'deleted' });
-      await updateTransaction(env.DB, txId, { status: 'posted' });
+      await markControlReply(env, txId, 'confirm_delete');
       await writeLog(env.DB, {
         transactionId: pendingState.targetTxId,
         action: 'wafeq_delete',
@@ -584,7 +660,7 @@ export async function processTelegramUpdate(env, update) {
       const answer = (finalText || '').trim();
       await clearConversationState(env.DB, chatId);
       if (!/^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
-        await updateTransaction(env.DB, txId, { status: 'posted' });
+        await markControlReply(env, txId, 'cancel_duplicate');
         await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الترحيل. لم تُسجّل العملية.');
         return;
       }
@@ -614,7 +690,7 @@ export async function processTelegramUpdate(env, update) {
       await clearConversationState(env.DB, chatId);
 
       if (isNaN(num) || num < 1 || num > options.length) {
-        await updateTransaction(env.DB, txId, { status: 'posted' });
+        await markControlReply(env, txId, 'invalid_choice');
         await sendTelegramMessage(env, chatId, '✔️ تم الإلغاء (رقم غير صحيح). أعد المحاولة.');
         return;
       }
@@ -658,9 +734,9 @@ export async function processTelegramUpdate(env, update) {
 
         // ============ حذف جماعي: كل المسودات في وافق ============
         if (intent === 'delete' && target.mode === 'all_drafts') {
-          const { count, items } = await getWafeqDraftSummary(env);
+          const { count, items, partial } = await getWafeqDraftSummary(env);
           if (count === 0) {
-            await updateTransaction(env.DB, txId, { status: 'posted' });
+            await markControlReply(env, txId, 'no_drafts');
             await sendTelegramMessage(env, chatId, 'ℹ️ لا توجد مسودات في وافق للحذف.');
             return;
           }
@@ -679,6 +755,9 @@ export async function processTelegramUpdate(env, update) {
             chatId,
             `⚠️ <b>تأكيد حذف جماعي</b>\n\nسيتم حذف <b>${count}</b> مسودة من وافق:\n${preview}` +
               `${count > 10 ? `\n… و${count - 10} غيرها` : ''}\n\n` +
+              ((partial || []).length
+                ? `⚠️ بلغ الجلب سقف الصفحات في: ${esc(partial.join('، '))} — قد تبقى مسودات لم تُجلب.\n\n`
+                : '') +
               `⛔ لا رجعة في هذا الإجراء. اكتب «تأكيد» للمتابعة، أو أي شيء آخر للإلغاء.`
           );
           return;
@@ -747,7 +826,7 @@ export async function processTelegramUpdate(env, update) {
     }
 
     // ---- استرجاع سياق حوار سابق (إن وُجد) ----
-    const prior = await getConversationState(env.DB, chatId);
+    const prior = await getConversationState(env.DB, chatId, CONVERSATION_TTL_MINUTES);
     let priorContext = null;
     if (prior) {
       priorContext = prior.accumulatedText || null;

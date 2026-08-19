@@ -9,8 +9,9 @@
     "deploy": "wrangler deploy",
     "test": "node --test \"test/*.test.mjs\"",
     "db:create": "wrangler d1 create naf-accountant-db",
-    "db:migrate": "wrangler d1 execute naf-accountant-db --file=./migrations/0001_init.sql --remote",
-    "db:migrate:local": "wrangler d1 execute naf-accountant-db --file=./migrations/0001_init.sql --local",
+    "db:migrate": "npm run db:apply -- --remote",
+    "db:migrate:local": "npm run db:apply -- --local",
+    "db:apply": "node ./scripts/migrate.mjs",
     "db:seed": "wrangler d1 execute naf-accountant-db --file=./migrations/0002_seed_chart_of_accounts.sql --remote",
     "r2:create": "wrangler r2 bucket create naf-accountant-media",
     "tail": "wrangler tail"

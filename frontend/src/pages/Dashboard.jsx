@@ -12,13 +12,13 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 // نفسه (CLAUDE.md §6) لا من درجة لوحة.
 const STAT_CARDS = [
   { key: 'total', label: 'إجمالي العمليات', Icon: Sigma, color: 'bg-accent text-primary' },
-  { key: 'posted', label: 'مسودات في وافق', Icon: FilePen, color: 'bg-success/10 text-success' },
+  { key: 'drafts', label: 'مسودات في وافق', Icon: FilePen, color: 'bg-success/10 text-success' },
   { key: 'analyzed', label: 'قيد التحليل', Icon: Bot, color: 'bg-warning/10 text-warning' },
   { key: 'failed', label: 'عمليات فاشلة', Icon: CircleAlert, color: 'bg-destructive/10 text-destructive' },
 ];
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ total: 0, byStatus: [] });
+  const [stats, setStats] = useState({ total: 0, drafts: 0, byStatus: [] });
   const [recent, setRecent] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -37,10 +37,13 @@ export default function Dashboard() {
     })();
   }, []);
 
-  const countFor = (status) =>
-    status === 'total'
-      ? stats.total
-      : stats.byStatus?.find((r) => r.status === status)?.count || 0;
+  // `drafts` يُحسب في الخادم على ما له مستند في وافق فعلاً — لا على حالة
+  // posted وحدها، فتلك كانت تضمّ ردود التحكّم فيتضخّم الرقم.
+  const countFor = (key) => {
+    if (key === 'total') return stats.total;
+    if (key === 'drafts') return stats.drafts ?? 0;
+    return stats.byStatus?.find((r) => r.status === key)?.count || 0;
+  };
 
   if (loading) return <p className="text-muted-foreground">جارٍ التحميل…</p>;
 

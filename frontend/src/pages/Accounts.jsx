@@ -21,7 +21,7 @@ const TYPE_LABELS = {
   expense: { label: 'مصروف', cls: 'bg-chart-1/10 text-chart-1' },
 };
 
-const EMPTY = { account_code: '', account_name: '', account_type: 'expense' };
+const EMPTY = { account_code: '', account_name: '', account_type: 'expense', wafeq_account_id: '' };
 
 export default function Accounts({ isAdmin }) {
   const [accounts, setAccounts] = useState([]);
@@ -47,7 +47,10 @@ export default function Accounts({ isAdmin }) {
   const submit = async (e) => {
     e.preventDefault();
     try {
-      await api.addAccount(form);
+      await api.addAccount({
+        ...form,
+        wafeq_account_id: form.wafeq_account_id.trim() || null,
+      });
       setForm(EMPTY);
       setMsg('تم حفظ الحساب بنجاح.');
       load();
@@ -90,33 +93,47 @@ export default function Accounts({ isAdmin }) {
       {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
       {/* نموذج إضافة حساب — للمسؤول فقط */}
-      <Card className="p-6" style={{ display: isAdmin ? undefined : 'none' }}>
-        <h3 className="font-bold text-foreground mb-4">إضافة / تعديل حساب</h3>
-        <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <Input
-            placeholder="رمز الحساب"
-            value={form.account_code}
-            onChange={(e) => setForm({ ...form, account_code: e.target.value })}
-            required
-          />
-          <Input
-            placeholder="اسم الحساب"
-            value={form.account_name}
-            onChange={(e) => setForm({ ...form, account_name: e.target.value })}
-            required
-          />
-          <select
-            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
-            value={form.account_type}
-            onChange={(e) => setForm({ ...form, account_type: e.target.value })}
-          >
-            {Object.entries(TYPE_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
-          </select>
-          <Button className="justify-center" type="submit">حفظ</Button>
-        </form>
-      </Card>
+      {isAdmin && (
+        <Card className="p-6">
+          <h3 className="font-bold text-foreground mb-1">إضافة / تعديل حساب</h3>
+          <p className="text-muted-foreground text-sm mb-4">
+            معرّف وافق شرط لاستعمال الحساب: البوت يستبعد كل حساب بلا معرّف، فلا يختاره في أي قيد.
+            المزامنة تملأه تلقائياً، وهذا الحقل للحالات التي تضيفها يدوياً.
+          </p>
+          <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+            <Input
+              placeholder="رمز الحساب"
+              value={form.account_code}
+              onChange={(e) => setForm({ ...form, account_code: e.target.value })}
+              required
+            />
+            <Input
+              placeholder="اسم الحساب"
+              value={form.account_name}
+              onChange={(e) => setForm({ ...form, account_name: e.target.value })}
+              required
+            />
+            <select
+              aria-label="نوع الحساب"
+              className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+              value={form.account_type}
+              onChange={(e) => setForm({ ...form, account_type: e.target.value })}
+            >
+              {Object.entries(TYPE_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v.label}</option>
+              ))}
+            </select>
+            <Input
+              placeholder="معرّف وافق (acc_…)"
+              dir="ltr"
+              className="text-start"
+              value={form.wafeq_account_id}
+              onChange={(e) => setForm({ ...form, wafeq_account_id: e.target.value })}
+            />
+            <Button className="justify-center" type="submit">حفظ</Button>
+          </form>
+        </Card>
+      )}
 
       {/* جدول الحسابات */}
       <Card className="p-6">

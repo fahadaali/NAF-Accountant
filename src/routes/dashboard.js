@@ -243,7 +243,15 @@ dashboard.get('/stats', async (c) => {
     `SELECT status, COUNT(*) AS count FROM transactions GROUP BY status`
   ).all();
   const total = (results || []).reduce((s, r) => s + r.count, 0);
-  return c.json({ ok: true, total, byStatus: results || [] });
+
+  // «مسودات في وافق» = ما له مستند في وافق فعلاً، لا كل ما حالته posted:
+  // ردود التحكّم كانت تُحتسب فيها فتضخّم الرقم.
+  const draftsRow = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM transactions
+     WHERE status = 'posted' AND wafeq_draft_id IS NOT NULL AND wafeq_draft_id != ''`
+  ).first();
+
+  return c.json({ ok: true, total, byStatus: results || [], drafts: draftsRow?.n ?? 0 });
 });
 
 // ---- شجرة الحسابات ----

@@ -85,6 +85,64 @@ ${bankLine}
 املأ فقط الكائن المطابق لـ "type" واترك الآخرين فارغين (arrays فارغة). لا تضف أي تعليقات.`;
 }
 
+// اسم النموذج الافتراضي في موضع واحد — كان مكرّراً في خمسة نداءات.
+const DEFAULT_MODEL = 'claude-opus-4-8';
+
+/**
+ * نداء واحد إلى Claude يمرّ منه كل استدعاء في هذا الملف.
+ *
+ * يفحص stop_reason: بلوغ الحدّ يعني رداً مبتوراً — وكان يمرّ صامتاً فيُنشر
+ * تقرير مالي مقطوع في منتصف جدول، أو يُحلَّل نصّ صوتي ناقص.
+ *
+ * @param {object} opts
+ * @param {string} opts.system
+ * @param {string|Array} opts.content نصّ، أو مصفوفة كتل (لإرسال صورة).
+ * @param {number} opts.maxTokens
+ * @param {string} [opts.label] اسم يظهر في رسالة الخطأ.
+ * @returns {Promise<string>} نصّ الرد.
+ */
+async function callClaude(env, { system, content, maxTokens = 2048, label = 'Claude' }) {
+  const body = {
+    model: env.CLAUDE_MODEL || DEFAULT_MODEL,
+    max_tokens: maxTokens,
+    system,
+    messages: [
+      { role: 'user', content: typeof content === 'string' ? [{ type: 'text', text: content }] : content },
+    ],
+  };
+
+  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    throw new Error(`${label} API failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+
+  if (data.stop_reason === 'max_tokens') {
+    throw new Error(
+      `${label}: الرد بلغ حدّ ${maxTokens} رمزاً فجاء مبتوراً. قسّم المُدخل أو ارفع الحدّ.`
+    );
+  }
+  if (data.stop_reason === 'refusal') {
+    throw new Error(`${label}: رفض النموذج إكمال الطلب.`);
+  }
+
+  return (data.content || [])
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n')
+    .trim();
+}
+
 function extractJson(text) {
   const trimmed = (text || '').trim();
   try {
@@ -134,31 +192,12 @@ export async function analyzeTransaction(env, opts) {
   }
   userContent.push({ type: 'text', text: userText || '(بدون نص)' });
 
-  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
-      max_tokens: 2048,
-      system,
-      messages: [{ role: 'user', content: userContent }],
-    }),
+  const textPart = await callClaude(env, {
+    system,
+    content: userContent,
+    maxTokens: 2048,
+    label: 'تحليل العملية',
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Claude API failed: ${res.status} ${body}`);
-  }
-
-  const data = await res.json();
-  const textPart = (data.content || [])
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
 
   const result = extractJson(textPart);
   if (!result || !result.type) {
@@ -185,29 +224,12 @@ export async function refineTranscript(env, rawText) {
 - أعد النص المصحّح فقط، دون أي شرح أو مقدمة أو تنسيق.`;
 
   try {
-    const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': env.CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: env.CLAUDE_MODEL || 'claude-opus-4-8',
-        max_tokens: 1024,
-        system,
-        messages: [{ role: 'user', content: [{ type: 'text', text }] }],
-      }),
-    });
-    if (!res.ok) return text;
-    const data = await res.json();
-    const out = (data.content || [])
-      .filter((c) => c.type === 'text')
-      .map((c) => c.text)
-      .join('\n')
-      .trim();
+    // الحدّ يتبع طول النصّ: التفريغ الطويل كان يُبتر عند 1024 بصمت.
+    const maxTokens = Math.min(4096, Math.max(1024, Math.ceil(text.length / 2) + 512));
+    const out = await callClaude(env, { system, content: text, maxTokens, label: 'تدقيق التفريغ' });
     return out || text;
   } catch (_) {
+    // التدقيق تحسين لا شرط — عند أي فشل (ومنه البتر) نُبقي النصّ الأصلي.
     return text;
   }
 }
@@ -245,31 +267,18 @@ export async function matchContactWithClaude(env, mentionedName, candidates) {
 جهات الاتصال الموجودة:
 ${numbered}`;
 
-  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
-      max_tokens: 300,
+  let textPart;
+  try {
+    textPart = await callClaude(env, {
       system,
-      messages: [{ role: 'user', content: [{ type: 'text', text: user }] }],
-    }),
-  });
-
-  if (!res.ok) {
+      content: user,
+      maxTokens: 300,
+      label: 'مطابقة جهة الاتصال',
+    });
+  } catch (_) {
     // عند فشل المطابقة الذكية، اعتبرها جديدة (الأكثر أماناً من نسبها لخطأ).
     return { decision: 'new', index: 0, candidates: [] };
   }
-
-  const data = await res.json();
-  const textPart = (data.content || [])
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
 
   try {
     const parsed = extractJson(textPart);
@@ -310,60 +319,15 @@ ${JSON.stringify(pnl).slice(0, 12000)}
 # بيانات ميزان المراجعة (JSON):
 ${JSON.stringify(trialBalance).slice(0, 12000)}`;
 
-  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
-      max_tokens: 4096,
-      system,
-      messages: [{ role: 'user', content: [{ type: 'text', text: user }] }],
-    }),
+  // 16000: التقرير جداول طويلة، و4096 كانت تبتره في المنتصف فيُنشر ناقصاً.
+  const html = await callClaude(env, {
+    system,
+    content: user,
+    maxTokens: 16000,
+    label: 'تنسيق التقرير المالي',
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Claude report format failed: ${res.status} ${body}`);
-  }
-  const data = await res.json();
-  const html = (data.content || [])
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n')
-    .trim();
   if (!html) throw new Error('Claude لم يُنتج محتوى للتقرير');
   return html;
-}
-
-/** استدعاء Claude وإرجاع النص فقط (مساعد داخلي). */
-async function callClaude(env, system, userText, maxTokens = 2048) {
-  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: 'user', content: [{ type: 'text', text: userText }] }],
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Claude API failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
-  }
-  const data = await res.json();
-  return (data.content || [])
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n')
-    .trim();
 }
 
 /**
@@ -415,7 +379,7 @@ ${list || '(لا يوجد)'}
 ${text}`;
 
   try {
-    const out = await callClaude(env, system, user, 600);
+    const out = await callClaude(env, { system, content: user, maxTokens: 600, label: 'تصنيف النيّة' });
     const parsed = extractJson(out);
     const intent = ['new', 'edit', 'delete'].includes(parsed.intent) ? parsed.intent : 'new';
     const t = parsed.target || {};
@@ -480,7 +444,7 @@ ${JSON.stringify(previous)}
 # التعديل المطلوب:
 ${instruction}`;
 
-  const out = await callClaude(env, system, user, 2048);
+  const out = await callClaude(env, { system, content: user, maxTokens: 2048, label: 'تطبيق التعديل' });
   const result = extractJson(out);
   if (!result || !result.type) throw new Error('تعذّر إنتاج النسخة المعدّلة من العملية');
   result.status = 'ready';
