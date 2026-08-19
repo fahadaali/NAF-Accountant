@@ -315,6 +315,7 @@
 | Appearance | المظهر | الشكل |
 | Light mode | الوضع الفاتح | النهاري |
 | Dark mode | الوضع الداكن | الليلي |
+| System (follow OS) | حسب النظام | تلقائي، افتراضي الجهاز |
 | Direction | الاتجاه | |
 | Right to left | من اليمين لليسار | |
 | Left to right | من اليسار لليمين | |
