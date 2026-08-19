@@ -173,6 +173,7 @@ export default function Analytics() {
           <p className="text-muted-foreground mt-1">نظرة على المصروفات والإيرادات وأكبر الموردين</p>
         </div>
         <select
+          aria-label="مدى الفترة"
           className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
           value={months}
           onChange={(e) => setMonths(Number(e.target.value))}

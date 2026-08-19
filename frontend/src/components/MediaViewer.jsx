@@ -47,6 +47,8 @@ export default function MediaViewer({ mediaKey }) {
     return () => {
       alive = false;
     };
+    // `media` مقروء من الإغلاق ومستثنى عمداً — انظر التعليق أعلاه.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mediaKey]);
 
   // تحرير الرابط عند تغيّر الملف أو تفكيك المكوّن — لا عند كل عرض.

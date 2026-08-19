@@ -542,8 +542,11 @@ export async function processTelegramUpdate(env, update) {
       await env.MEDIA.put(mediaR2Key, buffer, {
         httpMetadata: { contentType: audio.mime_type || 'audio/ogg' },
       });
-      await updateTransaction(env.DB, txId, { mediaR2Key, status: 'transcribed' });
+      await updateTransaction(env.DB, txId, { mediaR2Key });
       const rawTranscript = await transcribeAudio(env, buffer, audio.mime_type || 'audio/ogg');
+      // الحالة بعد التفريغ لا قبله: كانت تُضبط ثم يُستدعى التفريغ، فيبدو
+      // المُفرَّغ مُفرَّغاً حتى لو فشل.
+      await updateTransaction(env.DB, txId, { status: 'transcribed' });
       // تصحيح أخطاء التفريغ عبر Claude في السياق المحاسبي.
       finalText = await refineTranscript(env, rawTranscript);
       await updateTransaction(env.DB, txId, { rawText: finalText });

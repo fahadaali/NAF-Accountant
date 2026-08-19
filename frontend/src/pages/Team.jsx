@@ -107,6 +107,7 @@ export default function Team() {
             onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
           />
           <select
+            aria-label="صلاحية المستخدم الجديد"
             className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={userForm.role}
             onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
@@ -139,6 +140,7 @@ export default function Team() {
                   <TableCell className="text-foreground" dir="ltr">{u.email}</TableCell>
                   <TableCell>
                     <select
+                      aria-label={`صلاحية ${u.email}`}
                       className="border border-border rounded-lg px-2 py-1 text-sm"
                       value={u.role}
                       onChange={(e) =>

@@ -304,15 +304,25 @@ export async function getAdminChats(db) {
 // العمليات المتكرّرة
 // ----------------------------------------------------------------------------
 
-/** القوالب المتكرّرة المستحقّة اليوم ولم تُنفّذ هذا الشهر. */
+/**
+ * القوالب المتكرّرة المستحقّة ولم تُنفّذ هذا الشهر.
+ *
+ * `<=` لا `=`: تفويت تشغيل الكرون (انقطاع، نشر، خطأ) كان يُسقط الشهر كلّه
+ * بصمت — إيجار لا يُسجَّل ولا أحد يعلم. الآن يلحق القالب في أول ليلة تالية،
+ * و last_run_ym يمنع التكرار.
+ *
+ * ويُستثنى قالب أُنشئ بعد يوم استحقاقه في الشهر الجاري، فلا ينفّذ فور إضافته.
+ */
 export async function getDueRecurring(db, dayOfMonth, ym) {
   const { results } = await db
     .prepare(
       `SELECT id, label, template_json, notify_chat_id FROM recurring_transactions
-       WHERE is_active = 1 AND day_of_month = ?
-         AND (last_run_ym IS NULL OR last_run_ym != ?)`
+       WHERE is_active = 1 AND day_of_month <= ?
+         AND (last_run_ym IS NULL OR last_run_ym != ?)
+         AND (strftime('%Y-%m', created_at) < ?
+              OR CAST(strftime('%d', created_at) AS INTEGER) <= day_of_month)`
     )
-    .bind(Number(dayOfMonth), ym)
+    .bind(Number(dayOfMonth), ym, ym)
     .all();
   return (results || []).map((r) => {
     try {

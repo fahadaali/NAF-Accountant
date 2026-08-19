@@ -42,9 +42,11 @@ jobs:
       # بديلهما هنا بوابة بناء المنصة.
       # ⚠️ يُفضَّل تسجيل «نسخة منصة» من naf-governance في السجلّ.
       # ------------------------------------------------------------------
-      - name: بوابة البناء — لا يصدر إصدار من بناء معطوب
+      - name: بوابة الجودة — لا يصدر إصدار من بناء معطوب أو اختبار ساقط
         run: |
+          npm test
           npm --prefix frontend install --no-audit --no-fund
+          npm --prefix frontend run lint
           npm --prefix frontend run build
 
       - name: استنتاج رقم الإصدار وتوليد سجلّ التغييرات

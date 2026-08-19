@@ -120,6 +120,7 @@ export default function Recurring() {
         >
           <select
             required
+            aria-label="العملية التي يُستنسخ منها القالب"
             className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none sm:col-span-2"
             value={form.transaction_id}
             onChange={(e) => setForm({ ...form, transaction_id: e.target.value })}

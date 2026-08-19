@@ -65,8 +65,11 @@ Frontend (React + Vite + Tailwind RTL) على Cloudflare Pages
 ├── wrangler.toml                 # إعدادات Worker + D1 + R2 + AI + Cron
 ├── package.json
 ├── migrations/
-│   ├── 0001_init.sql             # الجداول
-│   └── 0002_seed_chart_of_accounts.sql
+│   ├── 0001_init.sql                    # الجداول الأساسية
+│   ├── 0002_seed_chart_of_accounts.sql  # بذرة اختيارية (npm run db:seed)
+│   ├── 0003_conversation_state.sql      # حالة الحوار التفاعلي
+│   ├── 0004_users_sessions.sql          # المستخدمون والجلسات
+│   └── 0005_users_chats_recurring.sql   # محادثات تليجرام والعمليات المتكرّرة
 ├── src/
 │   ├── index.js                  # نقطة الدخول (fetch + scheduled)
 │   ├── routes/
@@ -74,7 +77,7 @@ Frontend (React + Vite + Tailwind RTL) على Cloudflare Pages
 │   │   ├── reports.js            # GET  /api/reports/basecamp
 │   │   └── dashboard.js          # واجهة برمجية للوحة التحكم
 │   ├── services/
-│   │   ├── telegram.js  whisper.js  claude.js  wafeq.js  basecamp.js
+│   │   ├── telegram.js  transcription.js  claude.js  wafeq.js  basecamp.js
 │   └── lib/
 │       ├── db.js                 # مساعدات D1
 │       └── processor.js          # خط المعالجة الرئيسي
@@ -103,9 +106,13 @@ npm run r2:create
 
 ### 3) تهيئة قاعدة البيانات
 ```bash
-npm run db:migrate          # إنشاء الجداول (remote)
-npm run db:seed             # تعبئة شجرة حسابات مبدئية
+npm run db:migrate          # يشغّل كل ملفات migrations/ بالترتيب (remote)
+npm run db:migrate:local    # نفسها على القاعدة المحلية
 ```
+
+> `npm run db:seed` اختياري ويزرع شجرة حسابات نموذجية **بلا معرّفات وافق**،
+> والبوت يستبعد كل حساب بلا معرّف. المصدر الصحيح للشجرة هو
+> **المزامنة من وافق** (زر «مزامنة من وافق» في اللوحة، أو الكرون الليلي).
 
 ### 4) تخزين الأسرار (Secrets)
 ```bash
@@ -116,9 +123,16 @@ wrangler secret put TELEGRAM_BOT_TOKEN
 wrangler secret put TELEGRAM_WEBHOOK_SECRET
 wrangler secret put AUTHORIZED_CHAT_IDS      # مثال: 123456789,987654321
 wrangler secret put DASHBOARD_API_KEY
+wrangler secret put ADMIN_BOOTSTRAP_TOKEN   # اختياري: يحمي إنشاء أول مسؤول
 ```
-> عدّل أيضاً المتغيرات العامة في `[vars]` داخل `wrangler.toml`
-> (`BASECAMP_ACCOUNT_ID`, `BASECAMP_PROJECT_ID`, `BASECAMP_MESSAGE_BOARD_ID`).
+
+> `ADMIN_BOOTSTRAP_TOKEN` اختياري لكنه موصى به: بدونه يستطيع أول من يفتح
+> الرابط بعد النشر إنشاء حساب المسؤول. عند ضبطه يجب إرساله في ترويسة
+> `Authorization: Bearer <token>` مع طلب `/api/auth/bootstrap`.
+> **لا يوجد `[vars]` في `wrangler.toml` عمداً** — أي قيمة توضع هناك يكتبها
+> النشر فوق ما تعدّله في اللوحة. أضِف `BASECAMP_ACCOUNT_ID` و
+> `BASECAMP_PROJECT_ID` و `BASECAMP_MESSAGE_BOARD_ID` من لوحة Cloudflare
+> بنوع Secret. والتفصيل كاملاً في تعليقات `wrangler.toml`.
 
 ### 5) نشر الـ Worker
 ```bash
@@ -139,18 +153,39 @@ npm install
 cp .env.example .env         # اضبط VITE_API_BASE على عنوان الـ Worker
 npm run build                # المخرجات في frontend/dist
 ```
-انشرها على **Cloudflare Pages** (مجلد النشر: `frontend/dist`).
-ثم افتح **الإعدادات** في اللوحة وأدخل `DASHBOARD_API_KEY`.
+`frontend/dist` مرفوع في المستودع ويخدمه الـ Worker نفسه على الرابط نفسه،
+فلا حاجة لنشر منفصل. ومن ينشرها منفصلة على **Cloudflare Pages** يضبط
+`VITE_API_BASE` عند البناء، ويضيف أصل اللوحة إلى `ALLOWED_ORIGINS` في
+الـ Worker (وإلا رفضه CORS).
+
+الدخول إلى اللوحة بالبريد وكلمة المرور: أول زيارة تعرض شاشة **إنشاء حساب
+المسؤول الأول**. و`DASHBOARD_API_KEY` للاستخدام الآلي (curl والمزامنة) لا
+لتسجيل الدخول، ولا يُدخَل من الواجهة.
+
+---
+
+## ✅ الاختبارات
+
+```bash
+npm test        # بلا تبعيات — مُشغّل الاختبارات المدمج في Node
+```
+
+تغطّي حماية المسارات (من يصل إلى ماذا بأي صلاحية)، وحدود الإعداد (سرّ
+الويبهوك، بوابة إعداد بيسكامب)، وفيها **جرد آلي** يتحقّق أن كل مسار
+`/api` محمي فعلاً — فلا يمرّ مسار جديد بلا مصادقة سهواً.
 
 ---
 
 ## 🔐 الأمان
 
-- ويبهوك تليجرام يتحقق من ترويسة `X-Telegram-Bot-Api-Secret-Token`.
+- ويبهوك تليجرام يتحقق من ترويسة `X-Telegram-Bot-Api-Secret-Token`، **ويفشل مغلقاً**: بلا سرّ مضبوط يُرفض الطلب.
 - تُعالَج الرسائل فقط من **معرّفات المحادثات المصرّح لها** (`AUTHORIZED_CHAT_IDS`).
 - كل قيود وافق تُنشأ بحالة **DRAFT** وتتطلب اعتماداً يدوياً.
 - المفاتيح الحساسة في **Cloudflare Secrets** فقط — لا شيء في الكود.
-- واجهة لوحة التحكم محمية بـ `DASHBOARD_API_KEY`.
+- لوحة التحكم بتسجيل دخول (بريد + كلمة مرور، PBKDF2-SHA256 وجلسات ٧ أيام)، و`DASHBOARD_API_KEY` للوصول الآلي.
+- صلاحيتان: **مسؤول** يعدّل ويحذف، و**مستخدم** يطّلع فقط.
+- CORS مقصور على نفس الأصل ما لم يُضبط `ALLOWED_ORIGINS`.
+- مسار إعداد بيسكامب يُغلق تلقائياً بعد اكتمال الربط.
 
 ---
 
@@ -161,7 +196,11 @@ npm run build                # المخرجات في frontend/dist
 | `chart_of_accounts` | شجرة الحسابات (رمز، اسم، نوع، معرّف وافق) |
 | `transactions` | العمليات (رسالة تليجرام، النص، JSON، معرّف المسودة، الحالة) |
 | `logs` | سجل الإجراءات والأخطاء |
-| `settings` | إعدادات غير حساسة قابلة للتعديل |
+| `conversation_state` | سياق الحوار المعلّق لكل محادثة |
+| `users` / `sessions` | مستخدمو اللوحة وجلساتهم |
+| `telegram_chats` | المحادثات المصرّح لها (بديل `AUTHORIZED_CHAT_IDS`) |
+| `recurring_transactions` | قوالب العمليات المتكرّرة شهرياً |
+| `settings` | مُنشأ ولم يُستعمل بعد — الإعدادات كلها في متغيّرات Cloudflare |
 
 ---
 

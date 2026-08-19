@@ -17,6 +17,8 @@ const STATUS_OPTIONS = [
   { v: 'posted', label: 'مُرحّلة' },
   { v: 'awaiting_info', label: 'بانتظار معلومات' },
   { v: 'analyzed', label: 'قيد التحليل' },
+  { v: 'transcribed', label: 'مُفرّغة' },
+  { v: 'duplicate', label: 'مكرّرة' },
   { v: 'deleted', label: 'محذوفة' },
   { v: 'failed', label: 'فشلت' },
   { v: 'received', label: 'مستلمة' },
@@ -166,16 +168,19 @@ export default function Transactions({ isAdmin }) {
               onChange={(e) => setF('q', e.target.value)}
             />
           </div>
-          <select className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+          <select aria-label="تصفية بالحالة"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={filters.status} onChange={(e) => setF('status', e.target.value)}>
             {STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
           </select>
-          <select className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+          <select aria-label="تصفية بالمصدر"
+            className="border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
             value={filters.source_type} onChange={(e) => setF('source_type', e.target.value)}>
             {SOURCE_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
           </select>
           <div className="flex gap-2">
-            <select className="flex-1 border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
+            <select aria-label="حقل الفرز"
+              className="flex-1 border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-ring outline-none"
               value={filters.sort} onChange={(e) => setF('sort', e.target.value)}>
               {SORT_OPTIONS.map((o) => <option key={o.v} value={o.v}>فرز: {o.label}</option>)}
             </select>
@@ -223,7 +228,7 @@ export default function Transactions({ isAdmin }) {
                 <TableRow>
                   {isAdmin && (
                     <TableHead className="w-8">
-                      <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+                      <input type="checkbox" aria-label="تحديد الكل" checked={allChecked} onChange={toggleAll} />
                     </TableHead>
                   )}
                   <TableHead>#</TableHead>
@@ -245,7 +250,12 @@ export default function Transactions({ isAdmin }) {
                   >
                     {isAdmin && (
                       <TableCell>
-                        <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleRow(t.id)} />
+                        <input
+                          type="checkbox"
+                          aria-label={`تحديد العملية ${t.id}`}
+                          checked={selected.has(t.id)}
+                          onChange={() => toggleRow(t.id)}
+                        />
                       </TableCell>
                     )}
                     <TableCell className="text-foreground">{t.id}</TableCell>

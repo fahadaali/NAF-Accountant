@@ -27,6 +27,12 @@ const ACTION_AR = {
   accounts_sync: 'مزامنة الحسابات',
   cron_accounts_sync: 'مزامنة مجدولة',
   cron_recurring: 'عمليات متكرّرة',
+  cron_sessions_purge: 'تنظيف الجلسات',
+  cron_basecamp_report: 'تقرير بيسكامب مجدول',
+  cron_financial_monthly: 'تقرير مالي شهري',
+  cron_financial_quarterly: 'تقرير مالي ربعي',
+  cron_financial_annual: 'تقرير مالي سنوي',
+  telegram_edited_message: 'رسالة معدَّلة',
   recurring_post: 'ترحيل عملية متكرّرة',
   basecamp_report: 'تقرير بيسكامب',
   financial_report: 'تقرير مالي',
@@ -35,6 +41,12 @@ const ACTION_AR = {
   telegram_webhook: 'ويبهوك تليجرام',
   duplicate_webhook_skipped: 'تجاهل رسالة مكرّرة',
 };
+
+/** ردود التحكّم تُسجَّل بـ control_<الفعل> — تُعرض باسم واحد جامع. */
+function actionLabel(action) {
+  if (String(action).startsWith('control_')) return 'ردّ تحكّم';
+  return ACTION_AR[action] || action;
+}
 
 export default function Logs() {
   const [rows, setRows] = useState([]);
@@ -104,7 +116,7 @@ export default function Logs() {
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                       {fmtDateTime(l.timestamp)}
                     </TableCell>
-                    <TableCell className="text-foreground">{ACTION_AR[l.action] || l.action}</TableCell>
+                    <TableCell className="text-foreground">{actionLabel(l.action)}</TableCell>
                     <TableCell>
                       {(() => {
                         const st = STATUS_META[l.status] || STATUS_META.info;

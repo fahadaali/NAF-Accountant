@@ -14,7 +14,8 @@
     "db:apply": "node ./scripts/migrate.mjs",
     "db:seed": "wrangler d1 execute naf-accountant-db --file=./migrations/0002_seed_chart_of_accounts.sql --remote",
     "r2:create": "wrangler r2 bucket create naf-accountant-media",
-    "tail": "wrangler tail"
+    "tail": "wrangler tail",
+    "lint": "npm --prefix frontend run lint"
   },
   "keywords": [
     "cloudflare-workers",
