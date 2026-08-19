@@ -12,7 +12,24 @@ import { writeLog } from '../lib/db.js';
 const admin = new Hono();
 
 // ---- الحماية: مسؤول فقط ----
-admin.use('*', async (c, next) => {
+//
+// ═══ لماذا حارسٌ في كل معالج لا `use('*')` واحد ═══
+//
+// هذا التطبيق الفرعي يُركَّب على `/api` مع اللوحة والأعضاء، و`use('*')` فيه
+// يصير — بعد التركيب — وسيطاً على `/api/*` كلّه في التطبيق الأب. وHono ينفّذ
+// ما يطابق الطلب بترتيب التسجيل، وهذا الملف يُسجَّل قبلهما. فكان حارسُ
+// المسؤول يحرس **كل مسارات اللوحة والأعضاء** أيضاً:
+//
+//   • عضوٌ بدور `editor` أو `viewer` يفتح اللوحة فيردّ كل نداء ٤٠٣ —
+//     الإحصاءات والعمليات والحسابات والسجلّ والتحليلات والإعدادات. أي أن
+//     دورَي القراءة والتحرير لا يعملان أصلاً.
+//   • و`DASHBOARD_API_KEY` يُردّ ٤٠٣ على مساراته الاثني عشر المُعلنة في
+//     `auth/middleware.js` — لأن الحارس يرفض `who.apiKey` صراحةً. فسطحُ
+//     الأتمتة المُعلن لا يعمل منه شيء.
+//
+// والحارس في المعالج يحرس معالجه وحده، فلا يتعلّق الأمر بترتيب التسجيل.
+// أي معالج جديد هنا يبدأ بهذين السطرين.
+async function requireAdminOnly(c) {
   const who = await authenticate(c);
   if (!who) return c.json({ ok: false, error: 'unauthorized' }, 401);
   /* المفتاح الآلي لم يعد يساوي مسؤولاً.
@@ -24,14 +41,16 @@ admin.use('*', async (c, next) => {
   if (who.apiKey || who.role !== 'admin') {
     return c.json({ ok: false, error: 'هذه العملية تتطلب صلاحية مسؤول.' }, 403);
   }
-  await next();
-});
+  return null;
+}
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ============================ المستخدمون ============================
 
 admin.get('/users', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { results } = await c.env.DB.prepare(
     `SELECT id, email, role, is_active, created_at FROM users ORDER BY id ASC`
   ).all();
@@ -39,6 +58,8 @@ admin.get('/users', async (c) => {
 });
 
 admin.post('/users', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { email, password, role = 'user' } = await c.req.json().catch(() => ({}));
   if (!email || !emailRe.test(email)) {
     return c.json({ ok: false, error: 'بريد إلكتروني غير صالح.' }, 400);
@@ -61,6 +82,8 @@ admin.post('/users', async (c) => {
 });
 
 admin.post('/users/update', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { id, role, is_active, password } = await c.req.json().catch(() => ({}));
   if (!id) return c.json({ ok: false, error: 'معرّف المستخدم مطلوب.' }, 400);
 
@@ -91,6 +114,8 @@ admin.post('/users/update', async (c) => {
 // ==================== محادثات تليجرام المصرّح لها ====================
 
 admin.get('/chats', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { results } = await c.env.DB.prepare(
     `SELECT chat_id, label, is_admin, is_active, created_at FROM telegram_chats ORDER BY created_at ASC`
   ).all();
@@ -98,6 +123,8 @@ admin.get('/chats', async (c) => {
 });
 
 admin.post('/chats', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { chat_id, label, is_admin = 0, is_active = 1 } = await c.req.json().catch(() => ({}));
   if (!chat_id || !/^-?\d+$/.test(String(chat_id).trim())) {
     return c.json({ ok: false, error: 'معرّف المحادثة يجب أن يكون رقماً.' }, 400);
@@ -116,6 +143,8 @@ admin.post('/chats', async (c) => {
 });
 
 admin.post('/chats/delete', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { chat_id } = await c.req.json().catch(() => ({}));
   if (!chat_id) return c.json({ ok: false, error: 'معرّف المحادثة مطلوب.' }, 400);
   await c.env.DB.prepare(`DELETE FROM telegram_chats WHERE chat_id = ?`)
@@ -127,6 +156,8 @@ admin.post('/chats/delete', async (c) => {
 // ==================== العمليات المتكرّرة ====================
 
 admin.get('/recurring', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { results } = await c.env.DB.prepare(
     `SELECT id, label, day_of_month, template_json, notify_chat_id, is_active, last_run_ym, created_at
      FROM recurring_transactions ORDER BY id DESC`
@@ -136,6 +167,8 @@ admin.get('/recurring', async (c) => {
 
 /** إنشاء قالب متكرّر من عملية موجودة (نستنسخ processed_json). */
 admin.post('/recurring/from-transaction', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { transaction_id, label, day_of_month } = await c.req.json().catch(() => ({}));
   const day = Math.min(Math.max(Number(day_of_month) || 1, 1), 28);
   if (!transaction_id) return c.json({ ok: false, error: 'معرّف العملية مطلوب.' }, 400);
@@ -159,6 +192,8 @@ admin.post('/recurring/from-transaction', async (c) => {
 });
 
 admin.post('/recurring/update', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { id, is_active, day_of_month, label } = await c.req.json().catch(() => ({}));
   if (!id) return c.json({ ok: false, error: 'المعرّف مطلوب.' }, 400);
   if (is_active !== undefined) {
@@ -181,6 +216,8 @@ admin.post('/recurring/update', async (c) => {
 });
 
 admin.post('/recurring/delete', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { id } = await c.req.json().catch(() => ({}));
   if (!id) return c.json({ ok: false, error: 'المعرّف مطلوب.' }, 400);
   await c.env.DB.prepare(`DELETE FROM recurring_transactions WHERE id = ?`).bind(id).run();
@@ -194,6 +231,8 @@ admin.post('/recurring/delete', async (c) => {
 // المرفقات واسم الحقل الذي يربطها بالمستند، بعد أن ردّ المسار المستعمل
 // بصفحة خطأ HTML.
 admin.get('/wafeq-probe', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   if (!c.env.WAFEQ_API_KEY) {
     return c.json({ ok: false, error: 'مفتاح وافق غير مضبوط.' }, 400);
   }
@@ -213,12 +252,16 @@ admin.get('/wafeq-probe', async (c) => {
 // `src/auth/middleware.js` لا يشملهما، وهو المقصود.
 
 admin.get('/telegram/status', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const report = await diagnoseWebhook(c.env);
   return c.json({ ok: true, report });
 });
 
 /** إعادة تسجيل الويبهوك على رابط المنصة الحالي — إصلاحُ نقلِ النطاق. */
 admin.post('/telegram/webhook', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const who = await authenticate(c);
   const { changed, reason, report } = await repairWebhook(c.env);
   await writeLog(c.env.DB, {

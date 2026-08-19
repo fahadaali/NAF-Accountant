@@ -194,41 +194,77 @@ function confirmManualJournal(result, wafeqId, cur) {
   );
 }
 
-function confirmBill(result, wafeqId, cur) {
+/**
+ * سطور الضريبة — **المطبَّقة فعلاً** في وافق لا التي اقترحها Claude.
+ *
+ * ═══ لماذا يُمرَّر ما طُبِّق ولا يُعاد حسابه هنا ═══
+ *
+ * الترحيل لا يُرفق معدّل ضريبة إلا إن كان `VAT_TAX_RATE_ID` مضبوطاً، وهو
+ * اختياري ولا شيء يمنع غيابه. وكانت الرسالة تحسب الضريبة من `vat_percent`
+ * وتعرضها في الحالين — فيقرأ المستخدم «ضريبة ١٥٪» وإجمالاً يشملها، بينما
+ * المستند في وافق بلا ضريبة أصلاً.
+ *
+ * وفي نظام محاسبي هذا أخطر من عطل ظاهر: البيان الذي يُقرأ لا يطابق ما دخل
+ * الدفتر، ولا شيء يقول ذلك. فإن سقطت الضريبة تُقال صراحةً مع سببها.
+ *
+ * @param {number} requestedVat النسبة التي طلبها التحليل.
+ * @param {number} appliedVat   النسبة التي أُرفقت بالمستند فعلاً (0 = لم تُطبَّق).
+ * @returns {{lines:string, total:number}}
+ */
+function vatSection(sub, requestedVat, appliedVat, cur) {
+  if (appliedVat > 0) {
+    const vat = +((sub * appliedVat) / 100).toFixed(2);
+    const total = +(sub + vat).toFixed(2);
+    return {
+      total,
+      lines:
+        `💰 قبل الضريبة: ${formatMoney(sub, cur)}\n` +
+        `➕ ضريبة ${iso(appliedVat + '%')}: ${formatMoney(vat, cur)}\n` +
+        `💵 الإجمالي: ${formatMoney(total, cur)}\n`,
+    };
+  }
+  if (requestedVat > 0) {
+    return {
+      total: sub,
+      lines:
+        `💰 الإجمالي: ${formatMoney(sub, cur)} (بدون ضريبة)\n` +
+        `⚠️ لم تُطبَّق ضريبة ${iso(requestedVat + '%')}: معرّف الضريبة ` +
+        `<code>VAT_TAX_RATE_ID</code> غير مضبوط. أضِفه في إعدادات Cloudflare ` +
+        `ثم عدّل المستند في وافق.\n`,
+    };
+  }
+  return { total: sub, lines: `💰 الإجمالي: ${formatMoney(sub, cur)} (بدون ضريبة)\n` };
+}
+
+function confirmBill(result, wafeqId, cur, appliedVat = 0) {
   const items = result.bill?.line_items || [];
   const lines = items
     .map((li) => `• ${li.account_name} — ${formatMoney(li.amount, cur)}`)
     .join('\n');
   const sub = items.reduce((s, li) => s + Number(li.amount || 0), 0);
-  const vatPercent = Number(result.bill?.vat_percent ?? 0);
-  const vat = +((sub * vatPercent) / 100).toFixed(2);
-  const total = vatPercent > 0 ? +(sub + vat).toFixed(2) : sub;
+  const vat = vatSection(sub, Number(result.bill?.vat_percent ?? 0), appliedVat, cur);
   return (
     `✅ <b>تم إنشاء فاتورة مشتريات (مسودة) في وافق</b>\n\n` +
     `📅 التاريخ: ${iso(result.date)}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n${lines}\n\n` +
-    (vatPercent > 0
-      ? `💰 قبل الضريبة: ${formatMoney(sub, cur)}\n➕ ضريبة ${iso(vatPercent + '%')}: ${formatMoney(vat, cur)}\n💵 الإجمالي: ${formatMoney(total, cur)}\n`
-      : `💰 الإجمالي: ${formatMoney(sub, cur)} (بدون ضريبة)\n`) +
-    exchangeLine(result, cur, total) +
+    vat.lines +
+    exchangeLine(result, cur, vat.total) +
     `🧾 رقم المسودة: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
     `⚠️ فاتورة <b>مسودة</b> تتطلب مراجعتك واعتمادك في وافق.`
   );
 }
 
-function confirmInvoice(result, wafeqId, cur) {
+function confirmInvoice(result, wafeqId, cur, appliedVat = 0) {
   const items = result.invoice?.line_items || [];
-  const vatPercent = Number(result.invoice?.vat_percent || 15);
   const sub = items.reduce((s, li) => s + Number(li.amount || 0), 0);
-  const vat = +(sub * vatPercent / 100).toFixed(2);
-  const total = +(sub + vat).toFixed(2);
+  const vat = vatSection(sub, Number(result.invoice?.vat_percent ?? 15), appliedVat, cur);
   const lines = items
     .map((li) => `• ${li.account_name} — ${formatMoney(li.amount, cur)}`)
     .join('\n');
   return (
     `✅ <b>تم إنشاء فاتورة مبيعات (مسودة) في وافق</b>\n\n` +
     `📅 التاريخ: ${iso(result.date)}\n👤 العميل: ${result.contact_name ? iso(result.contact_name) : 'غير محدّد'}\n${lines}\n\n` +
-    `💰 قبل الضريبة: ${formatMoney(sub, cur)}\n➕ ضريبة ${iso(vatPercent + '%')}: ${formatMoney(vat, cur)}\n💵 الإجمالي: ${formatMoney(total, cur)}\n` +
-    exchangeLine(result, cur, total) +
+    vat.lines +
+    exchangeLine(result, cur, vat.total) +
     `🧾 رقم المسودة: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
     `⚠️ فاتورة <b>مسودة</b> تتطلب مراجعتك واعتمادك في وافق.`
   );
@@ -271,10 +307,16 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
       lineItems,
       attachmentIds,
     });
-    return { wafeqId: id, raw, confirm: confirmBill(result, id, currency) };
+    // ما يُعرض = ما طُبِّق: لا معرّف ضريبة ⇐ لا ضريبة على المستند.
+    return { wafeqId: id, raw, confirm: confirmBill(result, id, currency, billTaxRate ? billVat : 0) };
   }
 
   if (result.type === 'sales_invoice') {
+    /* النسبة تُقرأ من التحليل ولا تُفترض: كان المعدّل يُرفق دائماً، فمن طلب
+       «بدون ضريبة» — و`applyEdit` يضبط له `vat_percent = 0` صراحةً بنصّ
+       توجيهه — تخرج فاتورته بضريبة رغم ذلك. */
+    const invoiceVat = Number(result.invoice?.vat_percent ?? 15);
+    const invoiceTaxRate = invoiceVat > 0 ? env.VAT_TAX_RATE_ID || null : null;
     const lineItems = (result.invoice?.line_items || []).map((li) => ({
       account: idMap[li.account_code] || li.account_code,
       description: li.description,
@@ -285,10 +327,14 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
       date: result.date,
       currency,
       lineItems,
-      taxRateId: env.VAT_TAX_RATE_ID || null,
+      taxRateId: invoiceTaxRate,
       attachmentIds,
     });
-    return { wafeqId: id, raw, confirm: confirmInvoice(result, id, currency) };
+    return {
+      wafeqId: id,
+      raw,
+      confirm: confirmInvoice(result, id, currency, invoiceTaxRate ? invoiceVat : 0),
+    };
   }
 
   throw new Error(`نوع عملية غير معروف: ${result.type}`);

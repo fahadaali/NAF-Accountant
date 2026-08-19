@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchMediaUrl } from '../lib/api.js';
 import { Mic, Image, FileType } from 'lucide-react';
 import { Button } from '../naf/ui/button.jsx';
@@ -19,26 +19,56 @@ export default function MediaViewer({ mediaKey }) {
   const isAudio = /^voice\//.test(mediaKey || '');
   const isPdf = /\.pdf$/i.test(mediaKey || '');
 
+  /* ═══ رابط blob في مرجع لا في اعتماديات التأثير ═══
+
+     كان `media` ضمن الاعتماديات، و`setMedia` يغيّره — فيُعيد React تشغيل
+     التأثير، فيُشغّل تنظيف الجولة السابقة، و`revoked` صار وقتها هو الرابط
+     نفسه. أي أن الرابط يُبطَل بعد إنشائه بلحظة.
+
+     والصورة تنجو بسباق أحياناً (المتصفّح يبدأ تحميلها في الـcommit قبل
+     تشغيل التأثيرات الخاملة)، أمّا رابط «فتح في تبويب» فيُنقر بعد الإبطال
+     بثوانٍ فلا يفتح شيئاً — وكذلك إعادة طلب المقطع الصوتي أو التنقّل فيه.
+
+     الآن: يُنشأ مرة، ويُبطَل عند تفكيك المكوّن أو تغيّر الملف وحده. */
+  const urlRef = useRef(null);
+
   useEffect(() => {
-    if (!open || media) return;
-    let revoked = null;
+    if (!open || media) return undefined;
+    let alive = true;
     (async () => {
       setLoading(true);
       try {
         const m = await fetchMediaUrl(mediaKey);
-        revoked = m.url;
+        if (!alive) {
+          URL.revokeObjectURL(m.url); // أُغلق العرض أو تغيّر الملف أثناء الجلب
+          return;
+        }
+        if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+        urlRef.current = m.url;
         setMedia(m);
         setError('');
       } catch (e) {
-        setError(e.message);
+        if (alive) setError(e.message);
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
     return () => {
-      if (revoked) URL.revokeObjectURL(revoked);
+      alive = false;
     };
-  }, [open, mediaKey, media]);
+  }, [open, mediaKey]);
+
+  // تحرير الرابط عند تغيّر الملف أو تفكيك المكوّن — لا عند كل عرض.
+  useEffect(
+    () => () => {
+      if (urlRef.current) {
+        URL.revokeObjectURL(urlRef.current);
+        urlRef.current = null;
+      }
+      setMedia(null);
+    },
+    [mediaKey]
+  );
 
   if (!mediaKey) return <span className="text-muted-foreground/60">—</span>;
 
