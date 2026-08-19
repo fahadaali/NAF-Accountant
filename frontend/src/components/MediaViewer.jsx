@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchMediaUrl } from '../lib/api.js';
 import { Mic, Image } from 'lucide-react';
 import { Button } from '../naf/ui/button.jsx';
@@ -15,26 +15,51 @@ export default function MediaViewer({ mediaKey }) {
 
   const isAudio = /^voice\//.test(mediaKey || '');
 
+  // الرابط في مرجع لا في حالة: كان `media` ضمن اعتماديات التأثير، فيُعيد
+  // setMedia تشغيله، فيُشغّل React تنظيف الجولة السابقة، فيُبطَل رابط blob
+  // فور إنشائه — والصورة تنجو بسباق أحياناً، أما «فتح المرفق» فلا يعمل أبداً.
+  // الآن: يُنشأ مرة، ويُبطَل عند تفكيك المكوّن أو تغيّر الملف وحده.
+  const urlRef = useRef(null);
+
   useEffect(() => {
-    if (!open || media) return;
-    let revoked = null;
+    // `media` يُقرأ من إغلاق هذه الجولة ولا يدخل الاعتماديات عمداً: دخوله
+    // هو ما كان يُعيد تشغيل التأثير فيُبطل الرابط.
+    if (!open || media) return undefined;
+    let alive = true;
     (async () => {
       setLoading(true);
       try {
         const m = await fetchMediaUrl(mediaKey);
-        revoked = m.url;
+        if (!alive) {
+          URL.revokeObjectURL(m.url); // أُغلق العرض أو تغيّر الملف أثناء الجلب
+          return;
+        }
+        if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+        urlRef.current = m.url;
         setMedia(m);
         setError('');
       } catch (e) {
-        setError(e.message);
+        if (alive) setError(e.message);
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
     return () => {
-      if (revoked) URL.revokeObjectURL(revoked);
+      alive = false;
     };
-  }, [open, mediaKey, media]);
+  }, [open, mediaKey]);
+
+  // تحرير الرابط عند تغيّر الملف أو تفكيك المكوّن — لا عند كل عرض.
+  useEffect(
+    () => () => {
+      if (urlRef.current) {
+        URL.revokeObjectURL(urlRef.current);
+        urlRef.current = null;
+      }
+      setMedia(null);
+    },
+    [mediaKey]
+  );
 
   if (!mediaKey) return <span className="text-muted-foreground/60">—</span>;
 

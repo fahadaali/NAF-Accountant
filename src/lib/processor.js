@@ -18,7 +18,7 @@ import {
   isMessageProcessed,
   findSimilarPostedToday,
 } from './db.js';
-import { sendTelegramMessage, downloadTelegramFile } from '../services/telegram.js';
+import { sendTelegramMessage, downloadTelegramFile, esc } from '../services/telegram.js';
 import { transcribeAudio } from '../services/transcription.js';
 import {
   analyzeTransaction,
@@ -88,12 +88,12 @@ async function resolveTarget(env, chatId, spec) {
 
   if (mode === 'id' && spec.id) {
     const t = await getPostedTransactionByWafeqId(env.DB, chatId, spec.id);
-    return t ? { ok: true, target: t } : { ok: false, reason: `لم أجد عملية بالمعرّف «${spec.id}».` };
+    return t ? { ok: true, target: t } : { ok: false, reason: `لم أجد عملية بالمعرّف «${esc(spec.id)}».` };
   }
 
   if (mode === 'search' && spec.query) {
     const found = await searchPostedTransactions(env.DB, chatId, spec.query, 5);
-    if (found.length === 0) return { ok: false, reason: `لم أجد عملية تطابق «${spec.query}».` };
+    if (found.length === 0) return { ok: false, reason: `لم أجد عملية تطابق «${esc(spec.query)}».` };
     if (found.length > 1) return { ok: false, reason: 'multiple', options: found };
     return { ok: true, target: found[0] };
   }
@@ -107,9 +107,9 @@ async function resolveTarget(env, chatId, spec) {
 
 /** سطر وصفي موجز لعملية. */
 function targetLabel(t) {
-  return `${describeType(t.result.type)} — ${t.result.summary || ''}${
-    t.result.contact_name ? ` (${t.result.contact_name})` : ''
-  }\n🧾 ${t.wafeqId}`;
+  return `${describeType(t.result.type)} — ${esc(t.result.summary)}${
+    t.result.contact_name ? ` (${esc(t.result.contact_name)})` : ''
+  }\n🧾 ${esc(t.wafeqId)}`;
 }
 
 /** إجمالي العملية (قبل الضريبة) حسب نوعها. */
@@ -143,52 +143,73 @@ function accountIdMap(accounts) {
 
 // ---------------------------------------------------------------------------
 // رسائل التأكيد حسب نوع العملية.
+//
+// قاعدتان في هذه الكتلة:
+//   ١. كل قيمة متغيّرة تمرّ على esc() — النصّ يُرسل بـ parse_mode=HTML.
+//   ٢. الضريبة المعروضة هي **المطبَّقة فعلاً** في وافق لا التي اقترحها Claude.
+//      كانت الرسالة تعلن «ضريبة ١٥٪» دائماً بينما الترحيل لا يطبّقها إلا مع
+//      VAT_TAX_RATE_ID مضبوطاً — فيقرأ المستخدم غير ما دخل الدفتر.
 // ---------------------------------------------------------------------------
+
+/** سطر الضريبة الصادق: المطبَّق فعلاً، مع تنبيه صريح عند سقوطها. */
+function vatLines(sub, requestedVat, appliedVat) {
+  if (appliedVat > 0) {
+    const vat = +((sub * appliedVat) / 100).toFixed(2);
+    return (
+      `💰 قبل الضريبة: ${sub}\n➕ ضريبة ${appliedVat}%: ${vat}\n` +
+      `💵 الإجمالي: ${(sub + vat).toFixed(2)}\n`
+    );
+  }
+  if (requestedVat > 0) {
+    // الضريبة مطلوبة ولم تُطبَّق — لا تُخفِ ذلك خلف إجمالي صحيح ظاهرياً.
+    return (
+      `💰 الإجمالي: ${sub} (بدون ضريبة)\n` +
+      `⚠️ لم تُطبَّق ضريبة ${requestedVat}%: معرّف الضريبة VAT_TAX_RATE_ID غير مضبوط. ` +
+      `أضِفه في إعدادات Cloudflare ثم عدّل المستند في وافق.\n`
+    );
+  }
+  return `💰 الإجمالي: ${sub} (بدون ضريبة)\n`;
+}
+
 function confirmManualJournal(result, wafeqId) {
   const entries = result.manual_journal?.entries || [];
   const lines = entries
     .map((e) => {
-      const side = Number(e.debit) > 0 ? `مدين ${e.debit}` : `دائن ${e.credit}`;
-      return `• ${e.account_name} — ${side}`;
+      const side = Number(e.debit) > 0 ? `مدين ${esc(e.debit)}` : `دائن ${esc(e.credit)}`;
+      return `• ${esc(e.account_name)} — ${side}`;
     })
     .join('\n');
   const total = entries.reduce((s, e) => s + Number(e.debit || 0), 0);
   return (
     `✅ <b>تم إنشاء قيد يومية في وافق</b>\n\n` +
-    `📅 التاريخ: ${result.date}\n${lines}\n\n` +
-    `💰 الإجمالي: ${total}\n🧾 المرجع: ${wafeqId || 'غير متوفر'}\n\n` +
+    `📅 التاريخ: ${esc(result.date)}\n${lines}\n\n` +
+    `💰 الإجمالي: ${total}\n🧾 المرجع: ${esc(wafeqId) || 'غير متوفر'}\n\n` +
     `ℹ️ ملاحظة: القيود اليدوية تُرحّل مباشرة في وافق (لا تدعم المسودة عبر الـ API).`
   );
 }
 
-function confirmBill(result, wafeqId) {
+function confirmBill(result, wafeqId, appliedVat = 0) {
   const items = result.bill?.line_items || [];
-  const lines = items.map((li) => `• ${li.account_name} — ${li.amount}`).join('\n');
+  const lines = items.map((li) => `• ${esc(li.account_name)} — ${esc(li.amount)}`).join('\n');
   const sub = items.reduce((s, li) => s + Number(li.amount || 0), 0);
-  const vatPercent = Number(result.bill?.vat_percent ?? 0);
-  const vat = +((sub * vatPercent) / 100).toFixed(2);
   return (
     `✅ <b>تم إنشاء فاتورة مشتريات (مسودة) في وافق</b>\n\n` +
-    `📅 التاريخ: ${result.date}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n${lines}\n\n` +
-    (vatPercent > 0
-      ? `💰 قبل الضريبة: ${sub}\n➕ ضريبة ${vatPercent}%: ${vat}\n💵 الإجمالي: ${(sub + vat).toFixed(2)}\n`
-      : `💰 الإجمالي: ${sub} (بدون ضريبة)\n`) +
-    `🧾 رقم المسودة: ${wafeqId || 'غير متوفر'}\n\n` +
+    `📅 التاريخ: ${esc(result.date)}\n🏢 المورّد: ${esc(result.contact_name) || 'غير محدّد'}\n${lines}\n\n` +
+    vatLines(sub, Number(result.bill?.vat_percent ?? 0), appliedVat) +
+    `🧾 رقم المسودة: ${esc(wafeqId) || 'غير متوفر'}\n\n` +
     `⚠️ فاتورة <b>مسودة</b> تتطلب مراجعتك واعتمادك في وافق.`
   );
 }
 
-function confirmInvoice(result, wafeqId) {
+function confirmInvoice(result, wafeqId, appliedVat = 0) {
   const items = result.invoice?.line_items || [];
-  const vatPercent = Number(result.invoice?.vat_percent || 15);
   const sub = items.reduce((s, li) => s + Number(li.amount || 0), 0);
-  const vat = +(sub * vatPercent / 100).toFixed(2);
-  const lines = items.map((li) => `• ${li.account_name} — ${li.amount}`).join('\n');
+  const lines = items.map((li) => `• ${esc(li.account_name)} — ${esc(li.amount)}`).join('\n');
   return (
     `✅ <b>تم إنشاء فاتورة بيع (مسودة) في وافق</b>\n\n` +
-    `📅 التاريخ: ${result.date}\n👤 العميل: ${result.contact_name || 'غير محدّد'}\n${lines}\n\n` +
-    `💰 قبل الضريبة: ${sub}\n➕ ضريبة ${vatPercent}%: ${vat}\n💵 الإجمالي: ${(sub + vat).toFixed(2)}\n` +
-    `🧾 رقم المسودة: ${wafeqId || 'غير متوفر'}\n\n` +
+    `📅 التاريخ: ${esc(result.date)}\n👤 العميل: ${esc(result.contact_name) || 'غير محدّد'}\n${lines}\n\n` +
+    vatLines(sub, Number(result.invoice?.vat_percent ?? 15), appliedVat) +
+    `🧾 رقم المسودة: ${esc(wafeqId) || 'غير متوفر'}\n\n` +
     `⚠️ فاتورة <b>مسودة</b> تتطلب مراجعتك واعتمادك في وافق.`
   );
 }
@@ -221,10 +242,13 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
       lineItems,
       attachmentIds,
     });
-    return { wafeqId: id, confirm: confirmBill(result, id) };
+    // ما يُعرض للمستخدم = ما طُبّق فعلاً: لا معرّف ضريبة ⇐ لا ضريبة.
+    return { wafeqId: id, confirm: confirmBill(result, id, billTaxRate ? billVat : 0) };
   }
 
   if (result.type === 'sales_invoice') {
+    const invoiceVat = Number(result.invoice?.vat_percent ?? 15);
+    const invoiceTaxRate = invoiceVat > 0 ? env.VAT_TAX_RATE_ID || null : null;
     const lineItems = (result.invoice?.line_items || []).map((li) => ({
       account: idMap[li.account_code] || li.account_code,
       description: li.description,
@@ -234,10 +258,10 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
       contactId,
       date: result.date,
       lineItems,
-      taxRateId: env.VAT_TAX_RATE_ID || null,
+      taxRateId: invoiceTaxRate,
       attachmentIds,
     });
-    return { wafeqId: id, confirm: confirmInvoice(result, id) };
+    return { wafeqId: id, confirm: confirmInvoice(result, id, invoiceTaxRate ? invoiceVat : 0) };
   }
 
   throw new Error(`نوع عملية غير معروف: ${result.type}`);
@@ -328,7 +352,7 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
     await sendTelegramMessage(
       env,
       chatId,
-      `⚠️ تعذّر حذف العملية القديمة من وافق (${e.message}).\nلن أنشئ نسخة جديدة لتجنّب التكرار — عدّلها يدوياً في وافق.`
+      `⚠️ تعذّر حذف العملية القديمة من وافق (${esc(e.message)}).\nلن أنشئ نسخة جديدة لتجنّب التكرار — عدّلها يدوياً في وافق.`
     );
     return;
   }
@@ -519,7 +543,7 @@ export async function processTelegramUpdate(env, update) {
               .run();
             done++;
           } catch (e) {
-            failed.push(`${d.id}: ${e.message}`);
+            failed.push(`${esc(d.id)}: ${esc(e.message)}`);
           }
         }
         await updateTransaction(env.DB, txId, { status: 'posted' });
@@ -642,7 +666,7 @@ export async function processTelegramUpdate(env, update) {
           }
           const preview = items
             .slice(0, 10)
-            .map((d) => `• ${d.type} ${d.number || d.id}`)
+            .map((d) => `• ${esc(d.type)} ${esc(d.number || d.id)}`)
             .join('\n');
           await setConversationState(env.DB, chatId, {
             kind: 'confirm_delete',
@@ -666,7 +690,7 @@ export async function processTelegramUpdate(env, update) {
 
           if (!res.ok && res.reason === 'multiple') {
             const optionsText = res.options
-              .map((t, i) => `${i + 1}) ${describeType(t.result.type)} — ${t.result.summary || ''} — ${t.wafeqId}`)
+              .map((t, i) => `${i + 1}) ${describeType(t.result.type)} — ${esc(t.result.summary)} — ${esc(t.wafeqId)}`)
               .join('\n');
             await setConversationState(env.DB, chatId, {
               kind: 'target_choice',
@@ -684,7 +708,7 @@ export async function processTelegramUpdate(env, update) {
           }
           if (!res.ok) {
             await updateTransaction(env.DB, txId, { status: 'failed', errorMessage: res.reason });
-            await sendTelegramMessage(env, chatId, `⚠️ ${res.reason}`);
+            await sendTelegramMessage(env, chatId, `⚠️ ${res.reason}`); // reason مُهرَّب في المصدر
             return;
           }
 
@@ -815,7 +839,7 @@ export async function processTelegramUpdate(env, update) {
       await sendTelegramMessage(
         env,
         chatId,
-        `❓ ${result.question || 'أحتاج معلومات إضافية لإكمال العملية.'}`
+        `❓ ${esc(result.question) || 'أحتاج معلومات إضافية لإكمال العملية.'}`
       );
       return;
     }
@@ -840,7 +864,7 @@ export async function processTelegramUpdate(env, update) {
 
       const r = await resolveContact(env, result.contact_name);
       if (r.status === 'ambiguous') {
-        const optionsText = r.candidates.map((c, i) => `${i + 1}) ${c.name}`).join('\n');
+        const optionsText = r.candidates.map((c, i) => `${i + 1}) ${esc(c.name)}`).join('\n');
         await setConversationState(env.DB, chatId, {
           kind: 'contact_choice',
           analyzed: result,
@@ -852,7 +876,7 @@ export async function processTelegramUpdate(env, update) {
         await sendTelegramMessage(
           env,
           chatId,
-          `❓ وجدت أكثر من جهة اتصال تشبه «${result.contact_name}». أيّها تقصد؟\n\n${optionsText}\n\n` +
+          `❓ وجدت أكثر من جهة اتصال تشبه «${esc(result.contact_name)}». أيّها تقصد؟\n\n${optionsText}\n\n` +
             `اكتب الرقم للاختيار، أو اكتب اسماً جديداً لإنشاء جهة اتصال جديدة.`
         );
         return;
@@ -880,8 +904,8 @@ export async function processTelegramUpdate(env, update) {
         env,
         chatId,
         `⚠️ <b>تحذير: عملية مشابهة اليوم</b>\n\n` +
-          `يوجد ${describeType(result.type)} بنفس المبلغ${result.contact_name ? ` ولنفس «${result.contact_name}»` : ''} اليوم:\n` +
-          `• ${dup.summary || ''}\n🧾 ${dup.wafeqId}\n\n` +
+          `يوجد ${describeType(result.type)} بنفس المبلغ${result.contact_name ? ` ولنفس «${esc(result.contact_name)}»` : ''} اليوم:\n` +
+          `• ${esc(dup.summary)}\n🧾 ${esc(dup.wafeqId)}\n\n` +
           `هل تريد ترحيلها مع ذلك؟ اكتب «تأكيد» للمتابعة، أو أي شيء آخر للإلغاء.`
       );
       return;
@@ -911,7 +935,7 @@ export async function processTelegramUpdate(env, update) {
       await sendTelegramMessage(
         env,
         chatId,
-        `❌ <b>تعذّرت معالجة العملية</b>\n\nالسبب: ${msg}\n\nأعد المحاولة، أو تواصل مع الدعم إن تكرّر.`
+        `❌ <b>تعذّرت معالجة العملية</b>\n\nالسبب: ${esc(msg)}\n\nأعد المحاولة، أو تواصل مع الدعم إن تكرّر.`
       );
     } catch (_) {
       /* تجاهل فشل إرسال رسالة الخطأ */

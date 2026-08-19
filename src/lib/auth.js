@@ -106,6 +106,36 @@ export async function countUsers(db) {
 export async function authenticate(c) {
   const token = (c.req.header('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) return null;
-  if (c.env.DASHBOARD_API_KEY && token === c.env.DASHBOARD_API_KEY) return { apiKey: true };
+  // مقارنة زمنية ثابتة كما في كلمة المرور — المفتاح سرّ مثلها.
+  if (c.env.DASHBOARD_API_KEY && safeEqual(token, c.env.DASHBOARD_API_KEY)) return { apiKey: true };
   return getUserBySession(c.env.DB, token);
+}
+
+/**
+ * وسيط المصادقة الموحّد لكل مسارات /api المحمية.
+ *
+ * يُسجَّل مرة واحدة في index.js، ويضبط في السياق:
+ *   user     — كائن المستخدم إن كان الدخول بجلسة (غائب مع المفتاح الآلي)
+ *   isAdmin  — للمفتاح الآلي دائماً، وللمستخدم بصلاحية admin
+ *
+ * لا تضع `use('*')` داخل تطبيق فرعي مركّب على /api: التطبيقات الفرعية كلها
+ * تُركّب على البادئة نفسها، فوسيط `*` في أحدها يصير وسيطاً على /api/* كلّه
+ * ويحرس مسارات غيره بحسب ترتيب التسجيل وحده.
+ */
+export async function requireSession(c, next) {
+  const who = await authenticate(c);
+  if (!who) return c.json({ ok: false, error: 'unauthorized' }, 401);
+  if (who.email) c.set('user', who);
+  c.set('isAdmin', !!who.apiKey || who.role === 'admin');
+  await next();
+}
+
+/**
+ * حارس الإجراءات التي تُعدّل البيانات — يُستدعى في أول كل معالج يحتاجه.
+ * @returns {Response|null} ردّ 403 عند المنع، أو null للسماح.
+ */
+export function requireAdmin(c) {
+  return c.get('isAdmin')
+    ? null
+    : c.json({ ok: false, error: 'هذه العملية تتطلب صلاحية مسؤول.' }, 403);
 }

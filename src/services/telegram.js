@@ -5,18 +5,48 @@
 const TG_API = 'https://api.telegram.org';
 
 /**
+ * تهريب نصّ ليُدرَج بأمان داخل رسالة parse_mode=HTML.
+ *
+ * إلزامي لكل قيمة غير مضبوطة تدخل رسالة: وصف من Claude، اسم مورّد، جسم ردّ
+ * وافق داخل رسالة خطأ. محرف `<` واحد غير مهرَّب يجعل تليجرام يردّ
+ * «can't parse entities»، فتفشل الرسالة كلّها — وإن كانت رسالة الخطأ نفسها
+ * لم يصل المستخدم شيء إطلاقاً.
+ *
+ * تليجرام يوجب تهريب `&` و`<` و`>` فقط.
+ */
+export function esc(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
  * إرسال رسالة نصية إلى محادثة تليجرام.
+ * النصّ الوارد هنا HTML جاهز — تُهرَّب أجزاؤه المتغيّرة بـ esc() عند بنائه.
  */
 export async function sendTelegramMessage(env, chatId, text) {
-  const res = await fetch(`${TG_API}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: 'HTML',
-    }),
-  });
+  const post = (payload) =>
+    fetch(`${TG_API}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, ...payload }),
+    });
+
+  let res = await post({ text, parse_mode: 'HTML' });
+
+  // شبكة أمان: لو أفلت وسم غير مهرَّب رغم esc()، يردّ تليجرام 400
+  // «can't parse entities». وصول الرسالة أهم من تنسيقها، فنعيد الإرسال
+  // نصاً صرفاً بعد نزع الوسوم بدل أن يبقى المستخدم بلا خبر.
+  if (res.status === 400) {
+    const plain = String(text)
+      .replace(/<[^>]+>/g, '')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
+    res = await post({ text: plain });
+  }
+
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Telegram sendMessage failed: ${res.status} ${body}`);

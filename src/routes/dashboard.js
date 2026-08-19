@@ -1,32 +1,18 @@
 // ============================================================================
 // مسارات لوحة التحكم (Dashboard API)
-// محمية بمفتاح DASHBOARD_API_KEY عبر ترويسة Authorization: Bearer <key>.
+// ============================================================================
+//
+// المصادقة من وسيط requireSession الموحّد في index.js — لا وسيط `use('*')`
+// هنا: التطبيقات الفرعية كلها تُركّب على /api، فوسيط `*` في أحدها يحرس
+// مسارات غيره. القراءة متاحة لكل مستخدم مُصادَق، والتعديل للمسؤول وحده.
 // ============================================================================
 
 import { Hono } from 'hono';
 import { syncChartOfAccounts } from '../services/sync.js';
 import { pickProvider } from '../services/transcription.js';
-import { authenticate } from '../lib/auth.js';
+import { requireAdmin } from '../lib/auth.js';
 
 const dashboard = new Hono();
-
-// ---- وسيط الحماية ----
-// يقبل: (1) رمز جلسة مستخدم صالح (تسجيل الدخول)، أو
-//        (2) DASHBOARD_API_KEY (للاستخدام الآلي مثل curl والمزامنة).
-dashboard.use('*', async (c, next) => {
-  const who = await authenticate(c);
-  if (!who) return c.json({ ok: false, error: 'unauthorized' }, 401);
-  if (who.email) c.set('user', who);
-  c.set('isAdmin', !!who.apiKey || who.role === 'admin');
-  await next();
-});
-
-/** إجراءات تُعدّل البيانات تتطلب صلاحية مسؤول. */
-function requireAdmin(c) {
-  return c.get('isAdmin')
-    ? null
-    : c.json({ ok: false, error: 'هذه العملية تتطلب صلاحية مسؤول.' }, 403);
-}
 
 // ---- العمليات مع فلاتر وفرز ----
 // مرشّحات: status, source_type, q (بحث في النص)، from/to (تاريخ YYYY-MM-DD)

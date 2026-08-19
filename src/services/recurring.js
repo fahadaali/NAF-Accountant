@@ -12,7 +12,7 @@ import {
 } from '../lib/db.js';
 import { postJournalEntryDraft, createBillDraft, createInvoiceDraft } from './wafeq.js';
 import { resolveContact } from './contacts.js';
-import { sendTelegramMessage } from './telegram.js';
+import { sendTelegramMessage, esc } from './telegram.js';
 
 /** تاريخ اليوم بتوقيت السعودية (UTC+3). */
 function riyadhNow() {
@@ -110,7 +110,7 @@ export async function runDueRecurring(env) {
         await sendTelegramMessage(
           env,
           item.notify_chat_id,
-          `🔁 <b>تم تنفيذ عملية متكرّرة</b>\n\n📌 ${item.label}\n📅 ${today}\n🧾 ${wafeqId}`
+          `🔁 <b>تم تنفيذ عملية متكرّرة</b>\n\n📌 ${esc(item.label)}\n📅 ${esc(today)}\n🧾 ${esc(wafeqId)}`
         ).catch(() => {});
       }
     } catch (err) {
@@ -127,7 +127,7 @@ export async function runDueRecurring(env) {
         await sendTelegramMessage(
           env,
           item.notify_chat_id,
-          `⚠️ <b>فشل تنفيذ عملية متكرّرة</b>\n\n📌 ${item.label}\n❌ ${msg}`
+          `⚠️ <b>فشل تنفيذ عملية متكرّرة</b>\n\n📌 ${esc(item.label)}\n❌ ${esc(msg)}`
         ).catch(() => {});
       }
     }

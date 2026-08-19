@@ -17,7 +17,8 @@ import authRoute from './routes/auth.js';
 import adminRoute from './routes/admin.js';
 import { syncChartOfAccounts } from './services/sync.js';
 import { runDueRecurring } from './services/recurring.js';
-import { notifyAdmins } from './services/telegram.js';
+import { notifyAdmins, esc } from './services/telegram.js';
+import { requireSession } from './lib/auth.js';
 import { writeLog } from './lib/db.js';
 
 const app = new Hono();
@@ -32,17 +33,33 @@ app.use('/api/*', cors({
 // فحص الصحة
 app.get('/api/health', (c) => c.json({ ok: true }));
 
-// مسارات الـ API
-// ملاحظة: المسارات العامة (auth, telegram, reports, basecamp_oauth) تُسجّل قبل
-// لوحة التحكم، لأن وسيط حماية اللوحة (use '*') يُطبّق على ما يليه من مسارات /api.
+// ----------------------------------------------------------------------------
+// مسارات الـ API — الترتيب جزء من الحماية، فاقرأه قبل تغييره.
+//
+// Hono يُركّب كل التطبيقات الفرعية على البادئة /api نفسها، ثم ينفّذ ما يطابق
+// الطلب **بترتيب التسجيل**. فالوسيط المسجّل قبل معالِج ما يحرسه، والمسجّل بعده
+// لا يمسّه (لأن المعالج يردّ ويقطع السلسلة).
+//
+// لذلك: المسارات العامة أولاً، ثم سطر المصادقة الواحد، ثم كل ما هو محمي.
+// ولا `use('*')` داخل أي تطبيق فرعي — وسيط كهذا يحرس مسارات غيره، وهو ما
+// جعل حارس الإدارة يحجب اللوحة كلّها عن صلاحية «مستخدم».
+// ----------------------------------------------------------------------------
+
+// (١) عامة — لكلٍّ حمايته الخاصة: سرّ الويبهوك، أو حارس /reports/*، أو الإعداد.
 app.route('/api', authRoute);
 app.route('/api', telegramRoute);
 app.route('/api', reportsRoute);
 app.route('/api', basecampOauthRoute);
-app.route('/api', adminRoute);
+
+// (٢) كل ما بعد هذا السطر يتطلب مصادقة: جلسة مستخدم أو DASHBOARD_API_KEY.
+app.use('/api/*', requireSession);
+
+// (٣) محمية — القراءة لكل مُصادَق، والتعديل للمسؤول (requireAdmin داخل المعالج).
 app.route('/api', dashboardRoute);
+app.route('/api', adminRoute);
 
 // مسار API غير موجود → 404 JSON (لا تُخدم صفحة SPA لطلبات الـ API).
+// يقع بعد وسيط المصادقة، فالمجهول يرد 401 لغير المُصادَق و404 للمُصادَق.
 app.all('/api/*', (c) => c.json({ ok: false, error: 'not found' }, 404));
 
 // أي مسار آخر يخدمه ملفات لوحة التحكم الثابتة (SPA).
@@ -56,6 +73,10 @@ app.onError((err, c) => {
   console.error('Unhandled error:', err);
   return c.json({ ok: false, error: err.message || 'internal error' }, 500);
 });
+
+// يُصدَّر للاختبارات فقط: جرد المسارات (app.routes) يتحقّق أن كل مسار محمي
+// يقع فعلاً بعد وسيط المصادقة. لا يستعمله وقت التشغيل.
+export { app };
 
 export default {
   fetch: app.fetch,
@@ -79,7 +100,7 @@ export default {
             // تنبيه المسؤولين عبر تليجرام عند فشل مهمة مجدولة.
             await notifyAdmins(
               env,
-              `🚨 <b>فشل مهمة مجدولة</b>\n\n📌 ${label}\n❌ ${msg}\n\nراجع سجلّات اللوحة للتفاصيل.`
+              `🚨 <b>فشل مهمة مجدولة</b>\n\n📌 ${esc(label)}\n❌ ${esc(msg)}\n\nراجع سجلّات اللوحة للتفاصيل.`
             );
           }
         })()
