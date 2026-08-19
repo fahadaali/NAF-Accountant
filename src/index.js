@@ -27,9 +27,20 @@ import { writeLog } from './lib/db.js';
 
 const app = new Hono();
 
-// CORS للسماح للوحة التحكم (Cloudflare Pages) بالاتصال.
+/* CORS — الأصل المُعلن وحده لا `*`.
+
+   `origin: '*'` بقيّة من يوم كانت اللوحة على Cloudflare Pages بنطاق مستقلّ.
+   واليوم يخدم هذا العامل نفسُه اللوحةَ والواجهةَ البرمجية معاً، فطلبُ اللوحة
+   من أصلها لا يمرّ بـCORS أصلاً — والفتح الكامل لا يخدم شيئاً قائماً ويدع
+   أي صفحة في أي نطاق تنادي الواجهة من متصفّح الزائر.
+
+   والأتمتة بـ`DASHBOARD_API_KEY` لا يمسّها هذا: `curl` وما شابهه لا يطبّق
+   CORS، وهو حكمُ متصفّحٍ لا حكمُ خادم. */
 app.use('/api/*', cors({
-  origin: '*',
+  origin: (origin, c) => {
+    const declared = String(c?.env?.PUBLIC_ORIGIN || '').trim().replace(/\/+$/, '');
+    return declared && origin === declared ? origin : null;
+  },
   allowMethods: ['GET', 'POST', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }));

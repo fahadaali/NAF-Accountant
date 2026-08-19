@@ -293,21 +293,9 @@ export async function findSimilarPostedToday(db, chatId, { type, total, currency
 // محادثات تليجرام المصرّح لها
 // ----------------------------------------------------------------------------
 
-/** المحادثات النشطة المصرّح لها. */
-export async function getActiveChats(db) {
-  const { results } = await db
-    .prepare(`SELECT chat_id, label, is_admin FROM telegram_chats WHERE is_active = 1`)
-    .all();
-  return results || [];
-}
-
-/** محادثات المسؤولين (لتنبيهات فشل المهام). */
-export async function getAdminChats(db) {
-  const { results } = await db
-    .prepare(`SELECT chat_id FROM telegram_chats WHERE is_active = 1 AND is_admin = 1`)
-    .all();
-  return (results || []).map((r) => r.chat_id);
-}
+/* حُذفت `getActiveChats` و`getAdminChats`: لا مستدعي لهما في المستودع
+   كلّه. و`services/telegram.js` يكتب استعلاميهما داخلياً — نسختان من
+   استعلام واحد، تُعدَّل إحداهما فتبقى الأخرى. المصدر في `telegram.js`. */
 
 // ----------------------------------------------------------------------------
 // العمليات المتكرّرة

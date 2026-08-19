@@ -36,9 +36,28 @@ function updateKind(update) {
 telegram.post('/telegram-webhook', async (c) => {
   const env = c.env;
 
-  // 1) التحقق من السر (Secret Token) الذي يرسله تليجرام في الترويسة.
+  /* 1) التحقق من السر (Secret Token) الذي يرسله تليجرام في الترويسة.
+
+     ═══ يفشل مغلقاً ═══
+
+     كان الشرط `env.TELEGRAM_WEBHOOK_SECRET && …` — أي أن الفحص كلّه
+     يُتخطّى إن لم يُضبط السرّ. والباب مفتوح للعالم، ومعرّف المحادثة رقمٌ
+     يُخمَّن أو يُسرَّب، فيكفي من يعرف الرابط أن يرسل تحديثاً مزوّراً بمعرّف
+     محادثة مصرّح له لينشئ قيوداً في وافق باسم الشركة.
+
+     وغيابُ السرّ خطأُ إعدادٍ لا إذنٌ بالمرور: يُردّ ٥٠٣ ويُسجَّل، فيُقرأ
+     السبب من صفحة السجلّات بدل أن يبدو البوت صامتاً. */
+  if (!env.TELEGRAM_WEBHOOK_SECRET) {
+    await writeLog(env.DB, {
+      action: LOG_ACTION,
+      status: 'error',
+      errorDetails: 'TELEGRAM_WEBHOOK_SECRET غير مضبوط — رُفض التحديث. اضبطه في أسرار Cloudflare.',
+    });
+    return c.json({ ok: false, error: 'webhook secret not configured' }, 503);
+  }
+
   const secret = c.req.header('X-Telegram-Bot-Api-Secret-Token');
-  if (env.TELEGRAM_WEBHOOK_SECRET && secret !== env.TELEGRAM_WEBHOOK_SECRET) {
+  if (secret !== env.TELEGRAM_WEBHOOK_SECRET) {
     /* هذا السطر هو الفرق بين عطلٍ يُشخَّص وعطلٍ يُخمَّن. تليجرام يعيد
        المحاولة ثم يستسلم، ويسجّل السبب عنده في `last_error_message` — وهنا
        لم يكن يُسجَّل شيء، فيبدو البوت ميتاً بلا دليل واحد. */

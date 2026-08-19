@@ -95,12 +95,23 @@ globalThis.fetch = async (url, init) => {
 const app = new Hono();
 app.route('/api', telegramRoute);
 
-const BASE = { TELEGRAM_BOT_TOKEN: 'tok', PUBLIC_ORIGIN: 'https://acc.naflaw.sa' };
+/* السرّ في البيئة الأساسية: الباب صار يفشل مغلقاً، فغيابه يردّ ٥٠٣ قبل أي
+   فحصٍ آخر — وحالاتُ هذا الملف تفحص ما بعده. */
+const SECRET = 's3cret';
+const BASE = {
+  TELEGRAM_BOT_TOKEN: 'tok',
+  PUBLIC_ORIGIN: 'https://acc.naflaw.sa',
+  TELEGRAM_WEBHOOK_SECRET: SECRET,
+};
 
 const post = (payload, headers = {}) =>
   new Request('https://acc.naflaw.sa/api/telegram-webhook', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Bot-Api-Secret-Token': SECRET,
+      ...headers,
+    },
     body: JSON.stringify(payload),
   });
 
@@ -131,13 +142,29 @@ const ok = (label) => {
   const DB = fakeDb();
   const res = await app.fetch(
     post(msg(555, 'دفعت 500'), { 'X-Telegram-Bot-Api-Secret-Token': 'wrong' }),
-    { ...BASE, DB, TELEGRAM_WEBHOOK_SECRET: 's3cret' },
+    { ...BASE, DB },
     ctx()
   );
   assert.equal(res.status, 401);
   assert.equal(DB.logs.length, 1, 'رفضُ السرّ يُسجَّل');
   assert.match(DB.logs[0].details, /سرّ الترويسة لا يطابق/);
   ok('سرّ غير مطابق يترك سطراً يقول السبب');
+}
+
+// ═══ السرّ غير مضبوط ⇐ الباب يفشل مغلقاً ═══
+// كان الشرط `env.TELEGRAM_WEBHOOK_SECRET && …`، أي أن الفحص كلّه يُتخطّى
+// حين لا يُضبط السرّ. والباب عامّ ومعرّف المحادثة يُخمَّن، فيكفي من يعرف
+// الرابط أن يرسل تحديثاً مزوّراً لينشئ قيوداً في وافق.
+{
+  const DB = fakeDb();
+  const res = await app.fetch(
+    post(msg(555, 'دفعت 500')),
+    { ...BASE, DB, TELEGRAM_WEBHOOK_SECRET: undefined },
+    ctx()
+  );
+  assert.equal(res.status, 503, 'غياب السرّ خطأ إعداد لا إذن بالمرور');
+  assert.match(DB.logs[0].details, /TELEGRAM_WEBHOOK_SECRET غير مضبوط/);
+  ok('سرّ غير مضبوط يُغلق الباب ويقول السبب');
 }
 
 // ═══ تحديث بلا رسالة ═══

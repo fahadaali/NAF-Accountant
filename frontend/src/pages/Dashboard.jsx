@@ -18,13 +18,13 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 // أيقونة المسودة باقية بعد تصحيح التسمية من «مسودات في وافق».
 const STAT_CARDS = [
   { key: 'total', label: 'إجمالي العمليات', Icon: Sigma, color: 'bg-primary-soft text-primary-strong' },
-  { key: 'posted', label: 'مُرحّلة إلى وافق', Icon: CircleCheck, color: 'bg-success-soft text-success-strong' },
+  { key: 'postedToWafeq', label: 'مُرحّلة إلى وافق', Icon: CircleCheck, color: 'bg-success-soft text-success-strong' },
   { key: 'analyzed', label: 'قيد التحليل', Icon: Bot, color: 'bg-warning-soft text-warning-strong' },
   { key: 'failed', label: 'العمليات التي فشلت', Icon: CircleAlert, color: 'bg-destructive-soft text-destructive-strong' },
 ];
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ total: 0, byStatus: [] });
+  const [stats, setStats] = useState({ total: 0, postedToWafeq: 0, byStatus: [] });
   const [recent, setRecent] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -43,10 +43,13 @@ export default function Dashboard() {
     })();
   }, []);
 
-  const countFor = (status) =>
-    status === 'total'
-      ? stats.total
-      : stats.byStatus?.find((r) => r.status === status)?.count || 0;
+  // `postedToWafeq` يُحسب في الخادم بوجود مستند وافق لا بالحالة وحدها —
+  // فالبطاقة تقول «مُرحّلة إلى وافق» ولا تعدّ ما لا مستند له.
+  const countFor = (key) => {
+    if (key === 'total') return stats.total;
+    if (key === 'postedToWafeq') return stats.postedToWafeq ?? 0;
+    return stats.byStatus?.find((r) => r.status === key)?.count || 0;
+  };
 
   if (loading) return <p className="text-muted-foreground">جارٍ التحميل…</p>;
 

@@ -128,27 +128,50 @@ export async function postJournalEntryDraft(env, accounts, entries, opts = {}) {
  * سحب ملخص المسودات من وافق (للتقرير الشهري).
  * المسودات الفعلية هي فواتير البيع والمشتريات (القيود اليدوية تُرحّل مباشرة).
  * مرِن: يتجاوز أي نوع يفشل جلبه بدل إفشال التقرير كاملاً.
- * @returns {Promise<{count:number, items:Array}>}
+ * @returns {Promise<{count:number, items:Array, partial:string[]}>}
+ *   partial: أنواع بلغت سقف الصفحات — العدد أدنى من الحقيقي.
  */
 export async function getWafeqDraftSummary(env) {
   const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
   const headers = { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` };
   const items = [];
+  const partial = []; // أنواع بلغت سقف الصفحات فبقي منها ما لم يُجلب
+
+  /* ═══ ترقيم الصفحات ═══
+
+     كان الجلب صفحةً واحدة بـ`page_size=100` بلا متابعة `next`، فالسقف مئة
+     لكل نوع. والنتيجة تُستعمل في موضعين لا يحتملان النقص:
+
+       • «احذف جميع المسودات» يعرض «سيتم حذف N» ثم يحذف ما جُلب وحده —
+         فيؤكّد المستخدم حذفاً شاملاً ويحصل على حذف جزئي دون أن يُخبَر.
+       • تقرير بيسكامب الشهري ينشر العدد على أنه الإجمالي.
+
+     ونمط المتابعة معروف في هذا المستودع — `sync.js` يتبع `data.next` منذ
+     البداية. */
+  const PAGE_GUARD = 50; // سقف صفحات يحمي من حلقة لا نهائية
 
   async function pull(path, label, docType) {
+    let url = `${base}/${path}/?status=DRAFT&page_size=100`;
+    let guard = 0;
     try {
-      const res = await fetch(`${base}/${path}/?status=DRAFT&page_size=100`, { headers });
-      if (!res.ok) return;
-      const data = await res.json();
-      const list = data.results || data.data || [];
-      for (const d of list) {
-        items.push({
-          type: label,
-          docType, // المفتاح الداخلي (لعمليات الحذف)
-          id: String(d.id || d.uuid || ''),
-          number: d.bill_number || d.invoice_number || '',
-          date: d.bill_date || d.invoice_date || d.date || '',
-        });
+      while (url && guard < PAGE_GUARD) {
+        guard++;
+        const res = await fetch(url, { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = data.results || data.data || [];
+        for (const d of list) {
+          items.push({
+            type: label,
+            docType, // المفتاح الداخلي (لعمليات الحذف)
+            id: String(d.id || d.uuid || ''),
+            number: d.bill_number || d.invoice_number || '',
+            date: d.bill_date || d.invoice_date || d.date || '',
+          });
+        }
+        url = data.next || null;
+        // بلغ السقف وبقيت صفحات: يُقال ولا يُقتطع صامتاً.
+        if (url && guard >= PAGE_GUARD) partial.push(label);
       }
     } catch (_) {
       /* تجاهل نوعاً فشل جلبه */
@@ -158,7 +181,7 @@ export async function getWafeqDraftSummary(env) {
   await pull('bills', 'فاتورة مشتريات', 'purchase_bill');
   await pull('invoices', 'فاتورة مبيعات', 'sales_invoice');
 
-  return { count: items.length, items };
+  return { count: items.length, items, partial };
 }
 
 // ============================================================================

@@ -17,7 +17,7 @@
 -- ولا أحد يُمنح ما لم يكن له. و`viewer` يبقى لمن يُسنَد إليه بعد اليوم.
 --
 -- ولا نشرَ آليّ في هذا المستودع، فتُشغَّل باليد قبل النشر:
---   npm run db:migrate:reader
+--   npm run db:migrate   (يشمل هذا الملف وكل ما سبقه)
 --
 -- وتعمل مكرّرة بلا أثر: بعد أوّل تشغيل لا صفّ `viewer` يطابقها.
 UPDATE members SET role = 'editor' WHERE role = 'viewer';

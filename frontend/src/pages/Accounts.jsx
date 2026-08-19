@@ -26,7 +26,7 @@ const TYPE_LABELS = {
   expense: { label: 'مصروف' },
 };
 
-const EMPTY = { account_code: '', account_name: '', account_type: 'expense' };
+const EMPTY = { account_code: '', account_name: '', account_type: 'expense', wafeq_account_id: '' };
 
 export default function Accounts({ isAdmin }) {
   const [accounts, setAccounts] = useState([]);
@@ -52,7 +52,11 @@ export default function Accounts({ isAdmin }) {
   const submit = async (e) => {
     e.preventDefault();
     try {
-      await api.addAccount(form);
+      await api.addAccount({
+        ...form,
+        // فارغ = بلا معرّف، لا سلسلة فارغة: العمود يُفحص بـIS NOT NULL.
+        wafeq_account_id: form.wafeq_account_id.trim() || null,
+      });
       setForm(EMPTY);
       setMsg('تم الحفظ.');  // naf-terms.md §٤: «تم + المصدر»، و«بنجاح» من النبرة الممنوعة
       load();
@@ -96,33 +100,53 @@ export default function Accounts({ isAdmin }) {
       {error && <Alert variant="destructive"><CircleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
       {msg && <Alert variant="success"><CircleCheck /><AlertDescription>{msg}</AlertDescription></Alert>}
 
-      {/* نموذج إضافة حساب — للمسؤول فقط */}
-      <Card className="p-6" style={{ display: isAdmin ? undefined : 'none' }}>
-        <h3 className="font-bold text-foreground mb-4">إضافة / تعديل حساب</h3>
-        <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <Input
-            placeholder="رمز الحساب"
-            value={form.account_code}
-            onChange={(e) => setForm({ ...form, account_code: e.target.value })}
-            required
-          />
-          <Input
-            placeholder="اسم الحساب"
-            value={form.account_name}
-            onChange={(e) => setForm({ ...form, account_name: e.target.value })}
-            required
-          />
-          <Select
-            value={form.account_type}
-            onChange={(e) => setForm({ ...form, account_type: e.target.value })}
-          >
-            {Object.entries(TYPE_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
-          </Select>
-          <Button className="justify-center" type="submit">حفظ</Button>
-        </form>
-      </Card>
+      {/* نموذج إضافة حساب — للمسؤول فقط.
+          شرطُ عرضٍ لا `display:none`: الأخير يُبقي النموذج في الشجرة فيبلغه
+          قارئ الشاشة ومفتاح Tab، وبقيّة المنصة تُخفي بالشرط. */}
+      {isAdmin && (
+        <Card className="p-6">
+          <h3 className="font-bold text-foreground mb-1">إضافة / تعديل حساب</h3>
+          {/* معرّف وافق ليس حقلاً اختيارياً في الأثر: `getActiveAccounts`
+              يستبعد كل حساب بلا معرّف، و`postJournalEntryDraft` يرفض ما لا
+              يبدأ بـ`acc_`. فحسابٌ يُضاف بدونه يظهر في هذا الجدول ولا
+              يستعمله البوت في أي قيد — بلا ما يقول ذلك. */}
+          <p className="text-muted-foreground text-sm mb-4">
+            معرّف وافق شرطٌ لاستعمال الحساب: ما لا معرّف له يُستبعد من توجيه القيود.
+            المزامنة تملؤه تلقائياً، وهذا الحقل لما يُضاف يدوياً.
+          </p>
+          <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+            <Input
+              placeholder="رمز الحساب"
+              value={form.account_code}
+              onChange={(e) => setForm({ ...form, account_code: e.target.value })}
+              required
+            />
+            <Input
+              placeholder="اسم الحساب"
+              value={form.account_name}
+              onChange={(e) => setForm({ ...form, account_name: e.target.value })}
+              required
+            />
+            <Select
+              aria-label="نوع الحساب"
+              value={form.account_type}
+              onChange={(e) => setForm({ ...form, account_type: e.target.value })}
+            >
+              {Object.entries(TYPE_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v.label}</option>
+              ))}
+            </Select>
+            <Input
+              placeholder="معرّف وافق (acc_…)"
+              dir="ltr"
+              className="text-start"
+              value={form.wafeq_account_id}
+              onChange={(e) => setForm({ ...form, wafeq_account_id: e.target.value })}
+            />
+            <Button className="justify-center" type="submit">حفظ</Button>
+          </form>
+        </Card>
+      )}
 
       {/* جدول الحسابات */}
       <Card className="p-6">

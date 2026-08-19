@@ -12,8 +12,6 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 // chart-2 (أزرق) + chart-3 (أخضر): الزوج اجتاز كل فحوص مدقّق dataviz
 // على سطح الثيم — تشبّع وفصل عمى ألوان وتباين. (chart-1 الذهبي يسقط
 // في فحص التشبّع فيُقرأ رمادياً، لذلك لم يُستخدم للسلاسل.)
-const CLS_REVENUE = 'chart-2';
-const CLS_EXPENSE = 'chart-3';
 
 // الأرقام غربية بفاصل آلاف — من lib/format.js لا داخل الصفحة.
 const fmt = (n) => fmtNumber(n);

@@ -102,7 +102,7 @@ reports.use('/reports/*', async (c, next) => {
  * بناء وإرسال التقرير الشهري. مشترك بين المسار والـ Cron.
  */
 export async function generateAndSendReport(env) {
-  const { count, items } = await getWafeqDraftSummary(env);
+  const { count, items, partial } = await getWafeqDraftSummary(env);
 
   const now = new Date();
   const monthLabel = now.toLocaleDateString('ar', { year: 'numeric', month: 'long' });
@@ -112,9 +112,18 @@ export async function generateAndSendReport(env) {
     .map((d) => `<li>${d.type} #${d.number || d.id} <em>(${d.date})</em></li>`)
     .join('');
 
+  // ما اقتُطع يُقال: العدد أعلاه أدنى من الحقيقي لا مساوٍ له.
+  const partialNote = (partial || []).length
+    ? `<p><strong>تنبيه:</strong> بلغ الجلب سقف الصفحات في: ${partial.join('، ')}. ` +
+      `العدد أعلاه أدنى من الحقيقي.</p>`
+    : '';
+  const shownNote = items.length > 100 ? `<p>يُعرض أول 100 مستند من ${count}.</p>` : '';
+
   const contentHtml =
     `<h2>التقرير المحاسبي — ${monthLabel}</h2>` +
     `<p>إجمالي القيود بحالة مسودة بانتظار المراجعة: <strong>${count}</strong></p>` +
+    partialNote +
+    shownNote +
     (rows ? `<ul>${rows}</ul>` : `<p>لا توجد مسودات معلّقة.</p>`) +
     `<p><em>تم إنشاء هذا التقرير آلياً بواسطة منصة ناف لو المحاسبية.</em></p>`;
 
