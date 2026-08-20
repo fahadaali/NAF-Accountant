@@ -10,8 +10,10 @@
 // كما يتولّى: تحليل التاريخ (مطلق أو نسبي مثل "أمس")، افتراض الحساب البنكي
 // عند عدم ذكر حساب الدفع، وكشف البيانات الناقصة وصياغة سؤال لاستكمالها.
 // ============================================================================
+import { briefApiError } from '../lib/http.js';
 
-function buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent) {
+
+function buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent, baseCurrency) {
   const accountsList = accounts
     .map((a) => `- ${a.account_code} | ${a.account_name} (${a.account_type})`)
     .join('\n');
@@ -20,7 +22,7 @@ function buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent) {
     ? `${defaultBank.account_code} | ${defaultBank.account_name}`
     : '(غير محدّد — استخدم أنسب حساب بنكي/نقدي من القائمة ولا تسأل عنه)';
 
-  return `أنت محاسب قانوني خبير في شركة ناف لو (شركة سعودية، العملة SAR). مهمتك تحليل العملية المالية الواردة وتوجيهها للمسار المحاسبي الصحيح في نظام وافق.
+  return `أنت محاسب قانوني خبير في شركة ناف لو (شركة سعودية، عملة الدفاتر ${baseCurrency}). مهمتك تحليل العملية المالية الواردة وتوجيهها للمسار المحاسبي الصحيح في نظام وافق.
 
 # شجرة الحسابات المتاحة (استخدم رموزها حصرياً، لا تخترع حسابات):
 ${accountsList}
@@ -39,6 +41,16 @@ ${bankLine}
 - ⛔ لا تسأل إطلاقاً عن الحساب البنكي أو مصدر الدفع أو حساب الاستلام. عدم ذكره ليس بياناً ناقصاً.
 - إذا لم يُذكر مصدر الدفع/الاستلام صراحةً، فهو دائماً الحساب البنكي الافتراضي أعلاه.
 - استخدم حساباً آخر فقط إذا ذكره المستخدم صراحةً، مثل: "نقداً" أو "الصندوق" أو "الخزينة" أو "المصروفات النثرية" أو "sifi" أو أي اسم حساب في القائمة.
+
+# قاعدة العملة (صارمة):
+- العملة الافتراضية هي ${baseCurrency}. إن لم تُذكر عملة فاضبط "currency": "${baseCurrency}" ولا تسأل عنها.
+- إن ذُكرت عملة أخرى — «دولار» أو «$» أو «USD» أو «يورو» أو «درهم» أو ما شابه، أو كانت
+  الفاتورة المرفقة محرّرة بها — فاضبط "currency" برمزها الدولي (ISO 4217) بثلاثة أحرف كبيرة:
+  دولار → USD، يورو → EUR، جنيه إسترليني → GBP، درهم إماراتي → AED، دينار كويتي → KWD.
+- المبالغ في "amount" و"debit" و"credit" تبقى دائماً بعملة العملية نفسها. ⛔ لا تحوّلها بنفسك.
+- "exchange_rate": املأه فقط إذا ذكر المستخدم سعر الصرف صراحةً («بسعر 3.78»، «الدولار بـ3.76»،
+  أو رقماً مجرداً رداً على سؤال عن سعر الصرف في السياق السابق). وإلا اضبطه null.
+- ⛔ لا تسأل عن سعر الصرف ولا تخترعه — النظام يتولّاه.
 
 # قواعد عامة:
 - التاريخ: إن ذُكر تاريخ صريح أو نسبي ("أمس"، "الثلاثاء الماضي"، "قبل يومين") فحوّله إلى YYYY-MM-DD بناءً على تاريخ الرسالة. وإن لم يُذكر تاريخ فاستخدم تاريخ الرسالة.
@@ -62,6 +74,8 @@ ${bankLine}
   "type": "manual_journal" | "purchase_bill" | "sales_invoice",
   "date": "YYYY-MM-DD",
   "contact_name": "اسم العميل أو المورّد أو null",
+  "currency": "${baseCurrency}",
+  "exchange_rate": null,
   "summary": "وصف موجز بالعربية للعملية",
   "manual_journal": {
     "entries": [
@@ -85,6 +99,69 @@ ${bankLine}
 املأ فقط الكائن المطابق لـ "type" واترك الآخرين فارغين (arrays فارغة). لا تضف أي تعليقات.`;
 }
 
+// اسم النموذج الافتراضي في موضع واحد — كان مكرّراً في خمسة نداءات، وتحديثُ
+// أحدها يترك أربعة خلفه.
+const DEFAULT_MODEL = 'claude-opus-4-8';
+
+/**
+ * نداء واحد إلى Claude يمرّ منه كل استدعاء في هذا الملف.
+ *
+ * ═══ فحص stop_reason ═══
+ *
+ * بلوغ `max_tokens` يعني رداً مبتوراً، وكان يمرّ صامتاً في المواضع الخمسة:
+ * فيُنشر تقريرٌ ماليّ مقطوعٌ في منتصف جدول على بيسكامب، ويُحلَّل نصٌّ صوتيّ
+ * ناقص كأنه كامل. والبتر لا يُميَّز من الاكتمال إلا من هذا الحقل.
+ *
+ * @param {object} opts
+ * @param {string} opts.system
+ * @param {string|Array} opts.content نصّ، أو مصفوفة كتل (لإرسال صورة).
+ * @param {number} opts.maxTokens
+ * @param {string} [opts.label] اسم يظهر في رسالة الخطأ.
+ * @returns {Promise<string>} نصّ الرد.
+ */
+async function callClaude(env, { system, content, maxTokens = 2048, label = 'Claude' }) {
+  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: env.CLAUDE_MODEL || DEFAULT_MODEL,
+      max_tokens: maxTokens,
+      system,
+      messages: [
+        {
+          role: 'user',
+          content: typeof content === 'string' ? [{ type: 'text', text: content }] : content,
+        },
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`${label} API failed: ${res.status} ${briefApiError(await res.text())}`);
+  }
+
+  const data = await res.json();
+
+  if (data.stop_reason === 'max_tokens') {
+    throw new Error(
+      `${label}: الرد بلغ حدّ ${maxTokens} رمزاً فجاء مبتوراً. قسّم المُدخل أو ارفع الحدّ.`
+    );
+  }
+  if (data.stop_reason === 'refusal') {
+    throw new Error(`${label}: رفض النموذج إكمال الطلب.`);
+  }
+
+  return (data.content || [])
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n')
+    .trim();
+}
+
 function extractJson(text) {
   const trimmed = (text || '').trim();
   try {
@@ -106,21 +183,24 @@ function extractJson(text) {
  * @param {object|null} opts.defaultBank الحساب البنكي الافتراضي {account_code, account_name}.
  * @param {string} opts.messageDateISO تاريخ الرسالة YYYY-MM-DD.
  * @param {number} opts.vatPercent     نسبة الضريبة (مثل 15).
+ * @param {string} opts.baseCurrency   عملة الدفاتر الأساسية (مثل SAR).
  * @param {string} opts.text           نص العملية الحالي.
- * @param {object|null} opts.image      { mediaType, base64 } لتحليل فاتورة بالرؤية.
+ * @param {object|null} opts.media      { kind:'image'|'document', mediaType, base64 } لتحليل فاتورة
+ *                                      مصوّرة أو ملف PDF. الصور تُرسل ككتلة image، وملفات PDF
+ *                                      ككتلة document يقرأها Claude نصّاً ورؤيةً لكل صفحة.
  * @param {string|null} opts.priorContext  سياق سابق متراكم (عند استكمال حوار ناقص).
  * @returns {Promise<object>} كائن التصنيف المنظّم.
  */
 export async function analyzeTransaction(env, opts) {
-  const { accounts, defaultBank, messageDateISO, vatPercent, text, image, priorContext } = opts;
-  const system = buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent);
+  const { accounts, defaultBank, messageDateISO, vatPercent, baseCurrency, text, media, priorContext } = opts;
+  const system = buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent, baseCurrency);
 
   const userContent = [];
 
-  if (image) {
+  if (media) {
     userContent.push({
-      type: 'image',
-      source: { type: 'base64', media_type: image.mediaType, data: image.base64 },
+      type: media.kind === 'document' ? 'document' : 'image',
+      source: { type: 'base64', media_type: media.mediaType, data: media.base64 },
     });
   }
 
@@ -129,36 +209,22 @@ export async function analyzeTransaction(env, opts) {
     userText += `# سياق سابق من نفس المحادثة (عملية غير مكتملة):\n${priorContext}\n\n# رسالة المستخدم الجديدة لاستكمال الناقص:\n`;
   }
   userText += text || '';
-  if (image) {
+  if (media?.kind === 'document') {
+    userText +=
+      '\n\n(المرفق ملف PDF لفاتورة وقد يكون متعدد الصفحات — استخرج بياناتها: المورّد/العميل، ' +
+      'رقم الفاتورة وتاريخها، البنود، المبالغ، الضريبة إن وُجدت. إن حوى الملف أكثر من فاتورة ' +
+      'فاعتمد الأولى واذكر ذلك في "summary".)';
+  } else if (media) {
     userText += '\n\n(المرفق صورة فاتورة — استخرج بياناتها: المورّد/العميل، البنود، المبالغ، الضريبة إن وُجدت.)';
   }
   userContent.push({ type: 'text', text: userText || '(بدون نص)' });
 
-  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
-      max_tokens: 2048,
-      system,
-      messages: [{ role: 'user', content: userContent }],
-    }),
+  const textPart = await callClaude(env, {
+    system,
+    content: userContent,
+    maxTokens: 2048,
+    label: 'تحليل العملية',
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Claude API failed: ${res.status} ${body}`);
-  }
-
-  const data = await res.json();
-  const textPart = (data.content || [])
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
 
   const result = extractJson(textPart);
   if (!result || !result.type) {
@@ -185,29 +251,13 @@ export async function refineTranscript(env, rawText) {
 - أعد النص المصحّح فقط، دون أي شرح أو مقدمة أو تنسيق.`;
 
   try {
-    const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': env.CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: env.CLAUDE_MODEL || 'claude-opus-4-8',
-        max_tokens: 1024,
-        system,
-        messages: [{ role: 'user', content: [{ type: 'text', text }] }],
-      }),
-    });
-    if (!res.ok) return text;
-    const data = await res.json();
-    const out = (data.content || [])
-      .filter((c) => c.type === 'text')
-      .map((c) => c.text)
-      .join('\n')
-      .trim();
+    // الحدّ يتبع طول النصّ: تفريغُ مقطعٍ طويل كان يُبتر عند 1024 بصمت،
+    // فيُحلَّل نصفُ العملية على أنه العملية.
+    const maxTokens = Math.min(4096, Math.max(1024, Math.ceil(text.length / 2) + 512));
+    const out = await callClaude(env, { system, content: text, maxTokens, label: 'تدقيق التفريغ' });
     return out || text;
   } catch (_) {
+    // التدقيق تحسينٌ لا شرط — عند أي فشل (ومنه البتر) يبقى النصّ الأصلي.
     return text;
   }
 }
@@ -245,31 +295,18 @@ export async function matchContactWithClaude(env, mentionedName, candidates) {
 جهات الاتصال الموجودة:
 ${numbered}`;
 
-  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
-      max_tokens: 300,
+  let textPart;
+  try {
+    textPart = await callClaude(env, {
       system,
-      messages: [{ role: 'user', content: [{ type: 'text', text: user }] }],
-    }),
-  });
-
-  if (!res.ok) {
+      content: user,
+      maxTokens: 300,
+      label: 'مطابقة جهة الاتصال',
+    });
+  } catch (_) {
     // عند فشل المطابقة الذكية، اعتبرها جديدة (الأكثر أماناً من نسبها لخطأ).
     return { decision: 'new', index: 0, candidates: [] };
   }
-
-  const data = await res.json();
-  const textPart = (data.content || [])
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
 
   try {
     const parsed = extractJson(textPart);
@@ -310,61 +347,19 @@ ${JSON.stringify(pnl).slice(0, 12000)}
 # بيانات ميزان المراجعة (JSON):
 ${JSON.stringify(trialBalance).slice(0, 12000)}`;
 
-  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
-      max_tokens: 4096,
-      system,
-      messages: [{ role: 'user', content: [{ type: 'text', text: user }] }],
-    }),
+  /* 16000 لا 4096: المُدخل جدولان قد يبلغان ٢٤ ألف محرف، والمخرج جداول
+     HTML كاملة. والحدّ السابق كان يبتره في منتصف صفّ، فيُنشر على بيسكامب
+     تقريرٌ ماليّ ناقص بلا ما يقول إنه ناقص. */
+  const html = await callClaude(env, {
+    system,
+    content: user,
+    maxTokens: 16000,
+    label: 'تنسيق التقرير المالي',
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Claude report format failed: ${res.status} ${body}`);
-  }
-  const data = await res.json();
-  const html = (data.content || [])
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n')
-    .trim();
   if (!html) throw new Error('Claude لم يُنتج محتوى للتقرير');
   return html;
 }
 
-/** استدعاء Claude وإرجاع النص فقط (مساعد داخلي). */
-async function callClaude(env, system, userText, maxTokens = 2048) {
-  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: env.CLAUDE_MODEL || 'claude-opus-4-8',
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: 'user', content: [{ type: 'text', text: userText }] }],
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Claude API failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
-  }
-  const data = await res.json();
-  return (data.content || [])
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n')
-    .trim();
-}
 
 /**
  * تحديد نيّة الرسالة (جديدة/تعديل/حذف) والهدف المقصود.
@@ -415,7 +410,7 @@ ${list || '(لا يوجد)'}
 ${text}`;
 
   try {
-    const out = await callClaude(env, system, user, 600);
+    const out = await callClaude(env, { system, content: user, maxTokens: 600, label: 'تصنيف النيّة' });
     const parsed = extractJson(out);
     const intent = ['new', 'edit', 'delete'].includes(parsed.intent) ? parsed.intent : 'new';
     const t = parsed.target || {};
@@ -433,10 +428,10 @@ ${text}`;
 
 /**
  * تطبيق تعديل على عملية سابقة وإنتاج نتيجة كاملة مصحّحة (نفس صيغة analyzeTransaction).
- * @param {object} opts { accounts, defaultBank, vatPercent, previous, instruction }
+ * @param {object} opts { accounts, defaultBank, vatPercent, baseCurrency, previous, instruction }
  */
 export async function applyEdit(env, opts) {
-  const { accounts, defaultBank, vatPercent, previous, instruction } = opts;
+  const { accounts, defaultBank, vatPercent, baseCurrency, previous, instruction } = opts;
   const accountsList = accounts
     .map((a) => `- ${a.account_code} | ${a.account_name} (${a.account_type})`)
     .join('\n');
@@ -444,7 +439,7 @@ export async function applyEdit(env, opts) {
     ? `${defaultBank.account_code} | ${defaultBank.account_name}`
     : '(غير محدّد)';
 
-  const system = `أنت محاسب قانوني خبير في شركة ناف القانونية (السعودية، الريال SAR).
+  const system = `أنت محاسب قانوني خبير في شركة ناف القانونية (السعودية، عملة الدفاتر ${baseCurrency}).
 لديك عملية محاسبية سابقة، وطلب تعديل عليها. مهمتك إنتاج نسخة كاملة معدّلة من العملية.
 
 # شجرة الحسابات المتاحة (استخدم رموزها حصرياً):
@@ -456,6 +451,9 @@ ${accountsList}
 - طبّق التعديل المطلوب فقط، وأبقِ بقية الحقول كما هي.
 - إن غُيّر المبلغ، أعِد حساب الضريبة (${vatPercent}% لفاتورة البيع) والتوازن (للقيد اليدوي: مجموع المدين = مجموع الدائن).
 - إن طُلب "بدون ضريبة" لفاتورة بيع، اجعل vat_percent = 0.
+- العملة: أبقِ "currency" كما هي إلا إن طلب التعديل تغييرها صراحةً («خلّها بالدولار»)، فاضبطها
+  برمزها الدولي. المبالغ تبقى بعملة العملية — ⛔ لا تحوّلها. و"exchange_rate" لا يُملأ إلا إن
+  ذكر المستخدم سعراً صريحاً، وإلا فانقله كما كان.
 - يمكن تغيير نوع العملية (type) إذا كان التعديل يقتضيه.
 - المورّد/العميل (contact_name) إلزامي للفواتير.
 - ⛔ لا تسأل عن شيء — أنتج أفضل نسخة معدّلة. اضبط "status":"ready" دائماً.
@@ -467,6 +465,8 @@ ${accountsList}
   "type": "manual_journal" | "purchase_bill" | "sales_invoice",
   "date": "YYYY-MM-DD",
   "contact_name": "الاسم أو null",
+  "currency": "${baseCurrency}",
+  "exchange_rate": null,
   "summary": "وصف موجز بالعربية",
   "manual_journal": { "entries": [ { "account_code": "..", "account_name": "..", "debit": 0, "credit": 0, "description": ".." } ] },
   "bill": { "line_items": [ { "account_code": "..", "account_name": "..", "description": "..", "amount": 0 } ], "vat_percent": ${vatPercent} },
@@ -480,7 +480,7 @@ ${JSON.stringify(previous)}
 # التعديل المطلوب:
 ${instruction}`;
 
-  const out = await callClaude(env, system, user, 2048);
+  const out = await callClaude(env, { system, content: user, maxTokens: 2048, label: 'تطبيق التعديل' });
   const result = extractJson(out);
   if (!result || !result.type) throw new Error('تعذّر إنتاج النسخة المعدّلة من العملية');
   result.status = 'ready';

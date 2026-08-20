@@ -93,6 +93,10 @@ oauth.get('/basecamp/callback', async (c) => {
   // نعرض التوكنين ليُحفظا يدوياً كـ Secrets. لا نخزّنهما في مكان عام.
   const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- الاستثناء الرابع في CLAUDE.md §1: الوسم يأخذ قيمة مباشرة ولا شيء
+         غيرها. القيمتان مرآة --background في الوضعين، كما في frontend/index.html. -->
+    <meta name="theme-color" content="#e8ebed" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1c2433" media="(prefers-color-scheme: dark)">
     <title>ربط بيسكامب</title>
     ${styleHref ? `<link rel="stylesheet" href="${styleHref}">` : ''}
     </head>
@@ -101,17 +105,27 @@ oauth.get('/basecamp/callback', async (c) => {
     <h2 class="text-2xl font-bold mb-4">تم ربط بيسكامب</h2>
     <p class="text-muted-foreground mb-6">انسخ القيمتين التاليتين وأضِفهما في Cloudflare بنوع <b>Secret</b> بالاسمين المذكورين.</p>
 
-    <label class="block font-semibold mb-2">BASECAMP_TOKEN (توكن الوصول — يُستخدم مباشرة)</label>
-    <input readonly onclick="this.select()" value="${accessToken}"
+    <label for="bc-token" class="block font-semibold mb-2">BASECAMP_TOKEN (توكن الوصول — يُستخدم مباشرة)</label>
+    <input id="bc-token" readonly onclick="this.select()" value="${accessToken}"
       class="w-full mb-6 border border-border rounded-md px-4 py-3 bg-muted font-mono text-sm" dir="ltr">
 
-    <label class="block font-semibold mb-2">BASECAMP_REFRESH_TOKEN (للتجديد التلقائي كل أسبوعين)</label>
-    <input readonly onclick="this.select()" value="${refreshToken}"
+    <label for="bc-refresh" class="block font-semibold mb-2">BASECAMP_REFRESH_TOKEN (للتجديد التلقائي كل أسبوعين)</label>
+    <input id="bc-refresh" readonly onclick="this.select()" value="${refreshToken}"
       class="w-full mb-6 border border-border rounded-md px-4 py-3 bg-muted font-mono text-sm" dir="ltr">
 
-    <div class="border border-warning/30 bg-warning/10 rounded-lg p-4 text-sm">
-      اضغط على الحقل لتحديده ثم انسخه. بعد حفظ القيمتين، يُفضّل تعطيل مسار
-      <b>/api/basecamp/*</b>. توكن الوصول صالح أسبوعين ويُجدَّد تلقائياً بعدها.
+    <div class="flex items-start gap-3 border border-warning/30 bg-warning-soft rounded-lg p-4 text-sm">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+           stroke-linejoin="round" aria-hidden="true"
+           class="shrink-0 mt-0.5 text-warning-strong">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>
+        <path d="M12 9v4"/><path d="M12 17h.01"/>
+      </svg>
+      <div>
+        <b>تحذير</b> — اضغط على الحقل لتحديده ثم انسخه. بعد حفظ القيمتين، يُفضّل
+        تعطيل مسار <b>/api/basecamp/*</b>. توكن الوصول صالح أسبوعين ويُجدَّد
+        تلقائياً بعدها.
+      </div>
     </div>
     </div></body></html>`;
 

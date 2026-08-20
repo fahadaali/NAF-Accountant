@@ -5,25 +5,52 @@
 
 import { Hono } from 'hono';
 import { authenticate, hashPassword } from '../lib/auth.js';
+import { probeAttachmentApi } from '../services/wafeq.js';
+import { diagnoseWebhook, repairWebhook } from '../services/telegram.js';
+import { writeLog } from '../lib/db.js';
 
 const admin = new Hono();
 
 // ---- الحماية: مسؤول فقط ----
-admin.use('*', async (c, next) => {
+//
+// ═══ لماذا حارسٌ في كل معالج لا `use('*')` واحد ═══
+//
+// هذا التطبيق الفرعي يُركَّب على `/api` مع اللوحة والأعضاء، و`use('*')` فيه
+// يصير — بعد التركيب — وسيطاً على `/api/*` كلّه في التطبيق الأب. وHono ينفّذ
+// ما يطابق الطلب بترتيب التسجيل، وهذا الملف يُسجَّل قبلهما. فكان حارسُ
+// المسؤول يحرس **كل مسارات اللوحة والأعضاء** أيضاً:
+//
+//   • عضوٌ بدور `editor` أو `viewer` يفتح اللوحة فيردّ كل نداء ٤٠٣ —
+//     الإحصاءات والعمليات والحسابات والسجلّ والتحليلات والإعدادات. أي أن
+//     دورَي القراءة والتحرير لا يعملان أصلاً.
+//   • و`DASHBOARD_API_KEY` يُردّ ٤٠٣ على مساراته الاثني عشر المُعلنة في
+//     `auth/middleware.js` — لأن الحارس يرفض `who.apiKey` صراحةً. فسطحُ
+//     الأتمتة المُعلن لا يعمل منه شيء.
+//
+// والحارس في المعالج يحرس معالجه وحده، فلا يتعلّق الأمر بترتيب التسجيل.
+// أي معالج جديد هنا يبدأ بهذين السطرين.
+async function requireAdminOnly(c) {
   const who = await authenticate(c);
   if (!who) return c.json({ ok: false, error: 'unauthorized' }, 401);
-  // مفتاح الـ API الآلي يُعامل كمسؤول؛ المستخدم يجب أن يكون admin.
-  if (!who.apiKey && who.role !== 'admin') {
+  /* المفتاح الآلي لم يعد يساوي مسؤولاً.
+     هذه الشاشة تُنشئ الحسابات وتوقفها وتدير قنوات تليجرام والعمليات
+     المتكرّرة — وهي أفعال بشرٍ لها هوية في سجلّ المركز، لا أفعال أتمتة.
+     والمفتاح لا هوية له ولا انتهاء ولا إبطال مركزيّ، فمنحُه إيّاها كان
+     يجعل نافذةَ من يحمله بلا نهاية. وسطحُه المُعلن في `auth/middleware.js`
+     يمنعه من بلوغ هذا المسار أصلاً — وهذا الحارس ثانيهما. */
+  if (who.apiKey || who.role !== 'admin') {
     return c.json({ ok: false, error: 'هذه العملية تتطلب صلاحية مسؤول.' }, 403);
   }
-  await next();
-});
+  return null;
+}
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ============================ المستخدمون ============================
 
 admin.get('/users', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { results } = await c.env.DB.prepare(
     `SELECT id, email, role, is_active, created_at FROM users ORDER BY id ASC`
   ).all();
@@ -31,6 +58,8 @@ admin.get('/users', async (c) => {
 });
 
 admin.post('/users', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { email, password, role = 'user' } = await c.req.json().catch(() => ({}));
   if (!email || !emailRe.test(email)) {
     return c.json({ ok: false, error: 'بريد إلكتروني غير صالح.' }, 400);
@@ -53,6 +82,8 @@ admin.post('/users', async (c) => {
 });
 
 admin.post('/users/update', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { id, role, is_active, password } = await c.req.json().catch(() => ({}));
   if (!id) return c.json({ ok: false, error: 'معرّف المستخدم مطلوب.' }, 400);
 
@@ -83,6 +114,8 @@ admin.post('/users/update', async (c) => {
 // ==================== محادثات تليجرام المصرّح لها ====================
 
 admin.get('/chats', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { results } = await c.env.DB.prepare(
     `SELECT chat_id, label, is_admin, is_active, created_at FROM telegram_chats ORDER BY created_at ASC`
   ).all();
@@ -90,6 +123,8 @@ admin.get('/chats', async (c) => {
 });
 
 admin.post('/chats', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { chat_id, label, is_admin = 0, is_active = 1 } = await c.req.json().catch(() => ({}));
   if (!chat_id || !/^-?\d+$/.test(String(chat_id).trim())) {
     return c.json({ ok: false, error: 'معرّف المحادثة يجب أن يكون رقماً.' }, 400);
@@ -108,6 +143,8 @@ admin.post('/chats', async (c) => {
 });
 
 admin.post('/chats/delete', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { chat_id } = await c.req.json().catch(() => ({}));
   if (!chat_id) return c.json({ ok: false, error: 'معرّف المحادثة مطلوب.' }, 400);
   await c.env.DB.prepare(`DELETE FROM telegram_chats WHERE chat_id = ?`)
@@ -119,6 +156,8 @@ admin.post('/chats/delete', async (c) => {
 // ==================== العمليات المتكرّرة ====================
 
 admin.get('/recurring', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { results } = await c.env.DB.prepare(
     `SELECT id, label, day_of_month, template_json, notify_chat_id, is_active, last_run_ym, created_at
      FROM recurring_transactions ORDER BY id DESC`
@@ -128,6 +167,8 @@ admin.get('/recurring', async (c) => {
 
 /** إنشاء قالب متكرّر من عملية موجودة (نستنسخ processed_json). */
 admin.post('/recurring/from-transaction', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { transaction_id, label, day_of_month } = await c.req.json().catch(() => ({}));
   const day = Math.min(Math.max(Number(day_of_month) || 1, 1), 28);
   if (!transaction_id) return c.json({ ok: false, error: 'معرّف العملية مطلوب.' }, 400);
@@ -151,6 +192,8 @@ admin.post('/recurring/from-transaction', async (c) => {
 });
 
 admin.post('/recurring/update', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { id, is_active, day_of_month, label } = await c.req.json().catch(() => ({}));
   if (!id) return c.json({ ok: false, error: 'المعرّف مطلوب.' }, 400);
   if (is_active !== undefined) {
@@ -173,10 +216,60 @@ admin.post('/recurring/update', async (c) => {
 });
 
 admin.post('/recurring/delete', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
   const { id } = await c.req.json().catch(() => ({}));
   if (!id) return c.json({ ok: false, error: 'المعرّف مطلوب.' }, 400);
   await c.env.DB.prepare(`DELETE FROM recurring_transactions WHERE id = ?`).bind(id).run();
   return c.json({ ok: true });
+});
+
+// ============================ تشخيص واجهة وافق ============================
+
+// استكشاف واجهة المرفقات في وافق. قراءةٌ محضة: طلبات GET فقط، لا تُنشئ
+// مستنداً ولا مرفقاً ولا تُعدّل شيئاً. غايتها كشف المسار الصحيح لرفع
+// المرفقات واسم الحقل الذي يربطها بالمستند، بعد أن ردّ المسار المستعمل
+// بصفحة خطأ HTML.
+admin.get('/wafeq-probe', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
+  if (!c.env.WAFEQ_API_KEY) {
+    return c.json({ ok: false, error: 'مفتاح وافق غير مضبوط.' }, 400);
+  }
+  const report = await probeAttachmentApi(c.env);
+  return c.json({ ok: true, report });
+});
+
+// ======================= حالة قناة تليجرام الواردة =======================
+//
+// الاتجاهان مستقلّان: المنصة قد ترسل ولا تستقبل. ورابطُ ويبهوك بقي على
+// نطاقٍ سابق، أو سرٌّ اختلف طرفاه، يقطعان الوارد وحده بلا أثرٍ في أي سجلّ
+// — لأن الطلب لا يصل. فالجواب يُطلب من تليجرام نفسه لا يُستنتج من هنا.
+//
+// وهما خلف حارس المسؤول لا خلف المفتاح الآلي: `‎POST` منهما يغيّر إعداد
+// البوت عند تليجرام، وذاك قرارُ بشرٍ له هوية في سجلّ المركز — والمفتاح لا
+// هوية له ولا انتهاء ولا إبطال مركزي. وسطحُه المُعلن في
+// `src/auth/middleware.js` لا يشملهما، وهو المقصود.
+
+admin.get('/telegram/status', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
+  const report = await diagnoseWebhook(c.env);
+  return c.json({ ok: true, report });
+});
+
+/** إعادة تسجيل الويبهوك على رابط المنصة الحالي — إصلاحُ نقلِ النطاق. */
+admin.post('/telegram/webhook', async (c) => {
+  const denied = await requireAdminOnly(c);
+  if (denied) return denied;
+  const who = await authenticate(c);
+  const { changed, reason, report } = await repairWebhook(c.env);
+  await writeLog(c.env.DB, {
+    action: 'telegram_webhook',
+    status: changed ? 'success' : 'info',
+    errorDetails: `إعادة تسجيل يدوية (بواسطة ${who?.id ?? 'مسؤول'}): ${reason}`,
+  });
+  return c.json({ ok: true, changed, reason, report });
 });
 
 export default admin;

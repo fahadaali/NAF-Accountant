@@ -12,6 +12,7 @@ import {
 } from '../lib/db.js';
 import { postJournalEntryDraft, createBillDraft, createInvoiceDraft } from './wafeq.js';
 import { resolveContact } from './contacts.js';
+import { baseCurrency, normalizeCurrency, resolveExchangeRate } from '../lib/currency.js';
 import { sendTelegramMessage } from './telegram.js';
 
 /** تاريخ اليوم بتوقيت السعودية (UTC+3). */
@@ -62,14 +63,24 @@ export async function runDueRecurring(env) {
       const ref = `${item.label} — عملية متكرّرة`;
       let wafeqId = '';
 
-      if (result.type === 'manual_journal') {
-        const { id } = await postJournalEntryDraft(
-          env,
-          accounts,
-          result.manual_journal?.entries || [],
-          ref,
-          today
+      // عملة القالب وسعر صرفها. القالب يُنفَّذ آلياً بلا محاورة، فلا سبيل
+      // لسؤال أحد عن سعر مجهول — يُرفض التنفيذ ويُسجَّل السبب بدل أن يدخل
+      // الدفاتر بسعر مخترع.
+      const currency = normalizeCurrency(result.currency) || baseCurrency(env);
+      const rateState = resolveExchangeRate(env, currency, result.exchange_rate);
+      if (!rateState) {
+        throw new Error(
+          `سعر صرف ${currency} غير معروف. أضِفه إلى الإعداد EXCHANGE_RATES أو اذكره في القالب.`
         );
+      }
+
+      if (result.type === 'manual_journal') {
+        const { id } = await postJournalEntryDraft(env, accounts, result.manual_journal?.entries || [], {
+          description: ref,
+          date: today,
+          currency,
+          exchangeRate: rateState.rate,
+        });
         wafeqId = id;
       } else if (result.type === 'purchase_bill') {
         const vat = Number(result.bill?.vat_percent ?? 0);
@@ -79,7 +90,7 @@ export async function runDueRecurring(env) {
           amount: li.amount,
           taxRateId: vat > 0 ? env.VAT_TAX_RATE_ID || null : null,
         }));
-        const { id } = await createBillDraft(env, { contactId, date: today, lineItems });
+        const { id } = await createBillDraft(env, { contactId, date: today, currency, lineItems });
         wafeqId = id;
       } else {
         const lineItems = (result.invoice?.line_items || []).map((li) => ({
@@ -90,6 +101,7 @@ export async function runDueRecurring(env) {
         const { id } = await createInvoiceDraft(env, {
           contactId,
           date: today,
+          currency,
           lineItems,
           taxRateId: env.VAT_TAX_RATE_ID || null,
         });

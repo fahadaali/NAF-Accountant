@@ -1,4 +1,4 @@
-/* من سجلّ ناف: fahadaali/naf-ui#v1.1.1 — العنصر «naf-format».
+/* من سجلّ ناف: fahadaali/naf-ui — العنصر «naf-format».
    حُوّل من TypeScript إلى JavaScript فحسب (المنصة بلا TS): حُذفت
    التعليقات النوعية ووسائط forwardRef النوعية وكتل interface،
    وعُدّلت مسارات الاستيراد. لا سطر منطق تغيّر.
@@ -40,6 +40,25 @@ function pad(value) {
   return String(value).padStart(2, "0")
 }
 
+/**
+ * يعزل قيمة اتجاهياً داخل نص عربي.
+ *
+ * للسلاسل الخام التي لا يصلح فيها <bdi>: رسائل confirm ونصوص الحالة
+ * والتنبيهات. في JSX استعمل <bdi> لا هذه.
+ *
+ * المحرفان U+2068 (عزل أول) و U+2069 (إنهاء العزل).
+ *
+ * القاعدة توجب عزل كل رقم وتاريخ ومبلغ، و<bdi> يغطّي JSX وحده — فبدون
+ * هذه الدالة تبقى كل رسالة فيها رقم منحرفة.
+ *
+ * @example
+ *   setMsg(`تم حذف ${isolate(count)} عنصراً`)
+ *   confirm(`حذف ${isolate(n)} عنصراً نهائياً؟`)
+ */
+export function isolate(value) {
+  return `\u2068${value}\u2069`
+}
+
 /** المبلغ بلا رمز العملة: 12400 -> "12,400.00" */
 export function formatAmount(value) {
   return AMOUNT_FORMAT.format(value)
@@ -68,6 +87,17 @@ export function formatDualDate(value) {
   return `${formatDate(value)} (${formatHijriDate(value)})`
 }
 
+/**
+ * الشهر والسنة لعناوين التقويم ومنتقي التاريخ: "2026/07".
+ *
+ * مشتقّة من الصيغة الميلادية المعتمدة بحذف اليوم — ليست صيغة جديدة.
+ * أسماء الأشهر العربية ليست صيغة معتمدة لعرض قيمة تاريخ.
+ */
+export function formatMonth(value) {
+  const date = toDate(value)
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}`
+}
+
 /** نظام ٢٤ ساعة: "14:30" */
 export function formatTime(value) {
   const date = toDate(value)
@@ -79,4 +109,9 @@ export function formatPhone(value) {
   const digits = value.replace(/\D/g, "").replace(/^00966|^966|^0/, "")
   if (digits.length !== 9) return value
   return `+966 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}`
+}
+
+/** الميلادي مع الوقت: "2026/07/26 14:30" */
+export function formatDateTime(value) {
+  return `${formatDate(value)} ${formatTime(value)}`
 }

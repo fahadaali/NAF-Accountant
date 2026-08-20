@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api.js';
-import { TriangleAlert, RefreshCw, CircleAlert, CircleCheck, Info } from 'lucide-react';
-import { fmtDateTime } from '../lib/format.js';
+import { RefreshCw, CircleAlert, CircleCheck, Info } from 'lucide-react';
+import { fmtDateTime, fmtNumber } from '../lib/format.js';
 import { Alert, AlertDescription } from '../naf/ui/alert.jsx';
 import { Button } from '../naf/ui/button.jsx';
 import { Card } from '../naf/ui/card.jsx';
@@ -17,7 +17,7 @@ const STATUS_META = {
 
 const ACTION_AR = {
   transcribe: 'تفريغ صوتي',
-  claude_analyze: 'تحليل ذكي',
+  claude_analyze: 'تحليل آلي',
   wafeq_post: 'ترحيل إلى وافق',
   wafeq_delete: 'حذف من وافق',
   wafeq_bulk_delete: 'حذف جماعي',
@@ -26,13 +26,15 @@ const ACTION_AR = {
   apply_edit: 'تطبيق تعديل',
   accounts_sync: 'مزامنة الحسابات',
   cron_accounts_sync: 'مزامنة مجدولة',
-  cron_recurring: 'عمليات متكرّرة',
+  cron_recurring: 'تنفيذ العمليات المتكرّرة',
   recurring_post: 'ترحيل عملية متكرّرة',
   basecamp_report: 'تقرير بيسكامب',
   financial_report: 'تقرير مالي',
   process_error: 'خطأ معالجة',
   image_saved_r2: 'حفظ صورة',
+  pdf_saved_r2: 'حفظ ملف PDF',
   telegram_webhook: 'ويبهوك تليجرام',
+  telegram_notify: 'إشعار تليجرام',
   duplicate_webhook_skipped: 'تجاهل رسالة مكرّرة',
 };
 
@@ -74,9 +76,11 @@ export default function Logs() {
             variant={onlyErrors ? 'destructive' : 'ghost'}
             onClick={() => setOnlyErrors((v) => !v)}
           >
-            <TriangleAlert size={20} /> الأخطاء فقط ({errorCount})
+            {/* CircleAlert لا TriangleAlert: naf-icons.md — الفشل حدث وقع
+                والتحذير احتمال قائم، وهذه أخطاء وقعت فعلاً. */}
+            <CircleAlert size={20} aria-hidden="true" /> الأخطاء فقط (<bdi>{fmtNumber(errorCount)}</bdi>)
           </Button>
-          <Button variant="ghost" onClick={load}><RefreshCw size={20} /> تحديث</Button>
+          <Button variant="ghost" onClick={load}><RefreshCw size={20} aria-hidden="true" /> تحديث</Button>
         </div>
       </div>
 
@@ -102,9 +106,12 @@ export default function Logs() {
                 {shown.map((l) => (
                   <TableRow key={l.id} className="align-top">
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                      {fmtDateTime(l.timestamp)}
+                      <bdi>{fmtDateTime(l.timestamp)}</bdi>
                     </TableCell>
-                    <TableCell className="text-foreground">{ACTION_AR[l.action] || l.action}</TableCell>
+                    {/* العنوان قد يخلط العربية بصيغة لاتينية (حفظ ملف PDF) فيُعزل اتجاهياً */}
+                    <TableCell className="text-foreground">
+                      <bdi>{ACTION_AR[l.action] || l.action}</bdi>
+                    </TableCell>
                     <TableCell>
                       {(() => {
                         const st = STATUS_META[l.status] || STATUS_META.info;
@@ -115,9 +122,11 @@ export default function Logs() {
                         );
                       })()}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{l.transaction_id || '—'}</TableCell>
-                    <TableCell className="text-foreground text-sm max-w-md break-words">
-                      {l.error_details || '—'}
+                    <TableCell className="text-muted-foreground text-sm tabular-nums">
+                      {l.transaction_id ? <bdi>{fmtNumber(l.transaction_id)}</bdi> : '—'}
+                    </TableCell>
+                    <TableCell className="text-foreground text-sm">
+                      <bdi className="block max-w-md break-words">{l.error_details || '—'}</bdi>
                     </TableCell>
                   </TableRow>
                 ))}

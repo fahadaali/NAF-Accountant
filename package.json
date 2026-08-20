@@ -8,11 +8,16 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:create": "wrangler d1 create naf-accountant-db",
-    "db:migrate": "wrangler d1 execute naf-accountant-db --file=./migrations/0001_init.sql --remote",
-    "db:migrate:local": "wrangler d1 execute naf-accountant-db --file=./migrations/0001_init.sql --local",
+    "db:migrate": "npm run db:apply -- --remote",
+    "db:migrate:local": "npm run db:apply -- --local",
     "db:seed": "wrangler d1 execute naf-accountant-db --file=./migrations/0002_seed_chart_of_accounts.sql --remote",
     "r2:create": "wrangler r2 bucket create naf-accountant-media",
-    "tail": "wrangler tail"
+    "tail": "wrangler tail",
+    "check:sso": "node audit/sso-contract-check.mjs",
+    "check:telegram": "node audit/telegram-channel-check.mjs",
+    "check:routes": "node --test \"test/*.test.mjs\"",
+    "icons": "node scripts/build-app-icons.mjs frontend/public/brand/naf-mark.svg frontend/src/naf-theme.css frontend/public/icons",
+    "db:apply": "node ./scripts/migrate.mjs"
   },
   "keywords": [
     "cloudflare-workers",
@@ -26,9 +31,11 @@
   "author": "NAF Law",
   "license": "UNLICENSED",
   "dependencies": {
-    "hono": "^4.6.14"
+    "hono": "^4.6.14",
+    "naf-auth": "github:fahadaali/naf-auth#v3.3.0"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "wrangler": "^4.20.0"
   }
 }

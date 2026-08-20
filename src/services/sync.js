@@ -6,6 +6,8 @@
 // حقول الحساب: id (acc_xxx), account_code, account_type, name_ar, name_en
 // ============================================================================
 
+import { briefApiError } from '../lib/http.js';
+
 import { writeLog } from '../lib/db.js';
 
 /**
@@ -26,7 +28,7 @@ export async function syncChartOfAccounts(env) {
     });
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`Wafeq accounts fetch failed: ${res.status} ${body}`);
+      throw new Error(`Wafeq accounts fetch failed: ${res.status} ${briefApiError(body)}`);
     }
     const data = await res.json();
     const list = data.results || data.data || [];

@@ -2,12 +2,52 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      `viewport-fit=cover` لازم مع شريط الحالة الشفّاف أدناه: بدونه يترك
+      النظام شريطاً بلون الخلفية أعلى الشاشة بدل أن تمتدّ الصفحة تحت النتوء.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- الاستثناء الرابع في CLAUDE.md §1: الوسم يأخذ قيمة مباشرة ولا شيء
+         غيرها — لا متصفّح يحلّ var() بداخله. القيمتان مرآة --background
+         في الوضعين، وتُحدَّثان يدوياً مع أي تغيير في الثيم.
+         فاتح: oklch(0.9383 0.0042 236.4993) · داكن: oklch(0.2598 0.0306 262.6666) -->
+    <meta name="theme-color" content="#e8ebed" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1c2433" media="(prefers-color-scheme: dark)" />
+
+    <!-- المظهر يُطبَّق قبل الرسم فلا تومض الصفحة بالوضع الخطأ.
+         نفس مفتاح التخزين ونفس المنطق في naf/ui/theme-toggle.jsx. -->
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem('naf-theme');
+          var dark = v === 'dark' || (v !== 'light' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (e) { /* التخزين غير متاح — يبقى الافتراضي */ }
+      })();
+    </script>
+
+    
+    <!--
+      تطبيق الشاشة الرئيسية — الوثيقة في docs/naf-pwa.md.
+
+      الوسمان معاً لا أحدهما: أندرويد يقرأ المانيفست ويتجاهل وسوم apple،
+      وآيفون لا يقرأ أيقونات المانيفست إطلاقاً ولا يقرأ إلا `apple-touch-icon`.
+      ومانيفستٌ كامل الأيقونات بلا ذلك الوسم يعطي آيفون لقطةً من الصفحة مكان
+      الأيقونة — وهي تتغيّر بتغيّر الصفحة التي أُضيف منها.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="المحاسب" />
+
     <title>ناف القانونية — المحاسب الذكي</title>
     <!-- الخط من عنصر naf-font في السجلّ — مستضاف ذاتياً عبر @fontsource،
          بلا طلبات لخوادم خارجية. حلّ محلّ تحميل Cairo/Tajawal من Google Fonts. -->
-    <script type="module" crossorigin src="/assets/index-CeZoYTm8.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-4pmLTWMF.css">
+    <script type="module" crossorigin src="/assets/index-D6Myriqu.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B_8458mC.css">
   </head>
   <body>
     <div id="root"></div>

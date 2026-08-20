@@ -30,6 +30,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          # قفل الحزم في frontend/ لا في الجذر — الجذر عامل Cloudflare
+          # بلا قفل. بدون هذا السطر يفشل setup-node قبل أي خطوة أخرى،
+          # فلا يصدر إصدار أبداً ولو كان الدمج سليماً.
+          cache-dependency-path: frontend/package-lock.json
 
       - name: تركيب الحزم
         run: npm install --no-audit --no-fund
@@ -42,8 +46,10 @@ jobs:
       # بديلهما هنا بوابة بناء المنصة.
       # ⚠️ يُفضَّل تسجيل «نسخة منصة» من naf-governance في السجلّ.
       # ------------------------------------------------------------------
-      - name: بوابة البناء — لا يصدر إصدار من بناء معطوب
+      - name: بوابة الإصدار — لا يصدر إصدار من بناء معطوب ولا من عقد مكسور
         run: |
+          npm run check:sso
+          npm run check:telegram
           npm --prefix frontend install --no-audit --no-fund
           npm --prefix frontend run build
 

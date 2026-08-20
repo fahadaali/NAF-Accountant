@@ -100,12 +100,30 @@ export async function countUsers(db) {
 }
 
 /**
- * تحقّق موحّد لطلبات الـ API: يقبل جلسة مستخدم صالحة أو DASHBOARD_API_KEY.
- * يُرجع كائن المستخدم، أو { apiKey: true } للمفتاح الآلي، أو null.
+ * تحقّق موحّد لطلبات الـ API.
+ *
+ * مصدران اثنان لا ثالث لهما:
+ *   - المستخدم الذي حقنه وسيط الدخول الموحّد بعد تحقّقه من رمز المركز
+ *   - `DASHBOARD_API_KEY` للاستعمال الآلي بلا متصفّح
+ *
+ * يُرجع كائن المستخدم، أو `{ apiKey: true }` للمفتاح الآلي، أو `null`.
+ *
+ * ولا يُقرأ هنا جدول `sessions` المحلي: المصادقة كلها في المركز، وطريقُ
+ * دخولٍ ثانٍ لا يمرّ به يُبطل الإيقاف المركزي بصمت. الجدول والدوال باقية
+ * ولا تُستدعى من مسار محمي.
  */
 export async function authenticate(c) {
+  // الوسيط حقن { id, role, perms } في سياق الطلب بعد تحقّقه من التوقيع
+  // و exp. (المسارات العامة لا يحقن لها شيئاً.)
+  const injected = c.get('user');
+  if (injected && injected.id) return injected;
+
+  // المقارنة زمنية ثابتة كما في الوسيط: مقارنةُ نصّين بـ === تُسرّب طول
+  // البادئة المطابقة.
+  const key = c.env.DASHBOARD_API_KEY;
+  if (!key) return null;
   const token = (c.req.header('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!token) return null;
-  if (c.env.DASHBOARD_API_KEY && token === c.env.DASHBOARD_API_KEY) return { apiKey: true };
-  return getUserBySession(c.env.DB, token);
+  if (token && safeEqual(token, key)) return { apiKey: true };
+
+  return null;
 }
