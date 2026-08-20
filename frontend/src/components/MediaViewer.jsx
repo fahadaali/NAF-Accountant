@@ -15,26 +15,53 @@ export default function MediaViewer({ mediaKey }) {
 
   const isAudio = /^voice\//.test(mediaKey || '');
 
+  /*
+   * ═══ العنوان كان يُبطَل في اللحظة التي يُضبط فيها ═══
+   *
+   * كانت `media` في قائمة التبعيات، و`setMedia` تغيّرها — فيُعاد تشغيل
+   * الأثر، ويجري تنظيفُ سابقه، فيُبطل العنوانَ الذي ضُبط توّاً. ثم يمنع
+   * الحارس `if (media) return` أيَّ جلبٍ ثانٍ، فيبقى الوسم على عنوانٍ
+   * مُبطَل.
+   *
+   * ويمرّ ذلك في كروم بالمصادفة: الوسمُ يبدأ التحميل قبل أن يجري
+   * التنظيف، فيمسك البايتات. وWebKit يحمّل الوسائط متأخّراً فيجد العنوان
+   * ذاهباً — فلا تُسمع نغمةٌ ولا تظهر فاتورة على آيفون، ولا خطأ يقول لِمَ.
+   *
+   * فالتبعيات الآن ما يقرّر الجلب فعلاً — الفتح والمفتاح — والعنوان يعيش
+   * ما دام مفتوحاً ويُبطَل عند الإغلاق. والإغلاق يمسح `media` معه، فلا
+   * يُعاد استعمال عنوانٍ مُبطَل عند الفتح الثاني.
+   */
   useEffect(() => {
-    if (!open || media) return;
-    let revoked = null;
+    if (!open) return undefined;
+
+    let url = null;
+    let cancelled = false;
+
     (async () => {
       setLoading(true);
       try {
         const m = await fetchMediaUrl(mediaKey);
-        revoked = m.url;
+        if (cancelled) {
+          // أُغلق قبل وصول البايتات — لا يُترك عنوانٌ بلا مالك.
+          URL.revokeObjectURL(m.url);
+          return;
+        }
+        url = m.url;
         setMedia(m);
         setError('');
       } catch (e) {
-        setError(e.message);
+        if (!cancelled) setError(e.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
-      if (revoked) URL.revokeObjectURL(revoked);
+      cancelled = true;
+      setMedia(null);
+      if (url) URL.revokeObjectURL(url);
     };
-  }, [open, mediaKey, media]);
+  }, [open, mediaKey]);
 
   if (!mediaKey) return <span className="text-muted-foreground/60">—</span>;
 
