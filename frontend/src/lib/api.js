@@ -1,3 +1,5 @@
+import { saveBlob } from './download.js';
+
 // ============================================================================
 // عميل الاتصال بالخلفية (API Client) + المصادقة
 // ============================================================================
@@ -208,12 +210,6 @@ export async function downloadTransactionsCsv(filters = {}) {
     if (v !== undefined && v !== null && v !== '') qs.append(k, v);
   });
   const blob = await requestBlob(`/transactions/export?${qs.toString()}`, 'تعذّر التصدير');
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `naf-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  // الحفظ من `download.js`: الإبطال الفوري كان يقطع التنزيل على آيفون.
+  saveBlob(blob, `naf-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
 }
