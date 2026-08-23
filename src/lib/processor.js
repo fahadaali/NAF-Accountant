@@ -767,9 +767,10 @@ export async function processTelegramUpdate(env, update) {
   const message = update.message || update.edited_message;
   if (!message || !message.chat) return;
   const chatId = message.chat.id;
+  const isEdited = Boolean(update.edited_message);
 
   try {
-    await handleTelegramMessage(env, message);
+    await handleTelegramMessage(env, message, isEdited);
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);
     await writeLog(env.DB, {
@@ -785,7 +786,11 @@ export async function processTelegramUpdate(env, update) {
   }
 }
 
-async function handleTelegramMessage(env, message) {
+// `isEdited` يُمرَّر من الغلاف: غلافُ التحديث وحده يرى `update`، والمعالج
+// يرى الرسالة فقط. كان الفحص هنا يقرأ `update.edited_message` مباشرةً —
+// وهو خارج نطاق هذه الدالة، فكان كلُّ رسالةٍ تتجاوز الأوامر ترتدّ بـ
+// «update is not defined» قبل أن تُسجَّل عملية.
+async function handleTelegramMessage(env, message, isEdited = false) {
   const chatId = message.chat.id;
   const messageId = message.message_id;
   const dateISO = messageDateISO(message.date);
@@ -826,13 +831,13 @@ async function handleTelegramMessage(env, message) {
   /* ---- رسالة معدَّلة ----
 
      تحمل معرّف الرسالة الأصلية، فكان فحص التكرار أدناه يبتلعها ويسجّلها
-     «رسالة مكرّرة»: المسار مكتوب — `update.edited_message` مقروء في أعلى
-     الدالة وفي باب الويبهوك — ولا يعمل أبداً. فمن صحّح مبلغاً بتعديل رسالته
+     «رسالة مكرّرة»: المسار مكتوب — `edited_message` مقروء في الغلاف أعلاه
+     وفي باب الويبهوك — ولا يعمل أبداً. فمن صحّح مبلغاً بتعديل رسالته
      لا يجد شيئاً حدث ولا خبراً يقول لماذا.
 
      والتعديل بعد الترحيل يحتاج تعديل مستند وافق نفسه، وله مسار مخصّص
      («عدّل المبلغ إلى ٦٠٠»). فيُقال ذلك صراحةً بدل الصمت. */
-  if (update.edited_message) {
+  if (isEdited) {
     await writeLog(env.DB, {
       action: 'telegram_edited_message',
       status: 'info',
