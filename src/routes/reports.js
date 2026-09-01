@@ -7,7 +7,9 @@ import { Hono } from 'hono';
 import { getWafeqDraftSummary } from '../services/wafeq.js';
 import { getProfitAndLoss, getTrialBalance } from '../services/wafeq_reports.js';
 import { postBasecampMessage } from '../services/basecamp.js';
-import { formatFinancialReport } from '../services/claude.js';
+import { notifyAdmins } from '../services/telegram.js';
+import { baseCurrency } from '../lib/currency.js';
+import { renderFinancialReport } from '../lib/report_render.js';
 import { authenticate } from '../lib/auth.js';
 import { writeLog } from '../lib/db.js';
 
@@ -62,33 +64,75 @@ export function periodRange(type, now = new Date()) {
   };
 }
 
+/** نتيجة `allSettled` قسماً في التقرير: بياناتٌ، أو سببُ تعذّرها. */
+function toSection(title, settled) {
+  if (settled.status === 'fulfilled') return { title, data: settled.value };
+  const reason = settled.reason;
+  return { title, error: (reason && reason.message) || String(reason) };
+}
+
 /**
- * توليد وإرسال التقرير المالي (قائمة الدخل + ميزان المراجعة) إلى بيسكامب.
+ * توليد وإرسال التقرير المالي (الأرباح والخسائر + ميزان المراجعة) إلى بيسكامب.
+ *
+ * المتن يُبنى هنا حتمياً من بيانات وافق — لا يمرّ بنموذج توليدي. تفصيل
+ * السبب في رأس `src/lib/report_render.js`.
+ *
+ * والقسمان يُجلبان مستقلَّين: `Promise.all` كان يُسقط التقرير كلَّه لتعثّر
+ * أحد التقريرين، فيضيع القسم الذي جاء سليماً. فما وصل يُنشر، وما تعذّر
+ * يُذكر سببه في متن التقرير وفي السجلّ وفي تنبيه المسؤولين — ولا يُنشر
+ * تقريرٌ ناقصٌ صامتٌ عن نقصه.
+ *
  * type: 'monthly' | 'quarterly' | 'annual'
  */
 export async function generateAndSendFinancialReport(env, type) {
   const { after, before, label } = periodRange(type, new Date());
 
-  const [pnl, trialBalance] = await Promise.all([
+  const settled = await Promise.allSettled([
     getProfitAndLoss(env, after, before),
     getTrialBalance(env, after, before),
   ]);
+  const sections = [
+    toSection('الأرباح والخسائر', settled[0]),
+    toSection('ميزان المراجعة', settled[1]),
+  ];
 
-  const body = await formatFinancialReport(env, label, pnl, trialBalance);
+  const failed = sections.filter((s) => s.error);
+  if (failed.length === sections.length) {
+    // لا بيانات أصلاً — يُرفع الفشل لينبّه معالجُ المهام المجدولة المسؤولين.
+    throw new Error(`تعذّر جلب بيانات التقرير: ${failed.map((s) => s.error).join(' | ')}`);
+  }
+
   const kindLabel =
     type === 'annual' ? 'سنوي' : type === 'quarterly' ? 'ربعي' : 'شهري';
-  const contentHtml =
-    body +
-    `<hr><p><em>تقرير ${kindLabel} آلي — الفترة ${after} إلى ${before} — منصة ناف القانونية.</em></p>`;
+  const contentHtml = renderFinancialReport({
+    kindLabel,
+    periodLabel: label,
+    after,
+    before,
+    currency: baseCurrency(env),
+    sections,
+  });
 
   await postBasecampMessage(env, `📊 التقرير المالي (${kindLabel}) — ${label}`, contentHtml);
 
   await writeLog(env.DB, {
     action: 'financial_report',
-    status: 'success',
-    errorDetails: `${type}:${label}`,
+    status: failed.length ? 'error' : 'success',
+    errorDetails: failed.length
+      ? `${type}:${label} — نُشر ناقصاً: ${failed.map((s) => `${s.title} (${s.error})`).join(' | ')}`
+      : `${type}:${label}`,
   });
-  return { type, label, after, before };
+
+  if (failed.length) {
+    await notifyAdmins(
+      env,
+      `⚠️ <b>التقرير المالي نُشر ناقصاً</b>\n\n📌 ${kindLabel} — ${label}\n` +
+        failed.map((s) => `❌ ${s.title}: ${s.error}`).join('\n') +
+        `\n\nالأقسام الأخرى نُشرت على بيسكامب.`
+    );
+  }
+
+  return { type, label, after, before, missing: failed.map((s) => s.title) };
 }
 
 // حماية التشغيل اليدوي للتقرير (جلسة مستخدم أو DASHBOARD_API_KEY).

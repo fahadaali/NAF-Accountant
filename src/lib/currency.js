@@ -14,6 +14,8 @@
 // وإن لم يتوفّر أيٌّ منها، يُسأل المستخدم — ولا يُخمَّن سعر.
 // ============================================================================
 
+import { formatAmount, isolate } from './format.js';
+
 /** العملة الأساسية للدفاتر ما لم يُضبط غير ذلك. */
 export const DEFAULT_BASE_CURRENCY = 'SAR';
 
@@ -158,27 +160,15 @@ export function toBaseAmount(amount, rate) {
   return +(Number(amount || 0) * Number(rate || 1)).toFixed(2);
 }
 
-/* عزل اتجاهي للقيم داخل الجمل العربية — U+2068 و U+2069.
-   نفس تعريف `isolate` في naf-format بالسجلّ؛ يُكرَّر هنا لأن الخادم
-   لا يستورد من frontend/src/naf. أي تغيير يحدث في السجلّ أولاً. */
-const iso = (v) => `⁨${v}⁩`;
-
-/** تنسيق رقم بفاصل آلاف وخانتين عشريتين — قاعدة naf-format. */
-const AMOUNT_FORMAT = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
 /**
- * مبلغ مُنسَّق بعملته، معزولاً اتجاهياً، لرسائل تليجرام.
+ * مبلغ مُنسَّق بعملته، معزولاً اتجاهياً، لأسطح الطرف الثالث.
  *
- * الريال يظهر بالبديل النصّي «ر.س» لا برمز U+20C1: تليجرام لا يحمّل خط
- * الرمز، فيظهر مربّع فارغ مكانه — وهو نفس سبب استعمال البديل في المستندات
- * المطبوعة. والعملات الأخرى ترافقها رموزها الدولية، فلا تلتبس.
+ * الريال يظهر بالبديل النصّي «ر.س» لا برمز U+20C1: تليجرام وبيسكامب لا
+ * يحمّلان خط الرمز، فيظهر مربّع فارغ مكانه — وهو نفس سبب استعمال البديل في
+ * المستندات المطبوعة. والعملات الأخرى ترافقها رموزها الدولية، فلا تلتبس.
  *
  * ⛔ ليست لواجهة اللوحة — هناك يُعرض المبلغ عبر `Money` من `naf-currency`.
  */
 export function formatMoney(amount, currency) {
-  const value = AMOUNT_FORMAT.format(Number(amount || 0));
-  return iso(`${value} ${currency === 'SAR' ? 'ر.س' : currency}`);
+  return isolate(`${formatAmount(amount)} ${currency === 'SAR' ? 'ر.س' : currency}`);
 }
