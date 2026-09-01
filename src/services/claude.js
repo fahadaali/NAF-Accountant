@@ -104,13 +104,94 @@ ${bankLine}
 const DEFAULT_MODEL = 'claude-opus-4-8';
 
 /**
+ * تشخيص ردّ خطأ من واجهة Anthropic: ما حدث وما العمل.
+ *
+ * كان الخطأ يُمرَّر خاماً: «API failed: 400 {"type":"error","error":{...}}»
+ * مبتوراً عند ٢٢٠ محرفاً. فرسالةُ المسؤول تُخفي نصف السبب، ولا تقول ما
+ * يُعمل — ونفادُ الرصيد وانقطاعُ الخدمة وبطلانُ المفتاح تظهر كلّها بصورة
+ * واحدة، مع أن علاج كلٍّ منها مختلف: الأول شحنٌ، والثاني انتظار، والثالث
+ * تبديلُ سرّ. فتُقرأ حالة الردّ ورسالتها ويُقال أيّها وقع.
+ *
+ * @param {number} status رمز حالة HTTP.
+ * @param {string} body   متن الردّ.
+ * @returns {{reason:string, message:string}} سبب مصنّف، ورسالة عربية صالحة للعرض.
+ */
+export function diagnoseClaudeError(status, body) {
+  let apiMessage = '';
+  try {
+    apiMessage = JSON.parse(String(body || ''))?.error?.message || '';
+  } catch (_) {
+    /* ردّ غير JSON (صفحة وسيط مثلاً) — يُلخَّص خاماً أدناه. */
+  }
+  const detail = apiMessage || briefApiError(body);
+  const low = String(apiMessage || body || '').toLowerCase();
+
+  if (/credit balance is too low|insufficient (credit|funds|balance)|billing/.test(low)) {
+    return {
+      reason: 'billing',
+      message:
+        'رصيد حساب Anthropic نفد، فتوقّف التحليل الآلي. اشحن الرصيد من ' +
+        '«Plans & Billing» في لوحة Anthropic ثم أعد المحاولة.',
+    };
+  }
+  if (status === 401 || /authentication_error|invalid x-api-key/.test(low)) {
+    return {
+      reason: 'auth',
+      message:
+        'مفتاح CLAUDE_API_KEY مرفوض. حدّثه في أسرار Cloudflare ' +
+        '(wrangler secret put CLAUDE_API_KEY) ثم أعد المحاولة.',
+    };
+  }
+  if (status === 403 || /permission_error/.test(low)) {
+    return {
+      reason: 'permission',
+      message: `مفتاح CLAUDE_API_KEY لا يملك صلاحية هذا الطلب: ${detail}`,
+    };
+  }
+  if (/model/.test(low) && /not[_ ]found|does not exist|unknown model/.test(low)) {
+    return {
+      reason: 'model',
+      message:
+        `النموذج المضبوط في CLAUDE_MODEL غير متاح لهذا المفتاح: ${detail}. ` +
+        'صحّح الاسم في إعدادات العامل.',
+    };
+  }
+  if (status === 404) {
+    // 404 بلا ذكر نموذج يعني مساراً خاطئاً لا نموذجاً مفقوداً — والفرق
+    // يحدّد أي إعداد يُراجَع.
+    return {
+      reason: 'not_found',
+      message: `مسار واجهة Claude غير موجود (404). راجع CLAUDE_API_BASE و CLAUDE_MODEL: ${detail}`,
+    };
+  }
+  if (status === 429 || /rate_limit/.test(low)) {
+    return {
+      reason: 'rate_limit',
+      message: 'تجاوزت الطلبات حدّ المعدّل في Anthropic. أعد المحاولة بعد دقائق.',
+    };
+  }
+  if (status === 529 || /overloaded/.test(low) || status >= 500) {
+    return {
+      reason: 'unavailable',
+      message: `خدمة Claude غير متاحة مؤقتاً (رمز ${status}). أعد المحاولة بعد قليل.`,
+    };
+  }
+  return { reason: 'unknown', message: `تعذّر الاتصال بخدمة Claude (رمز ${status}): ${detail}` };
+}
+
+/**
  * نداء واحد إلى Claude يمرّ منه كل استدعاء في هذا الملف.
  *
  * ═══ فحص stop_reason ═══
  *
- * بلوغ `max_tokens` يعني رداً مبتوراً، وكان يمرّ صامتاً في المواضع الخمسة:
- * فيُنشر تقريرٌ ماليّ مقطوعٌ في منتصف جدول على بيسكامب، ويُحلَّل نصٌّ صوتيّ
- * ناقص كأنه كامل. والبتر لا يُميَّز من الاكتمال إلا من هذا الحقل.
+ * بلوغ `max_tokens` يعني رداً مبتوراً، وكان يمرّ صامتاً في كل المواضع:
+ * فيُحلَّل نصٌّ صوتيّ ناقص كأنه كامل، ويُقرأ نصفُ عمليةٍ على أنه العملية.
+ * والبتر لا يُميَّز من الاكتمال إلا من هذا الحقل.
+ *
+ * ═══ تصنيف الخطأ ═══
+ *
+ * وردّ الخطأ يمرّ بـ`diagnoseClaudeError` أعلاه، فيصل المستخدمَ والمسؤولَ
+ * سببٌ عربيّ يقول ما يُعمل، لا متنُ JSON إنجليزيّ مبتور.
  *
  * @param {object} opts
  * @param {string} opts.system
@@ -141,7 +222,11 @@ async function callClaude(env, { system, content, maxTokens = 2048, label = 'Cla
   });
 
   if (!res.ok) {
-    throw new Error(`${label} API failed: ${res.status} ${briefApiError(await res.text())}`);
+    const diag = diagnoseClaudeError(res.status, await res.text());
+    const err = new Error(`${label}: ${diag.message}`);
+    err.reason = diag.reason;
+    err.status = res.status;
+    throw err;
   }
 
   const data = await res.json();
@@ -320,45 +405,16 @@ ${numbered}`;
   }
 }
 
-/**
- * تنسيق بيانات تقرير مالي (JSON من وافق) إلى HTML عربي أنيق عبر Claude.
- * مرن مع اختلاف بنية البيانات. لا يخترع أرقاماً.
- * @param {string} periodLabel - وصف الفترة (مثل «يوليو 2026»).
- * @param {object} pnl - بيانات قائمة الدخل.
- * @param {object} trialBalance - بيانات ميزان المراجعة.
- * @returns {Promise<string>} محتوى HTML للتقرير.
- */
-export async function formatFinancialReport(env, periodLabel, pnl, trialBalance) {
-  const system = `أنت محاسب قانوني تُعِدّ تقريراً مالياً بالعربية لشركة ناف القانونية (SAR).
-ستستلم بيانات JSON خام لتقريرين من نظام وافق: قائمة الدخل (الأرباح والخسائر) وميزان المراجعة.
-مهمتك: توليد تقرير HTML عربي (RTL) أنيق ومنظّم يعرض البيانات في جداول واضحة، مع عناوين ومجاميع.
+/* ═══ تنسيق التقرير المالي لم يعد هنا ═══
 
-قواعد صارمة:
-- استخدم الأرقام كما هي في البيانات فقط. ⛔ لا تخترع أو تُقدّر أي رقم.
-- إن كان قسم فارغاً، اذكر «لا توجد بيانات».
-- أخرج HTML فقط (وسوم <h2>,<h3>,<table>,<tr>,<td>,<p> بسيطة) بدون <html> أو <body> أو <style> أو أي شرح خارج الـ HTML.
-- نسّق المبالغ برقمين عشريين مع «ر.س».`;
+   كانت `formatFinancialReport` تمرّر JSON تقريري وافق إلى Claude ليُخرجهما
+   جداول HTML. فارتبط التقرير الشهري بحساب Anthropic بلا داعٍ: نفادُ الرصيد
+   أوقف إصدار التقرير كلَّه («credit balance is too low»، رمز 400)، وهو عملٌ
+   لا ذكاء فيه — تحويلُ جدولٍ إلى جدول. وأخطرُ منه أنّ أرقام تقريرٍ ماليّ
+   رسميّ كانت تمرّ عبر نموذج توليدي، وحدُّ الرموز يبترها في منتصف صفّ.
 
-  const user = `الفترة: ${periodLabel}
-
-# بيانات قائمة الدخل (JSON):
-${JSON.stringify(pnl).slice(0, 12000)}
-
-# بيانات ميزان المراجعة (JSON):
-${JSON.stringify(trialBalance).slice(0, 12000)}`;
-
-  /* 16000 لا 4096: المُدخل جدولان قد يبلغان ٢٤ ألف محرف، والمخرج جداول
-     HTML كاملة. والحدّ السابق كان يبتره في منتصف صفّ، فيُنشر على بيسكامب
-     تقريرٌ ماليّ ناقص بلا ما يقول إنه ناقص. */
-  const html = await callClaude(env, {
-    system,
-    content: user,
-    maxTokens: 16000,
-    label: 'تنسيق التقرير المالي',
-  });
-  if (!html) throw new Error('Claude لم يُنتج محتوى للتقرير');
-  return html;
-}
+   البناء الآن حتميّ في `src/lib/report_render.js`. ولا يُعاد هنا: كلّ ما
+   يُنادى في هذا الملف يحتاج حكماً لغوياً لا يُكتب شرطاً — والتنسيق ليس منه. */
 
 
 /**
