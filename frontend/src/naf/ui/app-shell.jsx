@@ -6,7 +6,7 @@
    أنماطه في ../naf-app-shell.css، وهي مستوردة من index.css. */
 
 import * as React from "react"
-import { ChevronDown, ChevronLeft, LogOut, Menu } from "lucide-react"
+import { ChevronDown, ChevronLeft, House, LogOut, Menu } from "lucide-react"
 
 import { cn } from "../lib/utils"
 
@@ -25,6 +25,8 @@ const TERMS = {
   account: "الحساب",
   signOut: "تسجيل الخروج",
   appearance: "المظهر",
+  /** زرّ الترويسة إلى شبكة المنصات في المركز — naf-terms.md §٢. */
+  allPlatforms: "كل المنصات",
   /** حسابٌ بلا اسم مسجَّل. لا البريد مكانه — naf-terms.md §١٠. */
   noName: "مستخدم",
 }
@@ -192,6 +194,38 @@ export function Breadcrumbs({ items, className }) {
     </nav>
   )
 }
+
+/* ── كل المنصات ── */
+
+/**
+ * زرّ ظاهر إلى شبكة المنصات في المركز، يوضع في `HeaderEnd` قبل قائمة
+ * الحساب مباشرةً. خلفيته اللون الأساسي لأنه الطريق الوحيد من منصة إلى
+ * أختها — وكان مدفوناً: الخروج وحده كان يعيد القارئ إلى الشبكة.
+ *
+ * `href` عنوان مركز الهوية كما تعرفه المنصة (`AUTH_ISSUER`) — لا يُكتب في
+ * الواجهة رقماً ثابتاً. فارغٌ يعني منصةً تعمل بلا مركز (خادم محلي)،
+ * فلا يُعرض الزرّ أصلاً بدل أن يشير إلى لا مكان.
+ *
+ * يفتح في اللسان نفسه: المركز والمنصات نظامٌ واحد يتنقّل فيه القارئ،
+ * لا أداةٌ خارجية تُفتح بجوار ما هو فيه.
+ */
+export const PlatformsLink = React.forwardRef(({ href, className, ...props }, ref) => {
+  if (!href) return null
+  return (
+    <a
+      ref={ref}
+      href={href}
+      className={cn("naf-platforms-link", className)}
+      aria-label={TERMS.allPlatforms}
+      title={TERMS.allPlatforms}
+      {...props}
+    >
+      <House size={16} aria-hidden="true" />
+      <span className="naf-platforms-link-label">{TERMS.allPlatforms}</span>
+    </a>
+  )
+})
+PlatformsLink.displayName = "PlatformsLink"
 
 /* ── قائمة الحساب ── */
 

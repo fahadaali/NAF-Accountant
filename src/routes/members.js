@@ -43,7 +43,14 @@ members.get('/me', async (c) => {
     }
   }
 
-  return c.json({ ok: true, user: { ...user, name, email } });
+  // `center` عنوان مركز الهوية (AUTH_ISSUER) — منه تبني الواجهة زرّ «كل
+  // المنصات» في الترويسة، فلا يُكتب عنوان المركز في الواجهة رقماً ثابتاً.
+  // وبلا مركز (خادم محلي) يكون null فلا يُعرض الزرّ.
+  return c.json({
+    ok: true,
+    center: c.env.AUTH_ISSUER ?? null,
+    user: { ...user, name, email },
+  });
 });
 
 // ---- الحماية: مسؤول فقط ----

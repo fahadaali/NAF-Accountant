@@ -19,6 +19,8 @@ import { api, auth, getToken, clearToken } from './lib/api.js';
 
 export default function App() {
   const [user, setUser] = useState(null);
+  // عنوان مركز الهوية من الخادم (`center` في ردّ ‎/api/me) — لزرّ «كل المنصات».
+  const [center, setCenter] = useState(null);
   const [ready, setReady] = useState(false);
 
   // عند الإقلاع: الدخول الموحّد أولاً — الجلسة كوكي HttpOnly، والوسيط لا
@@ -40,6 +42,7 @@ export default function App() {
       try {
         const res = await api.me();
         setUser(res.user);
+        setCenter(res.center ?? null);
         setReady(true);
         return;
       } catch (_) {
@@ -139,7 +142,7 @@ export default function App() {
   const isAdmin = user.role === 'admin';
 
   return (
-    <Layout user={user} onLogout={logout} isAdmin={isAdmin}>
+    <Layout user={user} center={center} onLogout={logout} isAdmin={isAdmin}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/transactions" element={<Transactions isAdmin={isAdmin} />} />

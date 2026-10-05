@@ -93,9 +93,9 @@ export default function Settings({ user, onLogout }) {
       {/* الحساب */}
       <Card className="p-6">
         <h3 className="font-bold text-foreground mb-1">الحساب</h3>
-        <div className="flex items-center justify-between mt-3">
-          <div>
-            <bdi className="block font-semibold text-foreground">{user?.email}</bdi>
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
+          <div className="min-w-0">
+            <bdi className="block break-all font-semibold text-foreground">{user?.email}</bdi>
             <div className="text-xs text-muted-foreground">
               الصلاحية: {user?.role === 'admin' ? 'مسؤول' : 'مستخدم'}
             </div>

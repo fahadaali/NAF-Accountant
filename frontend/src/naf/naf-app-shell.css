@@ -193,6 +193,21 @@
   min-width: 0;
 }
 
+/* الجانبان لا ينكمشان سواءً: جانب البداية فتاتُ مسارٍ يُقصَّر بلا ضرر،
+   وجانب النهاية أزرارٌ ورقعةُ حساب بمقاسات ثابتة لا تقبل الانكماش.
+
+   وحين كان الاثنان shrink:1 كان المتصفّح يضغط جانب النهاية إلى ٨٥
+   بكسل ومحتواه يحتاج ١٢٠ — و`.naf-account-wrap` فيه `flex-shrink: 0`
+   فيرفض الانضغاط ويخرج ١٩ بكسل عن حافة الشاشة، فتُمرَّر الصفحة أفقياً
+   على ٣٧٥. قِيس في المتصفح لا استُنتج.
+
+   فيُمنع انكماش جانب النهاية ليأخذ المتصفح المساحة من الفتات — وهو ما
+   يقوله تعليق `.naf-crumb` أدناه أصلاً: «مسارٌ طويل يُقصَّر بدل أن يدفع
+   الترويسة فتتجاوز الشاشة عند 375 بكسل». */
+.naf-header-end {
+  flex-shrink: 0;
+}
+
 /* ── فتات المسار ── */
 
 .naf-crumbs {
@@ -255,6 +270,60 @@
 /* زرّ القائمة — لا وجود له فوق نقطة الانكسار */
 .naf-menu-btn {
   display: none;
+}
+
+/* ── كل المنصات ──
+   الزرّ الوحيد في الترويسة بخلفية اللون الأساسي: هو الطريق من المنصة إلى
+   أخواتها، فيُرى من أوّل نظرة. وارتفاعه درجة `sm` من سلّم الأزرار. */
+
+.naf-platforms-link {
+  height: var(--space-8);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color 0.12s;
+}
+
+.naf-platforms-link:hover {
+  background: color-mix(in oklab, var(--primary) 90%, transparent);
+}
+
+.naf-platforms-link > svg {
+  flex-shrink: 0;
+}
+
+/* ── لوحة تنسدل من الترويسة ──
+   الإشعارات وما يشبهها. تُثبَّت إلى الترويسة نفسها لا إلى زرّها: الزرّ
+   ليس على حافة الترويسة (قائمة الحساب بعده)، فلوحةٌ تنمو من حافته بعرضٍ
+   ثابت تخرج عن الشاشة على 375. والترويسة sticky فهي حاضنة الموضع.
+
+   لذلك يبقى حاضن الزرّ بلا position — ويُعطى الزرّ نفسه relative إن حمل
+   شارة عدّ. والارتفاع من الشاشة الظاهرة لا رقماً: ما يزيد يُمرَّر داخلها. */
+
+.naf-header-panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  inset-inline-end: var(--space-4);
+  width: min(var(--page-narrow), calc(100% - var(--space-8)));
+  max-height: calc(100dvh - var(--shell-header) - env(safe-area-inset-top) - var(--space-6));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 30;
 }
 
 /* ── قائمة الحساب ── */
@@ -459,6 +528,7 @@
 
 .naf-nav-link:focus-visible,
 .naf-icon-btn:focus-visible,
+.naf-platforms-link:focus-visible,
 .naf-account:focus-visible,
 .naf-account-menu-item:focus-visible,
 .naf-crumb:focus-visible {
@@ -515,6 +585,17 @@
   .naf-content {
     padding: var(--space-4) var(--space-3);
   }
+
+  /* دون نقطة الانكسار: الأيقونة وحدها، والاسم باقٍ تسميةً وتلميحاً */
+  .naf-platforms-link {
+    width: var(--space-8);
+    padding: 0;
+    justify-content: center;
+  }
+
+  .naf-platforms-link-label {
+    display: none;
+  }
 }
 
 @media (width >= 900px) {
@@ -539,7 +620,11 @@
 [dir='rtl'] .lucide-log-out,
 [dir='rtl'] .lucide-log-in,
 [dir='rtl'] .lucide-external-link,
-[dir='rtl'] .lucide-reply { transform: scaleX(-1); }
+[dir='rtl'] .lucide-reply,
+/* المحاذاة: الاسم منطقيّ والرسم لاتينيّ — `TextAlignStart` أسطرٌ
+   محاذاةً لليسار. فتُقلب في RTL ليصير مبدأ السطر يمينه. */
+[dir='rtl'] .lucide-text-align-start,
+[dir='rtl'] .lucide-text-align-end { transform: scaleX(-1); }
 
 /* (ب) اتجاه مزدوج — الاسم مختار بمظهره في RTL، فيُقلب في LTR */
 [dir='ltr'] .lucide-arrow-left,
@@ -556,6 +641,7 @@
   .naf-account-chevron,
   .naf-nav-link,
   .naf-icon-btn,
+  .naf-platforms-link,
   .naf-account,
   .naf-account-menu-item {
     transition: none;
