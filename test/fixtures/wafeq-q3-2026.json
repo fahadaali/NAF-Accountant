@@ -1,0 +1,1335 @@
+{
+  "_note": "Rebuilt from the Q3 2026 report posted to Basecamp — the figures are Wafeq's, the key nesting is inferred from the rendered message.",
+  "profit_and_loss": {
+    "overview": {
+      "created_ts": "2026-10-01T03:00:00Z",
+      "currency": "SAR",
+      "date_after": "2026-07-01",
+      "date_before": "2026-09-30",
+      "group_by": "month",
+      "id": "profit_and_loss",
+      "label": "Profit and Loss Report"
+    },
+    "columns": [
+      {
+        "label": "Jul 2026",
+        "id": "2026-07-01",
+        "metadata": {
+          "from_date": "2026-07-01",
+          "to_date": "2026-07-31"
+        }
+      },
+      {
+        "label": "Aug 2026",
+        "id": "2026-08-01",
+        "metadata": {
+          "from_date": "2026-08-01",
+          "to_date": "2026-08-31"
+        }
+      },
+      {
+        "label": "Sep 2026",
+        "id": "2026-09-01",
+        "metadata": {
+          "from_date": "2026-09-01",
+          "to_date": "2026-09-30"
+        }
+      },
+      {
+        "label": "Totals",
+        "id": "row_totals",
+        "metadata": {
+          "from_date": "2026-07-01",
+          "to_date": "2026-09-30"
+        }
+      }
+    ],
+    "rows": [
+      {
+        "label": "Income",
+        "group": "INCOME",
+        "id": "INCOME",
+        "metadata": {
+          "sub_classifications": [
+            {
+              "label": "415 Attorney's fees",
+              "id": "acc_hhhZQC9hT8EUXu7wWQgQsV",
+              "metadata": {
+                "accounts": [
+                  "acc_hhhZQC9hT8EUXu7wWQgQsV"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_hhhZQC9hT8EUXu7wWQgQsV"
+                  ]
+                },
+                "values": [
+                  25652.17,
+                  0,
+                  0,
+                  25652.17
+                ],
+                "id": "summary_acc_hhhZQC9hT8EUXu7wWQgQsV",
+                "label": "Total 415 Attorney's fees"
+              },
+              "values": [
+                25652.17,
+                0,
+                0,
+                25652.17
+              ]
+            },
+            {
+              "label": "418 Annual Contracts",
+              "id": "acc_JsJEV3WhvLFDsj9KcLVWpb",
+              "metadata": {
+                "accounts": [
+                  "acc_JsJEV3WhvLFDsj9KcLVWpb"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_JsJEV3WhvLFDsj9KcLVWpb"
+                  ]
+                },
+                "values": [
+                  11739.13,
+                  0,
+                  0,
+                  11739.13
+                ],
+                "id": "summary_acc_JsJEV3WhvLFDsj9KcLVWpb",
+                "label": "Total 418 Annual Contracts"
+              },
+              "values": [
+                11739.13,
+                0,
+                0,
+                11739.13
+              ]
+            }
+          ]
+        },
+        "summary": {
+          "sub_totals": [
+            "INCOME"
+          ],
+          "values": [
+            37391.3,
+            0,
+            0,
+            37391.3
+          ],
+          "id": "summary_income",
+          "label": "Total Income"
+        }
+      },
+      {
+        "label": "Cost of Sales",
+        "group": "COGS",
+        "id": "COGS",
+        "metadata": {
+          "sub_classifications": []
+        },
+        "summary": {
+          "sub_totals": [
+            "COST_OF_SALES"
+          ],
+          "values": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "id": "summary_cogs",
+          "label": "Total Cost of Sales"
+        }
+      },
+      {
+        "label": "Gross Profit",
+        "group": "GROSS_MARGIN",
+        "id": "GROSS_MARGIN",
+        "metadata": {
+          "sub_classifications": []
+        },
+        "summary": {
+          "sub_totals": [
+            "INCOME",
+            "COST_OF_SALES"
+          ],
+          "values": [
+            37391.3,
+            0,
+            0,
+            37391.3
+          ],
+          "id": "summary_gross_margin",
+          "label": "Total Gross Profit"
+        }
+      },
+      {
+        "label": "Operating Expenses",
+        "group": "OPERATING_EXPENSE",
+        "id": "OPERATING_EXPENSE",
+        "metadata": {
+          "sub_classifications": [
+            {
+              "label": "521 Office Supplies",
+              "id": "acc_8YaG5nUb4BZ2ajQWGxwpMT",
+              "metadata": {
+                "accounts": [
+                  "acc_8YaG5nUb4BZ2ajQWGxwpMT"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_8YaG5nUb4BZ2ajQWGxwpMT"
+                  ]
+                },
+                "values": [
+                  -565,
+                  0,
+                  0,
+                  -565
+                ],
+                "id": "summary_acc_8YaG5nUb4BZ2ajQWGxwpMT",
+                "label": "Total 521 Office Supplies"
+              },
+              "values": [
+                -565,
+                0,
+                0,
+                -565
+              ]
+            },
+            {
+              "label": "5211 Salaries and Employee Wages",
+              "id": "acc_aTgR9ihhj6K7FNBD9u7AYa",
+              "metadata": {
+                "accounts": [
+                  "acc_aTgR9ihhj6K7FNBD9u7AYa"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_aTgR9ihhj6K7FNBD9u7AYa"
+                  ]
+                },
+                "values": [
+                  -15916.87,
+                  0,
+                  0,
+                  -15916.87
+                ],
+                "id": "summary_acc_aTgR9ihhj6K7FNBD9u7AYa",
+                "label": "Total 5211 Salaries and Employee Wages"
+              },
+              "values": [
+                -15916.87,
+                0,
+                0,
+                -15916.87
+              ]
+            },
+            {
+              "label": "5212 Hospitality and Meetings",
+              "id": "acc_VkgM3GuoUXBmrKwckcco2D",
+              "metadata": {
+                "accounts": [
+                  "acc_VkgM3GuoUXBmrKwckcco2D"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_VkgM3GuoUXBmrKwckcco2D"
+                  ]
+                },
+                "values": [
+                  -636.94,
+                  0,
+                  0,
+                  -636.94
+                ],
+                "id": "summary_acc_VkgM3GuoUXBmrKwckcco2D",
+                "label": "Total 5212 Hospitality and Meetings"
+              },
+              "values": [
+                -636.94,
+                0,
+                0,
+                -636.94
+              ]
+            },
+            {
+              "label": "523 Bank Fees and Charges",
+              "id": "acc_k236XuTZ8dh8DoZoHj6YtM",
+              "metadata": {
+                "accounts": [
+                  "acc_k236XuTZ8dh8DoZoHj6YtM"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_k236XuTZ8dh8DoZoHj6YtM"
+                  ]
+                },
+                "values": [
+                  -7.5,
+                  0,
+                  0,
+                  -7.5
+                ],
+                "id": "summary_acc_k236XuTZ8dh8DoZoHj6YtM",
+                "label": "Total 523 Bank Fees and Charges"
+              },
+              "values": [
+                -7.5,
+                0,
+                0,
+                -7.5
+              ]
+            },
+            {
+              "label": "526 Telephone Expense",
+              "id": "acc_3PJ7g5gZqZKWsnTtVav5nt",
+              "metadata": {
+                "accounts": [
+                  "acc_3PJ7g5gZqZKWsnTtVav5nt"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_3PJ7g5gZqZKWsnTtVav5nt"
+                  ]
+                },
+                "values": [
+                  -310,
+                  0,
+                  0,
+                  -310
+                ],
+                "id": "summary_acc_3PJ7g5gZqZKWsnTtVav5nt",
+                "label": "Total 526 Telephone Expense"
+              },
+              "values": [
+                -310,
+                0,
+                0,
+                -310
+              ]
+            },
+            {
+              "label": "527 Software and Tools",
+              "id": "acc_LKBpH6Wc22k4f96EzUdWot",
+              "metadata": {
+                "accounts": [
+                  "acc_LKBpH6Wc22k4f96EzUdWot"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_LKBpH6Wc22k4f96EzUdWot"
+                  ]
+                },
+                "values": [
+                  -569.22,
+                  0,
+                  0,
+                  -569.22
+                ],
+                "id": "summary_acc_LKBpH6Wc22k4f96EzUdWot",
+                "label": "Total 527 Software and Tools"
+              },
+              "values": [
+                -569.22,
+                0,
+                0,
+                -569.22
+              ]
+            },
+            {
+              "label": "528 Rent Expense",
+              "id": "acc_HQozhb89a4gdMY3YkcJD32",
+              "metadata": {
+                "accounts": [
+                  "acc_HQozhb89a4gdMY3YkcJD32"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_HQozhb89a4gdMY3YkcJD32"
+                  ]
+                },
+                "values": [
+                  -3478.26,
+                  0,
+                  0,
+                  -3478.26
+                ],
+                "id": "summary_acc_HQozhb89a4gdMY3YkcJD32",
+                "label": "Total 528 Rent Expense"
+              },
+              "values": [
+                -3478.26,
+                0,
+                0,
+                -3478.26
+              ]
+            },
+            {
+              "label": "531 Government fees",
+              "id": "acc_KqR6h9NPmLUmnGMM5Nd9b5",
+              "metadata": {
+                "accounts": [
+                  "acc_KqR6h9NPmLUmnGMM5Nd9b5"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_KqR6h9NPmLUmnGMM5Nd9b5"
+                  ]
+                },
+                "values": [
+                  -2074.06,
+                  0,
+                  0,
+                  -2074.06
+                ],
+                "id": "summary_acc_KqR6h9NPmLUmnGMM5Nd9b5",
+                "label": "Total 531 Government fees"
+              },
+              "values": [
+                -2074.06,
+                0,
+                0,
+                -2074.06
+              ]
+            },
+            {
+              "label": "533 Brokerage commissions",
+              "id": "acc_4tidzCAnJtNHaRrP8cy2kZ",
+              "metadata": {
+                "accounts": [
+                  "acc_4tidzCAnJtNHaRrP8cy2kZ"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_4tidzCAnJtNHaRrP8cy2kZ"
+                  ]
+                },
+                "values": [
+                  -6522,
+                  0,
+                  0,
+                  -6522
+                ],
+                "id": "summary_acc_4tidzCAnJtNHaRrP8cy2kZ",
+                "label": "Total 533 Brokerage commissions"
+              },
+              "values": [
+                -6522,
+                0,
+                0,
+                -6522
+              ]
+            }
+          ]
+        },
+        "summary": {
+          "sub_totals": [
+            "OPERATING_EXPENSES"
+          ],
+          "values": [
+            -30079.85,
+            0,
+            0,
+            -30079.85
+          ],
+          "id": "summary_operating_expense",
+          "label": "Total Operating Expenses"
+        }
+      },
+      {
+        "label": "Operating Profit",
+        "group": "OPERATING_PROFIT",
+        "id": "OPERATING_PROFIT",
+        "metadata": {
+          "sub_classifications": []
+        },
+        "summary": {
+          "sub_totals": [
+            "INCOME",
+            "COST_OF_SALES",
+            "OPERATING_EXPENSES"
+          ],
+          "values": [
+            7311.45,
+            0,
+            0,
+            7311.45
+          ],
+          "id": "summary_operating_profit",
+          "label": "Total Operating Profit"
+        }
+      },
+      {
+        "label": "Other Income",
+        "group": "OTHER_INCOME",
+        "id": "OTHER_INCOME",
+        "metadata": {
+          "sub_classifications": []
+        },
+        "summary": {
+          "sub_totals": [
+            "OTHER_INCOME"
+          ],
+          "values": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "id": "summary_other_income",
+          "label": "Total Other Income"
+        }
+      },
+      {
+        "label": "Non-Operating Expenses",
+        "group": "NON_OPERATING_EXPENSE",
+        "id": "NON_OPERATING_EXPENSE",
+        "metadata": {
+          "sub_classifications": [
+            {
+              "label": "531 Exchange Gain or Loss",
+              "id": "acc_8YBqUnByLWtQSjxMF8tbA9",
+              "metadata": {
+                "accounts": [
+                  "acc_8YBqUnByLWtQSjxMF8tbA9"
+                ]
+              },
+              "summary": {
+                "metadata": {
+                  "sub_totals": [
+                    "acc_8YBqUnByLWtQSjxMF8tbA9"
+                  ]
+                },
+                "values": [
+                  -5.92,
+                  0,
+                  0,
+                  -5.92
+                ],
+                "id": "summary_acc_8YBqUnByLWtQSjxMF8tbA9",
+                "label": "Total 531 Exchange Gain or Loss"
+              },
+              "values": [
+                -5.92,
+                0,
+                0,
+                -5.92
+              ]
+            }
+          ]
+        },
+        "summary": {
+          "sub_totals": [
+            "NON_OPERATING_EXPENSES"
+          ],
+          "values": [
+            -5.92,
+            0,
+            0,
+            -5.92
+          ],
+          "id": "summary_non_operating_expense",
+          "label": "Total Non-Operating Expenses"
+        }
+      },
+      {
+        "label": "Net Profit",
+        "group": "NET_PROFIT",
+        "id": "NET_PROFIT",
+        "metadata": {
+          "sub_classifications": []
+        },
+        "summary": {
+          "sub_totals": [
+            "INCOME",
+            "COST_OF_SALES",
+            "OPERATING_EXPENSES",
+            "OTHER_INCOME",
+            "NON_OPERATING_EXPENSES"
+          ],
+          "values": [
+            7305.53,
+            0,
+            0,
+            7305.53
+          ],
+          "id": "summary_net_profit",
+          "label": "Total Net Profit"
+        }
+      }
+    ]
+  },
+  "trial_balance": {
+    "overview": {
+      "id": "trial_balance",
+      "label": "Trial Balance Report",
+      "created_ts": "2026-10-01T03:00:00Z",
+      "count": 30,
+      "from_date": "2026-01-01",
+      "to_date": "2026-10-01",
+      "include_zero_balances": false,
+      "with_pnl_openings": false
+    },
+    "results": [
+      {
+        "label": "Asset",
+        "id": "ASSET",
+        "group": "ASSET",
+        "metadata": {
+          "classification": "ASSET"
+        },
+        "summary": {
+          "sub_totals": [
+            "ASSET"
+          ],
+          "debit_to_bcy": 431884.61,
+          "credit_to_bcy": -418526.24,
+          "opening_balance_to_bcy": 25131.33,
+          "running_balance_to_bcy": 38489.7,
+          "id": "summary_asset",
+          "label": "Total Asset"
+        },
+        "children": [
+          {
+            "label": "Current Assets",
+            "id": "CURRENT_ASSET",
+            "group": "CURRENT_ASSET",
+            "metadata": {
+              "sub_classification": "CURRENT_ASSET"
+            },
+            "summary": {
+              "sub_totals": [
+                "CURRENT_ASSET"
+              ],
+              "debit_to_bcy": 428490.36,
+              "credit_to_bcy": -418526.24,
+              "opening_balance_to_bcy": 397.43,
+              "running_balance_to_bcy": 10361.55,
+              "id": "summary_current_asset",
+              "label": "Total Current Assets"
+            },
+            "children": [
+              {
+                "code": "1112",
+                "name": "Petty Cash",
+                "id": "acc_C328sNXa8DS4UNDLNPjm7X",
+                "label": "1112 Petty Cash",
+                "debit_to_bcy": 1264.25,
+                "credit_to_bcy": -1196.01,
+                "opening_balance_to_bcy": 196.01,
+                "running_balance_to_bcy": 264.25,
+                "metadata": {
+                  "accounts": [
+                    "acc_C328sNXa8DS4UNDLNPjm7X"
+                  ]
+                }
+              },
+              {
+                "code": "1113",
+                "name": "Bank Account",
+                "id": "acc_AZJZrLnmh25fBmHSbjAc3Z",
+                "label": "1113 Bank Account",
+                "debit_to_bcy": 195504.99,
+                "credit_to_bcy": -171016.14,
+                "opening_balance_to_bcy": 201.42,
+                "running_balance_to_bcy": 24690.27,
+                "metadata": {
+                  "accounts": [
+                    "acc_AZJZrLnmh25fBmHSbjAc3Z"
+                  ]
+                }
+              },
+              {
+                "code": "1114",
+                "name": "حساب SiFi",
+                "id": "acc_dKBiYckmhttEUi3jVALHGR",
+                "label": "1114 حساب SiFi",
+                "debit_to_bcy": 6216.13,
+                "credit_to_bcy": -5809.1,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 407.03,
+                "metadata": {
+                  "accounts": [
+                    "acc_dKBiYckmhttEUi3jVALHGR"
+                  ]
+                }
+              },
+              {
+                "code": "112",
+                "name": "Accounts Receivable",
+                "id": "acc_YQmiVQWtf3s2LmmFKfG2Ni",
+                "label": "112 Accounts Receivable",
+                "debit_to_bcy": 225504.99,
+                "credit_to_bcy": -240504.99,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": -15000,
+                "metadata": {
+                  "accounts": [
+                    "acc_YQmiVQWtf3s2LmmFKfG2Ni"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "label": "Non-Current Assets",
+            "id": "NON_CURRENT_ASSET",
+            "group": "NON_CURRENT_ASSET",
+            "metadata": {
+              "sub_classification": "NON_CURRENT_ASSET"
+            },
+            "summary": {
+              "sub_totals": [
+                "NON_CURRENT_ASSET"
+              ],
+              "debit_to_bcy": 3394.25,
+              "credit_to_bcy": 0,
+              "opening_balance_to_bcy": 24733.9,
+              "running_balance_to_bcy": 28128.15,
+              "id": "summary_non_current_asset",
+              "label": "Total Non-Current Assets"
+            },
+            "children": [
+              {
+                "code": "1211",
+                "name": "Furniture and Equipment",
+                "id": "acc_KUoGwuZQW7TWKhYBTuEH4c",
+                "label": "1211 Furniture and Equipment",
+                "debit_to_bcy": 3394.25,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 24733.9,
+                "running_balance_to_bcy": 28128.15,
+                "metadata": {
+                  "accounts": [
+                    "acc_KUoGwuZQW7TWKhYBTuEH4c"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Liability",
+        "id": "LIABILITY",
+        "group": "LIABILITY",
+        "metadata": {
+          "classification": "LIABILITY"
+        },
+        "summary": {
+          "sub_totals": [
+            "LIABILITY"
+          ],
+          "debit_to_bcy": 103509.08,
+          "credit_to_bcy": -102287.8,
+          "opening_balance_to_bcy": -5430.6,
+          "running_balance_to_bcy": -4209.32,
+          "id": "summary_liability",
+          "label": "Total Liability"
+        },
+        "children": [
+          {
+            "label": "Current Liabilities",
+            "id": "CURRENT_LIABILITY",
+            "group": "CURRENT_LIABILITY",
+            "metadata": {
+              "sub_classification": "CURRENT_LIABILITY"
+            },
+            "summary": {
+              "sub_totals": [
+                "CURRENT_LIABILITY"
+              ],
+              "debit_to_bcy": 103509.08,
+              "credit_to_bcy": -102287.8,
+              "opening_balance_to_bcy": -5430.6,
+              "running_balance_to_bcy": -4209.32,
+              "id": "summary_current_liability",
+              "label": "Total Current Liabilities"
+            },
+            "children": [
+              {
+                "code": "211",
+                "name": "Accounts Payable",
+                "id": "acc_FbVANeG7YSkzr2oBm8QBKg",
+                "label": "211 Accounts Payable",
+                "debit_to_bcy": 74830.62,
+                "credit_to_bcy": -74830.62,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 0,
+                "metadata": {
+                  "accounts": [
+                    "acc_FbVANeG7YSkzr2oBm8QBKg"
+                  ]
+                }
+              },
+              {
+                "code": "2110",
+                "name": "VAT Payable",
+                "id": "acc_6Q6HE8MCw47jepnQ4rrewt",
+                "label": "2110 VAT Payable",
+                "debit_to_bcy": 2218.68,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 2218.68,
+                "metadata": {
+                  "accounts": [
+                    "acc_6Q6HE8MCw47jepnQ4rrewt"
+                  ]
+                }
+              },
+              {
+                "code": "215",
+                "name": "Loan from Owner",
+                "id": "acc_fsQ3PLZBTa94Pz3Kg6e3cJ",
+                "label": "215 Loan from Owner",
+                "debit_to_bcy": 10000,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": -10000,
+                "running_balance_to_bcy": 0,
+                "metadata": {
+                  "accounts": [
+                    "acc_fsQ3PLZBTa94Pz3Kg6e3cJ"
+                  ]
+                }
+              },
+              {
+                "code": "218",
+                "name": "VAT",
+                "id": "acc_3NKdS9XWDb9rMk2aQfcX8y",
+                "label": "218 VAT",
+                "debit_to_bcy": 16459.78,
+                "credit_to_bcy": -27457.18,
+                "opening_balance_to_bcy": 4569.4,
+                "running_balance_to_bcy": -6428,
+                "metadata": {
+                  "accounts": [
+                    "acc_3NKdS9XWDb9rMk2aQfcX8y"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Equity",
+        "id": "EQUITY",
+        "group": "EQUITY",
+        "metadata": {
+          "classification": "EQUITY"
+        },
+        "summary": {
+          "sub_totals": [
+            "EQUITY"
+          ],
+          "debit_to_bcy": 0,
+          "credit_to_bcy": 0,
+          "opening_balance_to_bcy": -19700.73,
+          "running_balance_to_bcy": -19700.73,
+          "id": "summary_equity",
+          "label": "Total Equity"
+        },
+        "children": [
+          {
+            "label": "Owner's Equity",
+            "id": "OWNERS_EQUITY",
+            "group": "OWNERS_EQUITY",
+            "metadata": {
+              "sub_classification": "OWNERS_EQUITY"
+            },
+            "summary": {
+              "sub_totals": [
+                "OWNERS_EQUITY"
+              ],
+              "debit_to_bcy": 0,
+              "credit_to_bcy": 0,
+              "opening_balance_to_bcy": -45000,
+              "running_balance_to_bcy": -45000,
+              "id": "summary_owners_equity",
+              "label": "Total Owner's Equity"
+            },
+            "children": [
+              {
+                "code": "321",
+                "name": "Share Capital",
+                "id": "acc_CyDQBRuaXuj4VRG9vLMTzA",
+                "label": "321 Share Capital",
+                "debit_to_bcy": 0,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": -45000,
+                "running_balance_to_bcy": -45000,
+                "metadata": {
+                  "accounts": [
+                    "acc_CyDQBRuaXuj4VRG9vLMTzA"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "label": "Retained Earnings",
+            "id": "RETAINED_EARNINGS",
+            "group": "RETAINED_EARNINGS",
+            "metadata": {
+              "sub_classification": "RETAINED_EARNINGS"
+            },
+            "summary": {
+              "sub_totals": [
+                "RETAINED_EARNINGS"
+              ],
+              "debit_to_bcy": 0,
+              "credit_to_bcy": 0,
+              "opening_balance_to_bcy": 25299.27,
+              "running_balance_to_bcy": 25299.27,
+              "id": "summary_retained_earnings",
+              "label": "Total Retained Earnings"
+            },
+            "children": [
+              {
+                "code": "331",
+                "name": "Retained Earnings",
+                "id": "acc_TPtrLM6WHxouDfVxKKs6BM",
+                "label": "331 Retained Earnings",
+                "debit_to_bcy": 0,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 25299.27,
+                "running_balance_to_bcy": 25299.27,
+                "metadata": {
+                  "accounts": [
+                    "acc_TPtrLM6WHxouDfVxKKs6BM"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Revenue",
+        "id": "REVENUE",
+        "group": "REVENUE",
+        "metadata": {
+          "classification": "REVENUE"
+        },
+        "summary": {
+          "sub_totals": [
+            "REVENUE"
+          ],
+          "debit_to_bcy": 26086.96,
+          "credit_to_bcy": -183047.81,
+          "opening_balance_to_bcy": 0,
+          "running_balance_to_bcy": -156960.85,
+          "id": "summary_revenue",
+          "label": "Total Revenue"
+        },
+        "children": [
+          {
+            "label": "Income",
+            "id": "INCOME",
+            "group": "INCOME",
+            "metadata": {
+              "sub_classification": "INCOME"
+            },
+            "summary": {
+              "sub_totals": [
+                "INCOME"
+              ],
+              "debit_to_bcy": 26086.96,
+              "credit_to_bcy": -183047.81,
+              "opening_balance_to_bcy": 0,
+              "running_balance_to_bcy": -156960.85,
+              "id": "summary_income",
+              "label": "Total Income"
+            },
+            "children": [
+              {
+                "code": "414",
+                "name": "Other Legal Actions",
+                "id": "acc_MMSoqUsAbgxkLwrdBW9sHP",
+                "label": "414 Other Legal Actions",
+                "debit_to_bcy": 0,
+                "credit_to_bcy": -13043.47,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": -13043.47,
+                "metadata": {
+                  "accounts": [
+                    "acc_MMSoqUsAbgxkLwrdBW9sHP"
+                  ]
+                }
+              },
+              {
+                "code": "415",
+                "name": "Attorney's fees",
+                "id": "acc_hhhZQC9hT8EUXu7wWQgQsV",
+                "label": "415 Attorney's fees",
+                "debit_to_bcy": 26086.96,
+                "credit_to_bcy": -91739.13,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": -65652.17,
+                "metadata": {
+                  "accounts": [
+                    "acc_hhhZQC9hT8EUXu7wWQgQsV"
+                  ]
+                }
+              },
+              {
+                "code": "416",
+                "name": "Legal Field Reviews",
+                "id": "acc_UYiuEMRWRLzpT7iHBxD5dN",
+                "label": "416 Legal Field Reviews",
+                "debit_to_bcy": 0,
+                "credit_to_bcy": -8695.65,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": -8695.65,
+                "metadata": {
+                  "accounts": [
+                    "acc_UYiuEMRWRLzpT7iHBxD5dN"
+                  ]
+                }
+              },
+              {
+                "code": "417",
+                "name": "Contract Drafting",
+                "id": "acc_7xXDPifSZiqnZNZJMzR57a",
+                "label": "417 Contract Drafting",
+                "debit_to_bcy": 0,
+                "credit_to_bcy": -11304.35,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": -11304.35,
+                "metadata": {
+                  "accounts": [
+                    "acc_7xXDPifSZiqnZNZJMzR57a"
+                  ]
+                }
+              },
+              {
+                "code": "418",
+                "name": "Annual Contracts",
+                "id": "acc_JsJEV3WhvLFDsj9KcLVWpb",
+                "label": "418 Annual Contracts",
+                "debit_to_bcy": 0,
+                "credit_to_bcy": -49565.21,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": -49565.21,
+                "metadata": {
+                  "accounts": [
+                    "acc_JsJEV3WhvLFDsj9KcLVWpb"
+                  ]
+                }
+              },
+              {
+                "code": "419",
+                "name": "أعمال الخبرة القانونية",
+                "id": "acc_ZpMLTV9rNjpDfgxnEf2F2G",
+                "label": "419 أعمال الخبرة القانونية",
+                "debit_to_bcy": 0,
+                "credit_to_bcy": -8700,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": -8700,
+                "metadata": {
+                  "accounts": [
+                    "acc_ZpMLTV9rNjpDfgxnEf2F2G"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Expense",
+        "id": "EXPENSE",
+        "group": "EXPENSE",
+        "metadata": {
+          "classification": "EXPENSE"
+        },
+        "summary": {
+          "sub_totals": [
+            "EXPENSE"
+          ],
+          "debit_to_bcy": 142381.2,
+          "credit_to_bcy": 0,
+          "opening_balance_to_bcy": 0,
+          "running_balance_to_bcy": 142381.2,
+          "id": "summary_expense",
+          "label": "Total Expense"
+        },
+        "children": [
+          {
+            "label": "Operating Expenses",
+            "id": "OPERATING_EXPENSE",
+            "group": "OPERATING_EXPENSE",
+            "metadata": {
+              "sub_classification": "OPERATING_EXPENSE"
+            },
+            "summary": {
+              "sub_totals": [
+                "OPERATING_EXPENSE"
+              ],
+              "debit_to_bcy": 142353.75,
+              "credit_to_bcy": 0,
+              "opening_balance_to_bcy": 0,
+              "running_balance_to_bcy": 142353.75,
+              "id": "summary_operating_expense",
+              "label": "Total Operating Expenses"
+            },
+            "children": [
+              {
+                "code": "521",
+                "name": "Office Supplies",
+                "id": "acc_8YaG5nUb4BZ2ajQWGxwpMT",
+                "label": "521 Office Supplies",
+                "debit_to_bcy": 704.65,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 704.65,
+                "metadata": {
+                  "accounts": [
+                    "acc_8YaG5nUb4BZ2ajQWGxwpMT"
+                  ]
+                }
+              },
+              {
+                "code": "5211",
+                "name": "Salaries and Employee Wages",
+                "id": "acc_aTgR9ihhj6K7FNBD9u7AYa",
+                "label": "5211 Salaries and Employee Wages",
+                "debit_to_bcy": 79763.27,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 79763.27,
+                "metadata": {
+                  "accounts": [
+                    "acc_aTgR9ihhj6K7FNBD9u7AYa"
+                  ]
+                }
+              },
+              {
+                "code": "5212",
+                "name": "Hospitality and Meetings",
+                "id": "acc_VkgM3GuoUXBmrKwckcco2D",
+                "label": "5212 Hospitality and Meetings",
+                "debit_to_bcy": 1439.15,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 1439.15,
+                "metadata": {
+                  "accounts": [
+                    "acc_VkgM3GuoUXBmrKwckcco2D"
+                  ]
+                }
+              },
+              {
+                "code": "5213",
+                "name": "Repairs and Maintenance",
+                "id": "acc_HgHg2x2WLS3g7MkKBwvfhw",
+                "label": "5213 Repairs and Maintenance",
+                "debit_to_bcy": 1000,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 1000,
+                "metadata": {
+                  "accounts": [
+                    "acc_HgHg2x2WLS3g7MkKBwvfhw"
+                  ]
+                }
+              },
+              {
+                "code": "522",
+                "name": "Advertising And Marketing",
+                "id": "acc_Ecnn8Sa9Zb5iPGuuxcCuZL",
+                "label": "522 Advertising And Marketing",
+                "debit_to_bcy": 6000,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 6000,
+                "metadata": {
+                  "accounts": [
+                    "acc_Ecnn8Sa9Zb5iPGuuxcCuZL"
+                  ]
+                }
+              },
+              {
+                "code": "523",
+                "name": "Bank Fees and Charges",
+                "id": "acc_k236XuTZ8dh8DoZoHj6YtM",
+                "label": "523 Bank Fees and Charges",
+                "debit_to_bcy": 38.5,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 38.5,
+                "metadata": {
+                  "accounts": [
+                    "acc_k236XuTZ8dh8DoZoHj6YtM"
+                  ]
+                }
+              },
+              {
+                "code": "526",
+                "name": "Telephone Expense",
+                "id": "acc_3PJ7g5gZqZKWsnTtVav5nt",
+                "label": "526 Telephone Expense",
+                "debit_to_bcy": 2291.72,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 2291.72,
+                "metadata": {
+                  "accounts": [
+                    "acc_3PJ7g5gZqZKWsnTtVav5nt"
+                  ]
+                }
+              },
+              {
+                "code": "527",
+                "name": "Software and Tools",
+                "id": "acc_LKBpH6Wc22k4f96EzUdWot",
+                "label": "527 Software and Tools",
+                "debit_to_bcy": 1981.58,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 1981.58,
+                "metadata": {
+                  "accounts": [
+                    "acc_LKBpH6Wc22k4f96EzUdWot"
+                  ]
+                }
+              },
+              {
+                "code": "528",
+                "name": "Rent Expense",
+                "id": "acc_HQozhb89a4gdMY3YkcJD32",
+                "label": "528 Rent Expense",
+                "debit_to_bcy": 24347.82,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 24347.82,
+                "metadata": {
+                  "accounts": [
+                    "acc_HQozhb89a4gdMY3YkcJD32"
+                  ]
+                }
+              },
+              {
+                "code": "530",
+                "name": "Delegation Expenses",
+                "id": "acc_YC7F8XcGf2irLLXRpfnea9",
+                "label": "530 Delegation Expenses",
+                "debit_to_bcy": 1500,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 1500,
+                "metadata": {
+                  "accounts": [
+                    "acc_YC7F8XcGf2irLLXRpfnea9"
+                  ]
+                }
+              },
+              {
+                "code": "531",
+                "name": "Government fees",
+                "id": "acc_KqR6h9NPmLUmnGMM5Nd9b5",
+                "label": "531 Government fees",
+                "debit_to_bcy": 3644.06,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 3644.06,
+                "metadata": {
+                  "accounts": [
+                    "acc_KqR6h9NPmLUmnGMM5Nd9b5"
+                  ]
+                }
+              },
+              {
+                "code": "533",
+                "name": "Brokerage commissions",
+                "id": "acc_4tidzCAnJtNHaRrP8cy2kZ",
+                "label": "533 Brokerage commissions",
+                "debit_to_bcy": 19643,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 19643,
+                "metadata": {
+                  "accounts": [
+                    "acc_4tidzCAnJtNHaRrP8cy2kZ"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "label": "Non-Operating Expenses",
+            "id": "NON_OPERATING_EXPENSE",
+            "group": "NON_OPERATING_EXPENSE",
+            "metadata": {
+              "sub_classification": "NON_OPERATING_EXPENSE"
+            },
+            "summary": {
+              "sub_totals": [
+                "NON_OPERATING_EXPENSE"
+              ],
+              "debit_to_bcy": 27.45,
+              "credit_to_bcy": 0,
+              "opening_balance_to_bcy": 0,
+              "running_balance_to_bcy": 27.45,
+              "id": "summary_non_operating_expense",
+              "label": "Total Non-Operating Expenses"
+            },
+            "children": [
+              {
+                "code": "531",
+                "name": "Exchange Gain or Loss",
+                "id": "acc_8YBqUnByLWtQSjxMF8tbA9",
+                "label": "531 Exchange Gain or Loss",
+                "debit_to_bcy": 27.45,
+                "credit_to_bcy": 0,
+                "opening_balance_to_bcy": 0,
+                "running_balance_to_bcy": 27.45,
+                "metadata": {
+                  "accounts": [
+                    "acc_8YBqUnByLWtQSjxMF8tbA9"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "summary": {
+      "totals": {
+        "debit_to_bcy": 703861.85,
+        "credit_to_bcy": -703861.85,
+        "opening_balance_to_bcy": 0,
+        "running_balance_to_bcy": 0,
+        "id": "totals",
+        "label": "Totals"
+      }
+    }
+  }
+}

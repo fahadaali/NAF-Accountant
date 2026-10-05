@@ -21,7 +21,8 @@
 // ============================================================================
 
 import { formatMoney } from './currency.js';
-import { formatDate, formatNumber, isolate } from './format.js';
+import { asNumber, escapeHtml, formatDate, formatNumber, isolate } from './format.js';
+import { renderWafeqReport, reportedPeriod } from './wafeq_report_view.js';
 
 /* بيسكامب ينقّي محتوى الرسالة ويحتفظ بمجموعة وسوم محدودة. الجداول ليست منها
    على وجه اليقين — وجدولٌ يُنقّى تبقى خلاياه نصّاً متلاصقاً بلا أعمدة، وهو
@@ -74,21 +75,6 @@ const CONTAINER_KEYS = new Set([
    لا يلحقهما «ر.س». */
 const MONEY_KEY =
   /(amount|balance|debit|credit|total|net|value|profit|loss|revenue|income|expense|cost|tax|vat|opening|closing|sum)/i;
-
-/** قيمة رقمية نصّاً — وافق تُرجع الأعشار سلاسل ("1234.00") لا أرقاماً. */
-function asNumber(value) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) return Number(value);
-  return null;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 /** تسمية المفتاح: المسجّلة إن وُجدت، وإلا المفتاح كما ورد. */
 function keyLabel(key) {
@@ -243,12 +229,28 @@ function renderValue(value, currency, depth = 0) {
   return `<p>${formatScalar('', value, currency)}</p>`;
 }
 
+/*
+ * فترة القسم كما أعادتها وافق، حين تخالف فترة التقرير المطلوبة. ميزان
+ * المراجعة قد يعود بفترة غير التي طُلبت، والقارئ يجب أن يعرف أيَّ فترةٍ
+ * تغطّي الأرقام التي أمامه.
+ */
+function periodNote(data, period) {
+  const got = reportedPeriod(data);
+  if (!got) return '';
+  if (period && got.from === formatDate(period.after) && got.to === formatDate(period.before)) {
+    return '';
+  }
+  return `<p>الفترة من ${isolate(got.from)} إلى ${isolate(got.to)}</p>`;
+}
+
 /**
  * قسم واحد من التقرير (الأرباح والخسائر، ميزان المراجعة...).
  * @param {string} title   عنوان القسم — من `naf-terms.md`.
  * @param {object} section { data } بيانات وافق، أو { error } سبب تعذّر جلبها.
+ * @param {string} currency
+ * @param {{after:string, before:string}} [period] فترة التقرير المطلوبة.
  */
-export function renderSection(title, section, currency) {
+export function renderSection(title, section, currency, period) {
   const head = `<h2>${escapeHtml(title)}</h2>`;
 
   // القسم المتعذّر يُعلن سببه في متن التقرير: قارئُ التقرير هو من يحتاج أن
@@ -259,6 +261,11 @@ export function renderSection(title, section, currency) {
 
   const data = section ? section.data : null;
   if (!hasContent(data)) return `${head}<p>لا حركة في هذه الفترة.</p>`;
+
+  /* شكل وافق المعروف يُعرض قائمةً مالية مركّزة. وما سواه يعرضه العارض
+     العام كما ورد — لا يضيع قسمٌ لأن وافق غيّرت شكل ردّها. */
+  const structured = renderWafeqReport(data, currency);
+  if (structured) return `${head}${periodNote(data, period)}${structured}`;
 
   const body = renderValue(data, currency, 0);
   /* بياناتٌ موجودة لم يُخرج العارضُ منها شيئاً (تداخلٌ يتجاوز السقف مثلاً)
@@ -298,7 +305,7 @@ export function renderFinancialReport({
     `<p>${range}</p>`;
 
   const body = (sections || [])
-    .map((section) => renderSection(section.title, section, currency))
+    .map((section) => renderSection(section.title, section, currency, { after, before }))
     .join('');
 
   const footer =

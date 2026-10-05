@@ -48,10 +48,19 @@ export function getProfitAndLoss(env, dateAfter, dateBefore) {
   });
 }
 
-/** ميزان المراجعة لفترة. */
+/**
+ * ميزان المراجعة لفترة.
+ *
+ * هذا التقرير في وافق يقرأ فترته من `from_date` و`to_date` — هما ما يعيده
+ * في `overview` — لا من `date_after`/`date_before`. بهما وحدهما عاد ميزان
+ * الربع الثالث 2026 من بداية السنة إلى يوم التشغيل بدل الربع المطلوب.
+ * والقديمان باقيان: المعامل الذي لا يعرفه التقرير يتجاهله، فلا ضرر في بقائه.
+ */
 export function getTrialBalance(env, dateAfter, dateBefore) {
   return fetchReport(env, 'reports/trial-balance', {
     currency: env.WAFEQ_CURRENCY || 'SAR',
+    from_date: dateAfter,
+    to_date: dateBefore,
     date_after: dateAfter,
     date_before: dateBefore,
   });
