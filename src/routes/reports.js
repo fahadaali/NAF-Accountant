@@ -10,15 +10,11 @@ import { postBasecampMessage } from '../services/basecamp.js';
 import { notifyAdmins } from '../services/telegram.js';
 import { baseCurrency } from '../lib/currency.js';
 import { renderFinancialReport } from '../lib/report_render.js';
+import { AR_MONTHS } from '../lib/format.js';
 import { authenticate } from '../lib/auth.js';
 import { writeLog } from '../lib/db.js';
 
 const reports = new Hono();
-
-const AR_MONTHS = [
-  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
-];
 
 /** آخر يوم في شهر (0-based month). */
 function lastDay(year, monthIdx) {

@@ -47,3 +47,25 @@ export function formatDate(value) {
   const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T\s]|$)/.exec(String(value || '').trim());
   return m ? `${m[1]}/${m[2]}/${m[3]}` : null;
 }
+
+/** أسماء الأشهر الميلادية — لعناوين الفترات وأعمدة التقارير. */
+export const AR_MONTHS = [
+  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+];
+
+/** قيمة رقمية نصّاً — وافق تُرجع الأعشار سلاسل ("1234.00") لا أرقاماً. */
+export function asNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) return Number(value);
+  return null;
+}
+
+/** تهريب نصّ وارد قبل وضعه في متن HTML. */
+export function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}

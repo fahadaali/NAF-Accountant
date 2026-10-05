@@ -18,6 +18,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { renderFinancialReport, renderSection } from '../src/lib/report_render.js';
 import { generateAndSendFinancialReport } from '../src/routes/reports.js';
@@ -172,6 +173,99 @@ test('بياناتٌ يتعذّر عرضها لا تُقال «لا حركة»',
   const html = renderSection('ميزان المراجعة', { data: deep }, 'SAR');
   assert.match(html, /يتعذّر عرضها/);
   assert.ok(!html.includes('لا حركة'), 'وجودُ بياناتٍ لا يُقال عنه عدم');
+});
+
+// ---------------------------------------------------------------------------
+// ٣ب. شكل وافق الفعلي يُعرض قائمةً مالية لا تفريغاً للبنية
+// ---------------------------------------------------------------------------
+//
+// تقرير الربع الثالث 2026 نُشر على بيسكامب مليئاً بالمعرّفات (acc_…)
+// والمفاتيح الإنجليزية (metadata، sub_totals، running_balance_to_bcy)
+// ومصفوفات أرقام بلا أسماء أعمدة. والملف أدناه أُعيد بناؤه من ذلك التقرير:
+// الأرقام أرقام وافق، وتداخل المفاتيح مستنتج من الرسالة المنشورة.
+
+const Q3 = JSON.parse(readFileSync(new URL('./fixtures/wafeq-q3-2026.json', import.meta.url), 'utf8'));
+const Q3_PERIOD = { after: '2026-07-01', before: '2026-09-30' };
+const plain = (html) => html.replace(/[\u2068\u2069]/g, '');
+
+test('الأرباح والخسائر: كل حساب بإجماليه، وكل مجموعة بمجموعها وأشهرها', () => {
+  const html = plain(renderSection('الأرباح والخسائر', { data: Q3.profit_and_loss }, 'SAR', Q3_PERIOD));
+  assert.match(html, /415 Attorney's fees — 25,652\.17 ر\.س/);
+  assert.match(html, /إجمالي الإيرادات — 37,391\.30 ر\.س/);
+  assert.match(html, /يوليو 37,391\.30 ر\.س · أغسطس 0\.00 ر\.س · سبتمبر 0\.00 ر\.س/);
+  assert.match(html, /مجمل الربح — 37,391\.30 ر\.س/);
+  assert.match(html, /الربح التشغيلي — 7,311\.45 ر\.س/);
+  assert.match(html, /صافي الربح — 7,305\.53 ر\.س/);
+});
+
+test('ميزان المراجعة: الأرصدة الأربعة بأسمائها، والإجمالي العام', () => {
+  const html = plain(renderSection('ميزان المراجعة', { data: Q3.trial_balance }, 'SAR', Q3_PERIOD));
+  assert.match(
+    html,
+    /1112 Petty Cash<br>الرصيد الافتتاحي 196\.01 ر\.س · مدين 1,264\.25 ر\.س · دائن -1,196\.01 ر\.س · الرصيد الختامي 264\.25 ر\.س/
+  );
+  assert.match(html, /إجمالي الأصول<br>الرصيد الافتتاحي 25,131\.33 ر\.س/);
+  assert.match(html, /الإجمالي<br>الرصيد الافتتاحي 0\.00 ر\.س · مدين 703,861\.85 ر\.س/);
+});
+
+test('لا معرّف ولا مفتاح داخلي من ردّ وافق يصل القارئ', () => {
+  const html = build([
+    { title: 'الأرباح والخسائر', data: Q3.profit_and_loss },
+    { title: 'ميزان المراجعة', data: Q3.trial_balance },
+  ]);
+  for (const noise of [
+    'acc_', 'summary_', 'metadata', 'sub_totals', 'sub_classification', '_to_bcy',
+    'row_totals', 'المعرّف', 'label', 'group', 'overview', 'columns', 'Total ', 'Jul 2026',
+  ]) {
+    assert.ok(!html.includes(noise), `ظهر في التقرير: ${noise}`);
+  }
+});
+
+test('المجموع من ردّ وافق لا يُحتسب هنا', () => {
+  const data = structuredClone(Q3.profit_and_loss);
+  // مجموعٌ يخالف بنوده عمداً — فإن ظهر كما هو، فالعارض لم يجمع شيئاً بنفسه.
+  data.rows[0].summary.values = [1, 0, 0, 999];
+  const html = plain(renderSection('الأرباح والخسائر', { data }, 'SAR', Q3_PERIOD));
+  assert.match(html, /إجمالي الإيرادات — 999\.00 ر\.س/);
+  assert.ok(!html.includes('إجمالي الإيرادات — 37,391.30'), 'لا مجموع مشتقّ من البنود');
+});
+
+test('مجموعة صفرية بلا حسابات تُطوى، والنتيجة الصفرية تُعرض', () => {
+  const html = plain(renderSection('الأرباح والخسائر', { data: Q3.profit_and_loss }, 'SAR', Q3_PERIOD));
+  assert.ok(!html.includes('تكلفة المبيعات'), 'تكلفة مبيعات صفرية بلا حسابات لا تُعرض');
+  assert.ok(!html.includes('إيرادات أخرى'), 'إيرادات أخرى صفرية بلا حسابات لا تُعرض');
+
+  const data = structuredClone(Q3.profit_and_loss);
+  data.rows.find((r) => r.group === 'NET_PROFIT').summary.values = [0, 0, 0, 0];
+  assert.match(plain(renderSection('الأرباح والخسائر', { data }, 'SAR')), /صافي الربح — 0\.00 ر\.س/);
+});
+
+test('فترة القسم تُذكر حين تخالف فترة التقرير', () => {
+  const tb = plain(renderSection('ميزان المراجعة', { data: Q3.trial_balance }, 'SAR', Q3_PERIOD));
+  assert.match(tb, /الفترة من 2026\/01\/01 إلى 2026\/10\/01/);
+  const pnl = plain(renderSection('الأرباح والخسائر', { data: Q3.profit_and_loss }, 'SAR', Q3_PERIOD));
+  assert.ok(!pnl.includes('الفترة من'), 'فترةٌ مطابقة لا تتكرّر');
+});
+
+test('رمز مجموعة غير مسجّل يظهر بتسمية وافق ولا يُترجم بالتخمين', () => {
+  const data = structuredClone(Q3.profit_and_loss);
+  data.rows[0].group = 'DEFERRED_INCOME';
+  data.rows[0].id = 'DEFERRED_INCOME';
+  data.rows[0].label = 'Deferred Income';
+  const html = plain(renderSection('الأرباح والخسائر', { data }, 'SAR', Q3_PERIOD));
+  assert.match(html, /<strong>Deferred Income<\/strong>/);
+});
+
+test('شكلٌ غير معروف يعود إلى العارض العام فلا يضيع', () => {
+  const html = renderSection('الأرباح والخسائر', { data: { columns: ['x'], foo: { bar: 1 } } }, 'SAR');
+  assert.match(html, /bar/);
+});
+
+test('عناوين الأقسام والمجموعات بلا جداول ولا قوائم متداخلة بعدها نصّ', () => {
+  const html = build([{ title: 'ميزان المراجعة', data: Q3.trial_balance }]);
+  assert.ok(!/<t(able|r|d|h)\b/.test(html));
+  // نصٌّ بعد قائمة داخل بند يعيد بيسكامب ترتيبه — وهو ما بعثر التقرير السابق.
+  assert.ok(!/<\/ul>[^<]/.test(html), 'لا نصّ يلي قائمة مباشرة');
 });
 
 // ---------------------------------------------------------------------------
