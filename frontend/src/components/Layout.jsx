@@ -9,7 +9,7 @@ import {
 import {
   AppShell, AppMain, AppHeader, HeaderStart, HeaderEnd, AppContent,
   Sidebar, SidebarHeader, SidebarNav, SidebarFooter,
-  ShellBackdrop, MenuButton, AccountMenu, navLinkClassName, useShell,
+  ShellBackdrop, MenuButton, AccountMenu, PlatformsLink, navLinkClassName, useShell,
 } from '../naf/ui/app-shell.jsx';
 
 // الأيقونات من خريطة ناف (naf-icons.md) — مقاس ٢٤ للتنقّل.
@@ -35,7 +35,7 @@ function CloseDrawerOnNavigate() {
   return null;
 }
 
-function ShellBody({ children, user, onLogout, isAdmin }) {
+function ShellBody({ children, user, center, onLogout, isAdmin }) {
   const visibleLinks = links.filter((l) => !l.adminOnly || isAdmin);
 
   return (
@@ -88,6 +88,9 @@ function ShellBody({ children, user, onLogout, isAdmin }) {
             {/* الاسم كما هو ولو كان فارغاً — البديل في المكوّن المسجَّل.
                 كان البريد يحلّ محلّ الاسم الغائب، والبريد معرّف دخول
                 لا يُخاطَب به أحد. */}
+            {/* «كل المنصات» قبل قائمة الحساب مباشرةً: الطريق إلى شبكة
+                المنصات في المركز. العنوان من الخادم، وبلا مركز لا يُعرض. */}
+            <PlatformsLink href={center ? `${center.replace(/\/+$/, '')}/` : null} />
             <AccountMenu
               name={user?.name}
               email={user?.email}
@@ -103,10 +106,10 @@ function ShellBody({ children, user, onLogout, isAdmin }) {
   );
 }
 
-export default function Layout({ children, user, onLogout, isAdmin }) {
+export default function Layout({ children, user, center, onLogout, isAdmin }) {
   return (
     <AppShell>
-      <ShellBody user={user} onLogout={onLogout} isAdmin={isAdmin}>
+      <ShellBody user={user} center={center} onLogout={onLogout} isAdmin={isAdmin}>
         {children}
       </ShellBody>
     </AppShell>
