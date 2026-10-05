@@ -406,6 +406,25 @@ test('التقرير يصدر كاملاً دون أي نداء إلى Anthropic
   }
 });
 
+test('ميزان المراجعة يُطلب بفترة التقرير في from_date وto_date', async () => {
+  const { env } = stubEnv();
+  let tbUrl = null;
+  const net = stubFetch([
+    ['profit-and-loss', () => json({ results: [] })],
+    ['trial-balance', (href) => { tbUrl = new URL(href); return json({ results: [] }); }],
+    ['basecampapi.com', () => json({ id: 1 })],
+  ]);
+
+  try {
+    const result = await generateAndSendFinancialReport(env, 'quarterly');
+    // بلا هذين المعاملين عاد ميزان الربع الثالث 2026 من بداية السنة.
+    assert.equal(tbUrl.searchParams.get('from_date'), result.after);
+    assert.equal(tbUrl.searchParams.get('to_date'), result.before);
+  } finally {
+    net.restore();
+  }
+});
+
 test('تعثّر أحد التقريرين لا يمنع نشر الآخر', async () => {
   const { env } = stubEnv();
   let posted = null;
