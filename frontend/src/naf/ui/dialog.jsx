@@ -31,7 +31,7 @@ const DialogContent = React.forwardRef(({ className, children, closeLabel = "Ø¥Ø
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-4 z-50 m-auto h-fit max-w-lg",
+        "fixed inset-4 z-50 m-auto h-fit max-h-full max-w-lg overflow-y-auto",
         "flex flex-col gap-4 rounded-lg border border-border bg-popover p-6",
         "text-start text-popover-foreground shadow-lg",
         className
