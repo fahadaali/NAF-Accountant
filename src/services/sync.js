@@ -8,7 +8,15 @@
 
 import { briefApiError } from '../lib/http.js';
 
-import { writeLog } from '../lib/db.js';
+import { withD1Retry, writeLog } from '../lib/db.js';
+
+const UPSERT_ACCOUNT = `INSERT INTO chart_of_accounts (account_code, account_name, account_type, wafeq_account_id)
+   VALUES (?, ?, ?, ?)
+   ON CONFLICT(account_code) DO UPDATE SET
+      account_name = excluded.account_name,
+      account_type = excluded.account_type,
+      wafeq_account_id = excluded.wafeq_account_id,
+      updated_at = datetime('now')`;
 
 /**
  * يسحب كل حسابات وافق (مع ترقيم الصفحات) ويحدّث جدول chart_of_accounts.
@@ -33,24 +41,22 @@ export async function syncChartOfAccounts(env) {
     const data = await res.json();
     const list = data.results || data.data || [];
 
+    /* صفحة وافق كلها في نداء D1 واحد. كان كل حساب نداءً مستقلاً — مئة نداء
+       في الصفحة، وانقطاعٌ واحد بينها («D1_ERROR: Network connection lost»)
+       يُسقط المزامنة كلها في منتصفها. والدفعة ذرّية: تُكتب الصفحة كاملة أو
+       لا تُكتب، ولأن الكتابة upsert تُعاد بأمان عند العطل العابر. */
+    const statements = [];
     for (const acc of list) {
       const code = acc.account_code || acc.account_number || String(acc.id);
       const name = acc.name_ar || acc.name_en || acc.name || '';
       const type = (acc.account_type || acc.type || 'expense').toLowerCase();
       const wid = String(acc.id || acc.uuid || '');
       if (!code || !name) continue;
-      await env.DB.prepare(
-        `INSERT INTO chart_of_accounts (account_code, account_name, account_type, wafeq_account_id)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(account_code) DO UPDATE SET
-            account_name = excluded.account_name,
-            account_type = excluded.account_type,
-            wafeq_account_id = excluded.wafeq_account_id,
-            updated_at = datetime('now')`
-      )
-        .bind(code, name, type, wid)
-        .run();
-      synced++;
+      statements.push(env.DB.prepare(UPSERT_ACCOUNT).bind(code, name, type, wid));
+    }
+    if (statements.length) {
+      await withD1Retry(() => env.DB.batch(statements));
+      synced += statements.length;
     }
 
     url = data.next || null; // الصفحة التالية إن وُجدت

@@ -20,6 +20,30 @@ export async function writeLog(db, { transactionId = null, action, status, error
   }
 }
 
+/*
+ * أعطال D1 العابرة — انقطاعٌ في الطريق إلى القاعدة لا خطأٌ في الاستعلام.
+ * توصي Cloudflare بإعادة المحاولة عندها، والاستعلام نفسه سليم.
+ */
+const D1_TRANSIENT = /Network connection lost|object to be reset|transient issue/i;
+
+/**
+ * تنفيذ عملية D1 مع إعادة المحاولة عند الأعطال العابرة وحدها.
+ *
+ * ⚠️ للعمليات الآمنة التكرار فقط (upsert، قراءة): انقطاع الاتصال لا يقول
+ * هل نُفّذت الكتابة أم لا، فإعادة إدراجٍ عادي قد تكرّره.
+ */
+export async function withD1Retry(fn, { attempts = 3, delayMs = 500 } = {}) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      const transient = D1_TRANSIENT.test(String((err && err.message) || err));
+      if (!transient || attempt >= attempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    }
+  }
+}
+
 /**
  * إنشاء سجل عملية جديد وإرجاع معرّفه.
  */
