@@ -171,3 +171,48 @@ test('صورتا ألبوم واحد تُحلَّلان في طلب واحد و�
   const saved = JSON.parse(DB.state);
   assert.equal(saved.mediaR2Keys.length, 2, 'السياق يحفظ الصفحتين للجولة التالية');
 });
+
+test('صورة ألبوم قبل تطبيق ترحيل الجدول تُعالَج وحدها ولا تفشل', async () => {
+  const DB = fakeDb();
+  const realPrepare = DB.prepare.bind(DB);
+  DB.prepare = (sql) => {
+    if (sql.includes('media_group_items')) {
+      const boom = async () => {
+        throw new Error('no such table: media_group_items');
+      };
+      return { bind: () => ({ run: boom, first: boom, all: boom }), run: boom, first: boom, all: boom };
+    }
+    return realPrepare(sql);
+  };
+  const sent = [];
+  let claude = 0;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (u.includes('/getFile')) return json({ ok: true, result: { file_path: 'p.jpg' } });
+    if (u.includes('/file/bot')) return new Response(JPEG, { status: 200 });
+    if (u.includes('/sendMessage')) {
+      sent.push(JSON.parse(init.body).text);
+      return json({ ok: true, result: {} });
+    }
+    if (u.includes('/messages')) {
+      claude++;
+      return json({
+        stop_reason: 'tool_use',
+        content: [{ type: 'tool_use', name: 'record_transaction', input: { status: 'need_more', question: 'من أي مورّد؟', type: 'purchase_bill', date: '2026-10-10', currency: 'SAR', summary: 'ف', readability: 'clear', bill: { line_items: [], vat_percent: 15 } } }],
+      });
+    }
+    return new Response('offline', { status: 503 });
+  };
+  try {
+    await processTelegramUpdate(
+      { DB, MEDIA: fakeR2(), TELEGRAM_BOT_TOKEN: 't', CLAUDE_API_KEY: 'k' },
+      { update_id: 9, message: { message_id: 9, date: 1791000000, chat: { id: 77, type: 'private' }, media_group_id: 'g', photo: [{ file_id: 'f', file_size: 10 }] } }
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  assert.equal(claude, 1, 'حُلّلت الصورة');
+  assert.match(sent[0], /من أي مورّد/);
+});

@@ -1032,15 +1032,28 @@ async function handleTelegramMessage(env, message, isEdited = false) {
   });
 
   // عنصر ألبوم: يُسجَّل لحظة وصوله — قبل تنزيله — كي ينتظره بقية العناصر.
-  const albumId = attachment && message.media_group_id ? String(message.media_group_id) : null;
+  // وإن تعذّر التسجيل — جدول الألبوم لم يُنشأ بعد (الترحيل `0008` لم يُطبَّق)
+  // أو القاعدة متعثّرة — تُعالَج الصورة وحدها كما كانت قبل الألبومات، بدل أن
+  // تفشل.
+  let albumId = attachment && message.media_group_id ? String(message.media_group_id) : null;
   if (albumId) {
-    await addAlbumItem(env.DB, {
-      groupId: albumId,
-      chatId,
-      messageId,
-      txId,
-      caption: message.caption || null,
-    });
+    try {
+      await addAlbumItem(env.DB, {
+        groupId: albumId,
+        chatId,
+        messageId,
+        txId,
+        caption: message.caption || null,
+      });
+    } catch (e) {
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: 'album_merged',
+        status: 'error',
+        errorDetails: `تعذّر تسجيل عنصر الألبوم فعولج وحده: ${e.message || String(e)}`,
+      });
+      albumId = null;
+    }
   }
 
   try {
