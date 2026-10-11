@@ -13,6 +13,12 @@
 //   d:e:<txId>     تعديل (يطلب نصّه)      d:x:<txId>     طلب الحذف
 //   d:xy:<txId>    تأكيد الحذف
 //
+// ═══ الحالة في وافق ═══
+//
+// المسودة تُعتمد أو تُحذف داخل وافق دون أن يعلم البوت. فتُقرأ حالتها من
+// وافق عند كل عرض، ولا يُعرض تعديلٌ أو حذفٌ لفاتورةٍ اعتُمدت: التعديل هنا
+// حذفٌ وإعادة إنشاء، ولا يصحّ على مستندٍ دخل الدفتر.
+//
 // كل عملية تُقرأ محصورةً بالمحادثة التي ضُغط فيها الزر (`getChatPostedTransaction`)،
 // فلا يبلغ زرٌّ عمليةَ محادثة أخرى ولو عُدّلت بياناته.
 // ============================================================================
@@ -25,6 +31,7 @@ import {
   getChatPostedTransaction,
   searchPostedTransactions,
   getAlbumKeys,
+  saveWafeqStatus,
 } from './db.js';
 import {
   sendTelegramMessage,
@@ -32,7 +39,7 @@ import {
   answerCallbackQuery,
   sendTelegramDocument,
 } from '../services/telegram.js';
-import { deleteDocument } from '../services/wafeq.js';
+import { deleteDocument, getDocumentStatus } from '../services/wafeq.js';
 import { formatMoney } from './currency.js';
 import { describeType } from './labels.js';
 
@@ -52,6 +59,57 @@ const LIST_EMPTY = {
   drafts: 'لا مسودات بعد. أرسل صورة فاتورة أو اكتب العملية لتُسجَّل مسودةً في وافق.',
   journals: 'لا قيود مرحّلة بعد. أرسل عملية صرف أو تحويل لتُسجَّل قيداً في وافق.',
 };
+
+// ---------------------------------------------------------------------------
+// الحالة في وافق
+// ---------------------------------------------------------------------------
+
+const APPROVED_STATUSES = new Set(['AUTHORIZED', 'APPROVED', 'POSTED', 'SENT', 'PAID', 'PARTIALLY_PAID', 'OVERDUE']);
+const VOID_STATUSES = new Set(['VOID', 'VOIDED', 'CANCELLED', 'CANCELED']);
+
+/** وصف حالة المستند في وافق للقارئ. */
+function statusLabel(t, status) {
+  if (!status) return 'تعذّرت قراءتها الآن';
+  if (status === 'DELETED') return 'محذوفة من وافق';
+  // القيد اليدوي لا مسودة له في وافق — يُرحَّل مباشرة.
+  if (t.result.type === 'manual_journal') return 'مُرحّلة';
+  if (status === 'DRAFT') return 'مسودة';
+  if (APPROVED_STATUSES.has(status)) return 'معتمدة';
+  if (VOID_STATUSES.has(status)) return 'ملغاة';
+  return iso(status);
+}
+
+/**
+ * هل يُعدَّل المستند أو يُحذف من هنا؟
+ * الفاتورة ما دامت مسودة، أو ما لم تُعرف حالتها (تعذّر القراءة لا يحجب ما
+ * كان متاحاً قبل الأزرار). والقيد اليدوي كما كان دائماً.
+ */
+function isEditable(t, status) {
+  if (status === 'DELETED') return false;
+  if (t.result.type === 'manual_journal') return true;
+  return !status || status === 'DRAFT';
+}
+
+/**
+ * قراءة حالة المستند من وافق الآن، وحفظها.
+ * مستندٌ حُذف داخل وافق تُوسم عمليته محذوفة هنا أيضاً، فتخرج من القوائم.
+ */
+async function syncStatus(env, t) {
+  const status = await getDocumentStatus(env, t.result.type, t.wafeqId);
+  if (!status) return null;
+  // الحفظ تحسينٌ لا شرط: قبل تطبيق ترحيل الجدول يفشل، والعرض يمضي.
+  await saveWafeqStatus(env.DB, t.wafeqId, t.result.type, status).catch(() => {});
+  if (status === 'DELETED') {
+    await updateTransaction(env.DB, t.id, { status: 'deleted' });
+    await writeLog(env.DB, {
+      transactionId: t.id,
+      action: 'wafeq_status_sync',
+      status: 'info',
+      errorDetails: `المستند ${t.wafeqId} لم يعد في وافق`,
+    });
+  }
+  return status;
+}
 
 // ---------------------------------------------------------------------------
 // قراءة العملية
@@ -91,8 +149,8 @@ function shortLabel(t) {
   return `${who} · ${formatMoney(sub, cur)} · ${r.date || ''}`.slice(0, 60);
 }
 
-/** نصّ بطاقة عملية. */
-export function documentCardText(t) {
+/** نصّ بطاقة عملية، بحالتها في وافق إن قُرئت. */
+export function documentCardText(t, status = undefined) {
   const r = t.result;
   const { cur, rate, sub, lines } = documentFigures(r);
   const contactLabel = r.type === 'sales_invoice' ? '👤 العميل' : '🏢 المورّد';
@@ -109,18 +167,25 @@ export function documentCardText(t) {
     out.push(rate > 0 ? `➕ الضريبة: ${iso(rate + '%')}` : 'بدون ضريبة');
   }
   out.push(`🧾 المرجع في وافق: ${iso(t.wafeqId)}`);
+  if (status !== undefined) {
+    out.push(`📌 الحالة في وافق: ${statusLabel(t, status)}`);
+    if (!isEditable(t, status) && status !== 'DELETED') {
+      out.push('', 'اعتُمدت في وافق، فتعديلها أو حذفها من وافق نفسه.');
+    }
+  }
   return out.join('\n');
 }
 
-/** أزرار بطاقة العملية. */
-export function documentCardKeyboard(t, { backOffset = 0 } = {}) {
+/** أزرار بطاقة العملية — التعديل والحذف لما يزال قابلاً لهما. */
+export function documentCardKeyboard(t, { backOffset = 0, status = null } = {}) {
   const back = t.result.type === 'manual_journal' ? `d:j:${backOffset}` : `d:l:${backOffset}`;
-  const rows = [
-    [
+  const rows = [];
+  if (isEditable(t, status)) {
+    rows.push([
       { text: 'تعديل', callback_data: `d:e:${t.id}` },
       { text: 'حذف', callback_data: `d:x:${t.id}` },
-    ],
-  ];
+    ]);
+  }
   if (t.mediaR2Key) rows.push([{ text: 'عرض المرفق', callback_data: `d:f:${t.id}` }]);
   rows.push([{ text: 'رجوع إلى القائمة', callback_data: back }]);
   return { inline_keyboard: rows };
@@ -172,7 +237,12 @@ export async function showDocumentList(env, chatId, kind, offset = 0, messageId 
   }
 
   const code = kind === 'drafts' ? 'l' : 'j';
-  const rows = items.map((t) => [{ text: shortLabel(t), callback_data: `d:v:${t.id}` }]);
+  // حالة كل مسودة في الصفحة من وافق الآن — خمسة طلبات متوازية على الأكثر.
+  const statuses = kind === 'drafts' ? await Promise.all(items.map((t) => syncStatus(env, t))) : [];
+  const rows = items.map((t, i) => {
+    const mark = statuses[i] ? ` · ${statusLabel(t, statuses[i])}` : '';
+    return [{ text: `${shortLabel(t)}${mark}`.slice(0, 64), callback_data: `d:v:${t.id}` }];
+  });
   const nav = [];
   if (start > 0) nav.push({ text: 'السابق', callback_data: `d:${code}:${Math.max(0, start - PAGE_SIZE)}` });
   if (start + PAGE_SIZE < total) nav.push({ text: 'التالي', callback_data: `d:${code}:${start + PAGE_SIZE}` });
@@ -266,8 +336,19 @@ export async function handleCallbackQuery(env, cq) {
     // ---- البطاقة ----
     if (action === 'v') {
       await answerCallbackQuery(env, cq.id);
-      await show(env, chatId, messageId, documentCardText(t), documentCardKeyboard(t));
+      const status = await syncStatus(env, t);
+      await show(env, chatId, messageId, documentCardText(t, status), documentCardKeyboard(t, { status }));
       return;
+    }
+
+    // ---- ما يغيّر المستند يُفحص على حالته الآن لا على حالته يوم ظهر الزر ----
+    if (action === 'e' || action === 'x' || action === 'xy') {
+      const status = await syncStatus(env, t);
+      if (!isEditable(t, status)) {
+        await answerCallbackQuery(env, cq.id, `الفاتورة ${statusLabel(t, status)} — لا تُعدَّل من هنا.`);
+        await show(env, chatId, messageId, documentCardText(t, status), documentCardKeyboard(t, { status }));
+        return;
+      }
     }
 
     // ---- المرفق ----

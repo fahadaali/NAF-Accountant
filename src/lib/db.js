@@ -489,3 +489,20 @@ export async function attachAlbumKeys(db, txId, keys) {
     .bind(txId, ...keys)
     .run();
 }
+
+// ----------------------------------------------------------------------------
+// حالة المستند في وافق — `migrations/0009_wafeq_doc_status.sql`
+// ----------------------------------------------------------------------------
+
+/** حفظ حالة مستند كما قُرئت من وافق الآن. */
+export async function saveWafeqStatus(db, wafeqId, docType, status) {
+  await db
+    .prepare(
+      `INSERT INTO wafeq_doc_status (wafeq_id, doc_type, status, synced_at)
+       VALUES (?, ?, ?, datetime('now'))
+       ON CONFLICT(wafeq_id) DO UPDATE SET
+         status = excluded.status, doc_type = excluded.doc_type, synced_at = datetime('now')`
+    )
+    .bind(String(wafeqId), docType, String(status))
+    .run();
+}

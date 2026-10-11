@@ -147,3 +147,51 @@ test('زرّ التعديل يحفظ هدفه، فالرسالة التالية 
   await run(press('d:e:4'), DB);
   assert.deepEqual(DB.state, { kind: 'edit_target', targetTxId: 4 });
 });
+
+/** يشغّل ضغطة بوافق تُرجع للمستند حالةً بعينها (أو 404). */
+async function runWithWafeqStatus(update, DB, status) {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    calls.push({ url: u, method: init?.method, body: typeof init?.body === 'string' ? JSON.parse(init.body) : null });
+    if (u.includes('wafeq.com') && (!init?.method || init.method === 'GET')) {
+      if (status === 404) return new Response('{}', { status: 404 });
+      return new Response(JSON.stringify({ id: 'bill_5', status }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({ ok: true, result: {} }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+  try {
+    await processTelegramUpdate({ DB, TELEGRAM_BOT_TOKEN: 't', WAFEQ_API_KEY: 'w' }, update);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  return calls;
+}
+
+test('فاتورة اعتُمدت في وافق تُعرض معتمدة بلا زرّي التعديل والحذف', async () => {
+  const calls = await runWithWafeqStatus(press('d:v:5'), fakeDb([row(5, 'purchase_bill')]), 'AUTHORIZED');
+  const edit = calls.find((c) => c.url.includes('/editMessageText'));
+  assert.match(edit.body.text, /الحالة في وافق: معتمدة/);
+  const buttons = edit.body.reply_markup.inline_keyboard.flat().map((b) => b.callback_data);
+  assert.ok(!buttons.includes('d:x:5') && !buttons.includes('d:e:5'));
+});
+
+test('زرّ حذفٍ قديم على فاتورة اعتُمدت بعد ظهوره لا يحذفها', async () => {
+  const calls = await runWithWafeqStatus(press('d:xy:5'), fakeDb([row(5, 'purchase_bill')]), 'AUTHORIZED');
+  assert.ok(!calls.some((c) => c.method === 'DELETE'), 'لا حذف');
+});
+
+test('مسودة حُذفت داخل وافق تُوسم محذوفة هنا', async () => {
+  const DB = fakeDb([row(5, 'purchase_bill')]);
+  const calls = await runWithWafeqStatus(press('d:v:5'), DB, 404);
+  assert.ok(DB.updates.some((u) => u.args.includes('deleted') && u.args.includes(5)));
+  const edit = calls.find((c) => c.url.includes('/editMessageText'));
+  assert.match(edit.body.text, /محذوفة من وافق/);
+});

@@ -41,6 +41,30 @@ export async function deleteDocument(env, type, id) {
 }
 
 /**
+ * حالة مستند في وافق الآن — قراءة محضة.
+ *
+ * @returns {Promise<string|null>} الحالة كما تُرجعها وافق بأحرف كبيرة (DRAFT …)،
+ *   أو 'DELETED' إن لم يعد المستند موجوداً (404)، أو null إن تعذّرت القراءة —
+ *   والتعذّر لا يُقرأ حذفاً: انقطاعٌ عابر لا يُخفي مسودة قائمة.
+ */
+export async function getDocumentStatus(env, type, id) {
+  const path = DOC_PATHS[type];
+  if (!path || !id) return null;
+  const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
+  try {
+    const res = await fetch(`${base}/${path}/${encodeURIComponent(id)}/`, {
+      headers: { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` },
+    });
+    if (res.status === 404) return 'DELETED';
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data.status ? String(data.status).toUpperCase() : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
  * تحويل أسطر القيد القادمة من Claude إلى صيغة وافق وإرسالها كمسودة.
  * شرط حاسم: حالة القيد "DRAFT" لتتطلب مراجعة يدوية.
  *
@@ -342,7 +366,37 @@ export async function probeAttachmentApi(env) {
     };
   }
 
-  return { base, paths, documents };
+  // 3) الاعتماد: ما قيم الحالة الموجودة، وأي مسار إجراءٍ يقبله الخادم؟
+  //
+  // واجهة تغيير الحالة غير موثّقة عندنا، فيُسأل الخادم قبل كتابة أي شيء.
+  // كل الطلبات هنا GET: مسار إجراءٍ موجود يردّ ٤٠٥ (الطريقة غير مسموحة)،
+  // وغير الموجود ٤٠٤ — والفرق وحده يكفي، دون أن يُعتمد مستند فعلاً.
+  const approval = {};
+  for (const [label, path] of [
+    ['bill', 'bills'],
+    ['invoice', 'invoices'],
+  ]) {
+    const list = await get(`${path}/?page_size=20`);
+    let docs = [];
+    try {
+      const data = JSON.parse(list.body);
+      docs = data.results || data.data || [];
+    } catch (_) {
+      docs = [];
+    }
+    const statuses = [...new Set(docs.map((d) => String(d.status || '')).filter(Boolean))];
+    const draft = docs.find((d) => String(d.status || '').toUpperCase() === 'DRAFT');
+    const actions = {};
+    if (draft?.id) {
+      for (const action of ['approve', 'authorize', 'finalize', 'post', 'mark-as-sent', 'status']) {
+        const r = await get(`${path}/${encodeURIComponent(draft.id)}/${action}/`);
+        actions[action] = r.status;
+      }
+    }
+    approval[label] = { statuses, draftId: draft?.id || null, actions };
+  }
+
+  return { base, paths, documents, approval };
 }
 
 /**

@@ -648,10 +648,26 @@ function formatProbeReport(report) {
     })
     .join('\n');
 
+  // مسار إجراءٍ يردّ ٤٠٥ على GET موجودٌ ويقبل طريقة أخرى — وهو المرشّح للاعتماد.
+  const actionMark = (status) => (status === 405 ? '✅' : status === 404 ? '❌' : '⚠️');
+  const approval = Object.entries(report.approval || {})
+    .map(([label, a]) => {
+      const actions = Object.entries(a.actions || {})
+        .map(([name, status]) => `${actionMark(status)} <code>${name}/</code> — ${status}`)
+        .join('\n   ');
+      return (
+        `• <b>${label}</b>: الحالات الموجودة ${a.statuses?.length ? a.statuses.join('، ') : 'لا شيء'}` +
+        (a.draftId ? `\n   مسارات الإجراء على مسودة:\n   ${actions}` : '\n   لا مسودة لفحص مسارات الإجراء')
+      );
+    })
+    .join('\n');
+
   return (
     `🔎 <b>تشخيص واجهة مرفقات وافق</b>\n\n` +
     `<b>المسارات الجذرية</b>\n${paths || 'لا شيء'}\n\n` +
     `<b>حقول المستندات</b>\n${docs || 'لا شيء'}\n\n` +
+    `<b>اعتماد المسودات</b> (قراءة فقط — لم يُعتمد شيء)\n${approval || 'لا شيء'}\n` +
+    `في هذا القسم: ✅ موجود (يردّ ${iso('405')} على القراءة) · ❌ غير موجود\n\n` +
     `✅ موجود · ❌ غير موجود · ⚠️ صلاحية أو خطأ آخر`
   );
 }
