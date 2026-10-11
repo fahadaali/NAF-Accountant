@@ -315,4 +315,28 @@ const ok = (label) => {
   ok('الحارس يعيد تسجيل ويبهوك لا يستقبل ضغطات الأزرار');
 }
 
+// ═══ الإعداد الذاتي بعد النشر ═══
+// كان ظهور القائمة وعمل الأزرار ينتظر الحارس الليلي أو زرّ الإصلاح، فيبدو
+// بعد النشر أن شيئاً لم يتغيّر. أول رسالة تصل تضبطهما.
+{
+  const DB = fakeDb({ chats: ['555'] });
+  tg.url = 'https://acc.naflaw.sa/api/telegram-webhook';
+  tg.allowed = ['message', 'edited_message'];
+  calls = [];
+  const c = ctx();
+  const env = { ...BASE, TELEGRAM_BOT_TOKEN: 'fresh-deploy', DB };
+  await app.fetch(post(msg(555, '/help')), env, c);
+  await Promise.all(c.settled);
+  assert.ok(calls.some((x) => x.url.includes('/setMyCommands')), 'سُجّلت قائمة الأوامر');
+  assert.ok(tg.allowed.includes('callback_query'), 'صار الويبهوك يستقبل ضغطات الأزرار');
+  assert.equal(tg.url, 'https://acc.naflaw.sa/api/telegram-webhook', 'على رابطه نفسه');
+
+  calls = [];
+  const c2 = ctx();
+  await app.fetch(post(msg(555, '/help')), env, c2);
+  await Promise.all(c2.settled);
+  assert.ok(!calls.some((x) => x.url.includes('/setMyCommands')), 'ومرة واحدة لا مع كل رسالة');
+  ok('أول رسالة بعد النشر تسجّل القائمة وتفعّل الأزرار، مرة واحدة');
+}
+
 console.log(`\n${passed}/${passed} فحصاً مرّت.`);
