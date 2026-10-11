@@ -80,11 +80,13 @@ globalThis.fetch = async (url, init) => {
         url: tg.url,
         pending_update_count: tg.pending,
         last_error_message: tg.lastError,
+        allowed_updates: tg.allowed,
       },
     });
   }
   if (u.includes('/setWebhook')) {
     tg.url = body.url;
+    tg.allowed = body.allowed_updates;
     tg.lastError = null;
     tg.pending = 0;
     return json({ ok: true, result: true });
@@ -253,6 +255,64 @@ const ok = (label) => {
   assert.equal(tg.url, 'https://someone-else.example/api/telegram-webhook', 'ولا يُمسّ الرابط');
   assert.ok(calls.some((x) => x.url.includes('/sendMessage')), 'لكنّ العطل يُبلَّغ');
   ok('بلا PUBLIC_ORIGIN: يُبلَّغ العطل ولا يُخمَّن رابط');
+}
+
+// ═══ ضغطة زر في محادثة غير مصرّح لها ═══
+// الزر يحمل رسالته، ومنها تُقرأ المحادثة وتُفحص صلاحيتها كأيّ رسالة: زرٌّ
+// قديم في مجموعة أُزيلت لا يحذف مسودة.
+{
+  const DB = fakeDb({ chats: [] });
+  const c = ctx();
+  const res = await app.fetch(
+    post({
+      update_id: 9,
+      callback_query: { id: 'q', data: 'd:xy:1', message: { message_id: 3, chat: { id: 999, type: 'group' } } },
+    }),
+    { ...BASE, DB },
+    c
+  );
+  assert.equal(res.status, 200);
+  assert.match(DB.logs[0].details, /محادثة غير مصرّح لها: 999/);
+  assert.equal(c.settled.length, 0, 'لا يُنفَّذ شيء');
+  ok('ضغطة زر في محادثة غير مصرّح لها تُرفض وتُسجَّل');
+}
+
+// ═══ ضغطة زر في محادثة مصرّح لها تصل المعالج ═══
+// كانت تُسجَّل «تحديث بلا رسالة» وتُهمل — فيدور مؤشّر الزر بلا نهاية.
+{
+  const DB = fakeDb({ chats: ['555'] });
+  calls = [];
+  const c = ctx();
+  await app.fetch(
+    post({
+      update_id: 10,
+      callback_query: { id: 'q', data: 'd:l:0', message: { message_id: 3, chat: { id: 555, type: 'private' } } },
+    }),
+    { ...BASE, DB },
+    c
+  );
+  await Promise.all(c.settled);
+  assert.ok(calls.some((x) => x.url.includes('/answerCallbackQuery')), 'الضغطة تُجاب');
+  ok('ضغطة زر في محادثة مصرّح لها تصل المعالج وتُجاب');
+}
+
+// ═══ تسجيلٌ قديم لا يشمل ضغطات الأزرار ═══
+// بعد نشر الأزرار يبقى الويبهوك مسجّلاً بأنواعه القديمة، فتُضغط الأزرار ولا
+// يصل شيء. الحارس يعيد تسجيله بلا خطوة يدوية، ويسجّل قائمة الأوامر.
+{
+  const DB = fakeDb();
+  tg.url = 'https://acc.naflaw.sa/api/telegram-webhook';
+  tg.allowed = ['message', 'edited_message'];
+  tg.lastError = null;
+  tg.pending = 0;
+  calls = [];
+  const r = await diagnoseWebhook({ ...BASE, DB });
+  assert.ok(r.problems.some((p) => /callback_query/.test(p)), 'التشخيص يسمّي النوع الناقص');
+  const out = await runWebhookWatchdog({ ...BASE, DB, AUTHORIZED_CHAT_IDS: '555' });
+  assert.equal(out.repaired, true);
+  assert.ok(tg.allowed.includes('callback_query'), 'أُعيد التسجيل بضغطات الأزرار');
+  assert.ok(calls.some((x) => x.url.includes('/setMyCommands')), 'وسُجّلت قائمة الأوامر');
+  ok('الحارس يعيد تسجيل ويبهوك لا يستقبل ضغطات الأزرار');
 }
 
 console.log(`\n${passed}/${passed} فحصاً مرّت.`);

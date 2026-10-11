@@ -32,20 +32,20 @@ export function sanitizeTelegramHtml(text) {
 }
 
 /**
- * إرسال رسالة نصية إلى محادثة تليجرام.
+ * نداء رسالة منسّقة (إرسال أو تعديل) مع الرجوع إلى النص الصرف.
  *
  * عند رفض تليجرام للتنسيق (وسم غير مقبول أو غير مغلق) تُعاد المحاولة نصّاً
  * صرفاً بلا parse_mode: وصولُ الرسالة بلا تنسيق أفضل من ضياعها، خاصة أنها
- * قد تكون تأكيد عملية رُحّلت إلى وافق.
+ * قد تكون تأكيد عملية رُحّلت إلى وافق. والأزرار تبقى في المحاولتين.
  */
-export async function sendTelegramMessage(env, chatId, text) {
+async function postFormatted(env, method, payload, text) {
   const clean = sanitizeTelegramHtml(text);
 
-  const post = (payload) =>
-    fetch(`${TG_API}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+  const post = (body) =>
+    fetch(`${TG_API}/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, ...payload }),
+      body: JSON.stringify({ ...payload, ...body }),
     });
 
   let res = await post({ text: clean, parse_mode: 'HTML' });
@@ -57,10 +57,83 @@ export async function sendTelegramMessage(env, chatId, text) {
     const plain = clean.replace(/<[^>]*>/g, '');
     res = await post({ text: plain });
     if (res.ok) return res.json();
-    throw new Error(`Telegram sendMessage failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+    throw new Error(`Telegram ${method} failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
   }
+  // تعديلٌ لا يغيّر شيئاً (ضغطة مكرّرة على الزر نفسه) ليس خطأً.
+  if (method === 'editMessageText' && /message is not modified/i.test(body)) return { ok: true };
 
-  throw new Error(`Telegram sendMessage failed: ${res.status} ${body.slice(0, 300)}`);
+  throw new Error(`Telegram ${method} failed: ${res.status} ${body.slice(0, 300)}`);
+}
+
+/**
+ * إرسال رسالة نصية إلى محادثة تليجرام.
+ * @param {object} [opts]
+ * @param {object} [opts.replyMarkup] أزرار تحت الرسالة ({inline_keyboard: [[...]]}).
+ */
+export async function sendTelegramMessage(env, chatId, text, opts = {}) {
+  const payload = { chat_id: chatId };
+  if (opts.replyMarkup) payload.reply_markup = opts.replyMarkup;
+  return postFormatted(env, 'sendMessage', payload, text);
+}
+
+/**
+ * تعديل رسالة سابقة للبوت في مكانها — التنقّل بالأزرار لا يُغرق المحادثة
+ * برسالة جديدة عند كل ضغطة.
+ */
+export async function editTelegramMessage(env, chatId, messageId, text, opts = {}) {
+  const payload = { chat_id: chatId, message_id: messageId };
+  if (opts.replyMarkup) payload.reply_markup = opts.replyMarkup;
+  return postFormatted(env, 'editMessageText', payload, text);
+}
+
+/**
+ * إنهاء مؤشّر الانتظار على الزر المضغوط، بإشعار قصير اختياري.
+ * لا يرمي: فشلُه لا يمسّ ما فعله الزر.
+ */
+export function answerCallbackQuery(env, callbackQueryId, text = '') {
+  return tgCall(env, 'answerCallbackQuery', {
+    callback_query_id: callbackQueryId,
+    ...(text ? { text } : {}),
+  });
+}
+
+/**
+ * إرسال ملف محفوظ (صورة فاتورة أو PDF) إلى المحادثة كما هو.
+ * يُرسل «ملفاً» لا «صورة» كي لا يعيد تليجرام ضغطه.
+ */
+export async function sendTelegramDocument(env, chatId, bytes, filename, contentType, caption = '') {
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  form.append('document', new Blob([bytes], { type: contentType || 'application/octet-stream' }), filename);
+  if (caption) form.append('caption', caption);
+  const res = await fetch(`${TG_API}/bot${env.TELEGRAM_BOT_TOKEN}/sendDocument`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    throw new Error(`Telegram sendDocument failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  }
+  return res.json();
+}
+
+/**
+ * هل المحادثة مشرفة؟ — من جدول المحادثات وحده.
+ *
+ * الاعتماد في وافق لا رجعة فيه، فلا يُستنتج الإشراف من قائمة الأسرار
+ * الاحتياطية كما يُستنتج مستقبِلُ التنبيهات: محادثةٌ لم يعلّمها مسؤول
+ * «مشرفة» في اللوحة لا تعتمد.
+ */
+export async function isAdminChat(env, chatId) {
+  try {
+    const row = await env.DB.prepare(
+      `SELECT is_admin FROM telegram_chats WHERE chat_id = ? AND is_active = 1 LIMIT 1`
+    )
+      .bind(String(chatId))
+      .first();
+    return !!row && Number(row.is_admin) === 1;
+  } catch (_) {
+    return false;
+  }
 }
 
 /**
@@ -190,13 +263,42 @@ export function expectedWebhookUrl(env) {
   return origin ? `${origin}/api/telegram-webhook` : null;
 }
 
+/** أنواع التحديث التي تعالجها المنصة — ضغطات الأزرار منها. */
+export const ALLOWED_UPDATES = ['message', 'edited_message', 'callback_query'];
+
+/**
+ * قائمة الأوامر التي تظهر في زر القائمة بجانب حقل الكتابة.
+ * الأوامر النصية القديمة («مساعدة»، «حالة»، «جديد»…) تبقى تعمل إلى جانبها.
+ */
+export const BOT_COMMANDS = [
+  { command: 'drafts', description: 'مسوداتي — آخر المسودات المُرحّلة إلى وافق' },
+  { command: 'search', description: 'بحث في العمليات المُرحّلة' },
+  { command: 'new', description: 'عملية جديدة — إلغاء أي عملية جارية' },
+  { command: 'status', description: 'حالة المنصة والقناة' },
+  { command: 'help', description: 'المساعدة' },
+];
+
+/** تسجيل قائمة الأوامر عند تليجرام — آمنٌ تكراره. */
+export function setBotCommands(env) {
+  return tgCall(env, 'setMyCommands', { commands: BOT_COMMANDS });
+}
+
+/**
+ * هل يُسلِّم تليجرام ضغطات الأزرار؟
+ * غيابُ `allowed_updates` من ردّ تليجرام يعني الافتراضي، وهو يشملها. أمّا
+ * قائمةٌ مسجّلة قبل الأزرار فلا تشملها — فتُضغط الأزرار ولا يحدث شيء.
+ */
+function receivesCallbacks(allowedUpdates) {
+  return !Array.isArray(allowedUpdates) || allowedUpdates.includes('callback_query');
+}
+
 /** تسجيل الويبهوك على الرابط المطلوب بالسرّ المضبوط حالياً. */
 export function setWebhook(env, url) {
   const secret = String(env.TELEGRAM_WEBHOOK_SECRET || '').trim();
   const payload = {
     url,
     // ما يعالجه `processTelegramUpdate` وحده — وما عداه يزحم الطابور بلا فائدة.
-    allowed_updates: ['message', 'edited_message'],
+    allowed_updates: ALLOWED_UPDATES,
   };
   // السرّ يُرسل حين يكون مضبوطاً هنا فقط، فيبقى الطرفان متطابقين دائماً:
   // إرسالُه وهو غير مضبوط يجعل المسار يرفض كل تحديث وارد.
@@ -238,6 +340,9 @@ export async function diagnoseWebhook(env) {
     problems.push('لا ويبهوك مسجّلاً عند تليجرام — لا يصل إلى المنصة شيء.');
   } else if (expected && registered !== expected) {
     problems.push(`الويبهوك مسجّل على ${registered} بينما المنصة على ${expected}.`);
+  }
+  if (registered && !receivesCallbacks(w.allowed_updates)) {
+    problems.push('الويبهوك لا يستقبل ضغطات الأزرار (callback_query) — أعِد تسجيله.');
   }
 
   /* السرّ لا يُقرأ من تليجرام — `getWebhookInfo` لا يعيده. وطرفاه إن
@@ -297,7 +402,13 @@ export async function repairWebhook(env) {
   if (!expected) {
     return { changed: false, reason: 'لا رابط مرجعي مضبوط (PUBLIC_ORIGIN).', report };
   }
-  if (report.webhook && report.webhook.url === expected) {
+  // القائمة تُسجَّل في كل إصلاح: لا كلفة في تكرارها، وغيابها لا يظهر في أي فحص.
+  await setBotCommands(env);
+  if (
+    report.webhook &&
+    report.webhook.url === expected &&
+    receivesCallbacks(report.webhook.allowedUpdates)
+  ) {
     return { changed: false, reason: 'الرابط مطابق أصلاً.', report };
   }
 
@@ -324,9 +435,15 @@ export async function runWebhookWatchdog(env) {
   const expected = report.expectedUrl;
   const registered = report.webhook ? report.webhook.url : '';
   const urlWrong = !!expected && registered !== expected;
+  // تسجيلٌ قديم لا يشمل ضغطات الأزرار يُصحَّح كما يُصحَّح الرابط — وهذا ما
+  // يجعل الأزرار تعمل بعد النشر دون خطوة يدوية.
+  const updatesWrong =
+    !!expected && !!registered && !receivesCallbacks(report.webhook?.allowedUpdates);
+
+  await setBotCommands(env);
 
   let repaired = null;
-  if (urlWrong) {
+  if (urlWrong || updatesWrong) {
     const res = await setWebhook(env, expected);
     repaired = res.ok;
     if (res.ok) {
@@ -344,7 +461,13 @@ export async function runWebhookWatchdog(env) {
       : `فحص ليلي: ${report.problems.join(' | ')}`,
   });
 
-  if (repaired) {
+  if (repaired && !urlWrong) {
+    await notifyAdmins(
+      env,
+      `🔧 <b>أُعيد تسجيل الويبهوك تلقائياً</b>\n\n` +
+        `صار يستقبل ضغطات الأزرار في المحادثة (قائمة المسودات وأزرار التعديل والحذف).`
+    );
+  } else if (repaired) {
     await notifyAdmins(
       env,
       `🔧 <b>صُحّح رابط الويبهوك تلقائياً</b>\n\n` +
