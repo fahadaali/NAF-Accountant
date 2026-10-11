@@ -3,7 +3,7 @@
 //   npm run check:routes
 //
 // كان ردّ التحليل نصّاً يُقصّ بين أول `{` وآخر `}`. فيُثبَّت هنا أن الطلب
-// يُلزم النموذج بأداة `record_transaction` بحرارة صفر، وأن النتيجة تُقرأ من
+// يُلزم النموذج بأداة `record_transaction`، وأن النتيجة تُقرأ من
 // كتلة `tool_use` نفسها — ولو سبقها نصٌّ يحوي أقواساً.
 // ============================================================================
 
@@ -54,7 +54,7 @@ const BILL = {
   bill: { line_items: [{ account_code: '5100', account_name: 'مصروفات مكتبية', description: 'أقلام', amount: 100 }], vat_percent: 15 },
 };
 
-test('التحليل يُلزم النموذج بأداة record_transaction بحرارة صفر', async () => {
+test('التحليل يُلزم النموذج بأداة record_transaction ولا يرسل temperature', async () => {
   const { out, requests } = await withFakeClaude(
     {
       stop_reason: 'tool_use',
@@ -71,7 +71,8 @@ test('التحليل يُلزم النموذج بأداة record_transaction ب�
   );
 
   const body = requests[0].body;
-  assert.equal(body.temperature, 0);
+  // النماذج الحديثة ترفض المعامل بـ٤٠٠ فيفشل التحليل كلّه.
+  assert.equal('temperature' in body, false);
   assert.equal(body.tool_choice.name, 'record_transaction');
   assert.equal(body.tools[0].name, 'record_transaction');
   assert.equal(body.max_tokens, 4096, 'المرفق يرفع حدّ الرموز');

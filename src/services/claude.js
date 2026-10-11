@@ -219,7 +219,7 @@ async function fetchWithRetry(url, init) {
  * @param {string|Array} opts.content نصّ، أو مصفوفة كتل (لإرسال صورة).
  * @param {number} opts.maxTokens
  * @param {string} [opts.label] اسم يظهر في رسالة الخطأ.
- * @param {object} [opts.extra] حقول إضافية في جسم الطلب (أدوات، حرارة).
+ * @param {object} [opts.extra] حقول إضافية في جسم الطلب (الأدوات).
  * @returns {Promise<object>} ردّ الواجهة كاملاً بعد فحص stop_reason.
  */
 async function requestClaude(env, { system, content, maxTokens = 2048, label = 'Claude', extra = {} }) {
@@ -282,14 +282,15 @@ async function callClaude(env, opts) {
  *
  * كان ردّ التحليل نصّاً يُقصّ ما بين أول `{` وآخر `}` ثم يُحلَّل. فجملةٌ
  * قبل الكائن تحوي قوساً، أو فاصلةٌ زائدة، تُفشل العملية كلّها بـ«تعذّر
- * تحليل رد Claude». والأداة المُلزَمة تُرجع كائناً مُحلَّلاً بمخطّطٍ معروف،
- * والحرارة صفر لأن قراءة فاتورة لا تحتمل الإبداع.
+ * تحليل رد Claude». والأداة المُلزَمة تُرجع كائناً مُحلَّلاً بمخطّطٍ معروف.
+ *
+ * ولا يُرسل `temperature`: النماذج الحديثة ترفضه بـ٤٠٠ («deprecated for this
+ * model») فيفشل التحليل كلّه — والمخطّط المُلزَم هو ما يضبط الإخراج هنا.
  */
 async function callClaudeTool(env, { tool, ...opts }) {
   const data = await requestClaude(env, {
     ...opts,
     extra: {
-      temperature: 0,
       tools: [tool],
       tool_choice: { type: 'tool', name: tool.name },
     },
