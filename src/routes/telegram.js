@@ -18,7 +18,7 @@
 // ============================================================================
 
 import { Hono } from 'hono';
-import { checkChatAuthorization, sendTelegramMessage } from '../services/telegram.js';
+import { checkChatAuthorization, ensureBotSetup, sendTelegramMessage } from '../services/telegram.js';
 import { processTelegramUpdate } from '../lib/processor.js';
 import { writeLog } from '../lib/db.js';
 
@@ -138,6 +138,9 @@ telegram.post('/telegram-webhook', async (c) => {
      والغلاف لازم: وعدٌ يُرفض داخل `waitUntil` لا يُوقف شيئاً ولا يُسجَّل
      في مكان يقرؤه أحد، فيصير أي عطلٍ يسبق مسار الخطأ في المعالج صمتاً
      تامّاً. وهذه آخر شبكة قبل الصمت. */
+  // قائمة الأوامر وضغطات الأزرار تُضبط عند تليجرام بلا خطوة يدوية بعد النشر.
+  c.executionCtx.waitUntil(ensureBotSetup(env).catch(() => {}));
+
   c.executionCtx.waitUntil(
     processTelegramUpdate(env, update).catch(async (err) => {
       const msg = err && err.message ? err.message : String(err);

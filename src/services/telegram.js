@@ -292,6 +292,52 @@ function receivesCallbacks(allowedUpdates) {
   return !Array.isArray(allowedUpdates) || allowedUpdates.includes('callback_query');
 }
 
+/* ═══ الإعداد الذاتي بعد النشر ═══
+
+   قائمة الأوامر واستقبال ضغطات الأزرار إعدادان عند تليجرام لا في الكود:
+   نشرُ الكود وحده لا يُظهر القائمة، والأزرار تُضغط فلا يصل شيء ما دام
+   الويبهوك مسجّلاً بأنواعه القديمة. وكان تصحيحهما ينتظر الحارس الليلي أو
+   زرّ الإصلاح في اللوحة — فيبدو للمستخدم بعد النشر أن شيئاً لم يتغيّر.
+
+   فيُفحصان عند أول تحديث يصل كل نسخة عاملة من الـWorker. والويبهوك يُعاد
+   تسجيله على رابطه الحالي نفسه: التحديث وصل عبره للتوّ، فهو صحيح. */
+const setupChecked = new Set();
+
+/**
+ * تسجيل قائمة الأوامر، وتوسيع أنواع الويبهوك لتشمل ضغطات الأزرار إن لزم.
+ * مرة واحدة لكل نسخة عاملة؛ ولا يرمي — فشله يُسجَّل ويُعاد في التحديث التالي.
+ */
+export async function ensureBotSetup(env) {
+  const key = String(env.TELEGRAM_BOT_TOKEN || '');
+  if (!key || setupChecked.has(key)) return;
+  setupChecked.add(key);
+
+  const problems = [];
+  const commands = await setBotCommands(env);
+  if (!commands.ok) problems.push(`قائمة الأوامر: ${commands.error}`);
+
+  let reregistered = false;
+  const info = await getWebhookInfo(env);
+  if (!info.ok) {
+    problems.push(`حالة الويبهوك: ${info.error}`);
+  } else if (info.result?.url && !receivesCallbacks(info.result.allowed_updates)) {
+    const res = await setWebhook(env, info.result.url);
+    if (res.ok) reregistered = true;
+    else problems.push(`إعادة تسجيل الويبهوك: ${res.error}`);
+  }
+
+  if (problems.length) setupChecked.delete(key);
+  if (problems.length || reregistered) {
+    await writeLog(env.DB, {
+      action: 'telegram_webhook',
+      status: problems.length ? 'error' : 'success',
+      errorDetails: problems.length
+        ? `إعداد البوت الذاتي: ${problems.join(' | ')}`
+        : 'إعداد البوت الذاتي: سُجّلت قائمة الأوامر وصار الويبهوك يستقبل ضغطات الأزرار',
+    });
+  }
+}
+
 /** تسجيل الويبهوك على الرابط المطلوب بالسرّ المضبوط حالياً. */
 export function setWebhook(env, url) {
   const secret = String(env.TELEGRAM_WEBHOOK_SECRET || '').trim();
