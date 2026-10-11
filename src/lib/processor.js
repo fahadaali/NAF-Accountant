@@ -167,6 +167,12 @@ function describeType(type) {
         : type;
 }
 
+/** رقم الفاتورة كما قُرئ منها، أو null إن غاب أو جاء بطول لا يكون لرقم فاتورة. */
+function supplierNumber(result) {
+  const n = String(result?.invoice_number || '').trim();
+  return n && n.length <= 64 ? n : null;
+}
+
 /** بناء خريطة رمز الحساب -> معرّف وافق. */
 function accountIdMap(accounts) {
   const m = {};
@@ -255,6 +261,16 @@ function vatSection(sub, requestedVat, appliedVat, cur) {
   return { total: sub, lines: `💰 الإجمالي: ${formatMoney(sub, cur)} (بدون ضريبة)\n` };
 }
 
+/** سطور ما قُرئ من الفاتورة نفسها: رقمها والرقم الضريبي لمُصدرها. */
+function documentRefLines(result) {
+  let out = '';
+  const number = supplierNumber(result);
+  if (number) out += `🔢 رقم الفاتورة: ${iso(number)}\n`;
+  const vatNo = String(result.supplier_vat_number || '').trim();
+  if (vatNo) out += `🏷️ الرقم الضريبي: ${iso(vatNo)}\n`;
+  return out;
+}
+
 function confirmBill(result, wafeqId, cur, appliedVat = 0) {
   const items = result.bill?.line_items || [];
   const lines = items
@@ -264,7 +280,9 @@ function confirmBill(result, wafeqId, cur, appliedVat = 0) {
   const vat = vatSection(sub, Number(result.bill?.vat_percent ?? 0), appliedVat, cur);
   return (
     `✅ <b>تم إنشاء فاتورة مشتريات (مسودة) في وافق</b>\n\n` +
-    `📅 التاريخ: ${iso(result.date)}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n${lines}\n\n` +
+    `📅 التاريخ: ${iso(result.date)}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n` +
+    documentRefLines(result) +
+    `${lines}\n\n` +
     vat.lines +
     exchangeLine(result, cur, vat.total) +
     `🧾 رقم المسودة: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
@@ -319,13 +337,20 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
       amount: li.amount,
       taxRateId: billTaxRate,
     }));
-    const { id, raw } = await createBillDraft(env, {
-      contactId,
-      date: result.date,
-      currency,
-      lineItems,
-      attachmentIds,
-    });
+    /* رقم فاتورة المورّد كما طُبع يُرحَّل بدل رقمٍ مولَّد (`PB-<طابع>`)، فتُطابَق
+       المسودة بورقتها في وافق. وإن رفضت وافق الرقم نفسه — مكرّراً أو بصيغة لا
+       تقبلها — يُعاد الإنشاء برقمٍ مولَّد: مستندٌ بلا رقم المورّد أفضل من لا مستند. */
+    const billOpts = { contactId, date: result.date, currency, lineItems, attachmentIds };
+    const number = supplierNumber(result);
+    let created;
+    try {
+      created = await createBillDraft(env, { ...billOpts, number });
+    } catch (e) {
+      const numberRejected = /failed: 4\d\d/.test(e.message || '') && /number/i.test(e.message || '');
+      if (!number || !numberRejected) throw e;
+      created = await createBillDraft(env, billOpts);
+    }
+    const { id, raw } = created;
     // ما يُعرض = ما طُبِّق: لا معرّف ضريبة ⇐ لا ضريبة على المستند.
     return { wafeqId: id, raw, confirm: confirmBill(result, id, currency, billTaxRate ? billVat : 0) };
   }
