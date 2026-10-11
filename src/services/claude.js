@@ -67,36 +67,27 @@ ${bankLine}
 - ⛔ لا تسأل عن حساب الدفع/الاستلام (الافتراضي البنكي)، ولا عن نوع المصروف (استنتجه واختر أنسب حساب من القائمة).
 - إن توفّرت البيانات الجوهرية (المبلغ + المورّد/العميل حسب النوع)، اضبط "status":"ready" وأكمل دون سؤال.
 
-# صيغة الإخراج — أرجع JSON صحيحاً تماماً فقط (بدون Markdown أو أي نص خارجه) بهذا الشكل:
-{
-  "status": "ready" | "need_more",
-  "question": "سؤال بالعربية عند الحاجة، أو null",
-  "type": "manual_journal" | "purchase_bill" | "sales_invoice",
-  "date": "YYYY-MM-DD",
-  "contact_name": "اسم العميل أو المورّد أو null",
-  "currency": "${baseCurrency}",
-  "exchange_rate": null,
-  "summary": "وصف موجز بالعربية للعملية",
-  "manual_journal": {
-    "entries": [
-      { "account_code": "..", "account_name": "..", "debit": 0, "credit": 0, "description": ".." }
-    ]
-  },
-  "bill": {
-    "line_items": [
-      { "account_code": "..", "account_name": "..", "description": "..", "amount": 0 }
-    ],
-    "vat_percent": ${vatPercent}
-  },
-  "invoice": {
-    "line_items": [
-      { "account_code": "..", "account_name": "..", "description": "..", "amount": 0 }
-    ],
-    "vat_percent": ${vatPercent}
-  }
-}
+# الفواتير المرفقة (صورة أو PDF):
+- اقرأ الفاتورة كما هي مطبوعة: الأرقام الهندية (٠١٢٣٤٥٦٧٨٩) تُكتب بالأرقام الغربية، والفاصلة
+  العربية (٫ ،) تُفهم فاصلةً عشرية أو فاصلة آلاف حسب موضعها.
+- التاريخ الهجري يُحوَّل إلى ما يقابله بالميلادي. وإن طُبع التاريخان فاعتمد الميلادي المطبوع.
+- إيصالات الورق الحراري الباهتة وخط اليد: اقرأ ما تستطيع قراءته بثقة فقط.
+- ⛔ لا تخمّن رقماً لا تقرؤه. إن تعذّرت قراءة المبلغ الإجمالي أو اسم المورّد/العميل فاضبط
+  "status":"need_more" واسأل عن الناقص تحديداً، واذكره في "unreadable_fields".
+- "readability": "clear" إن قُرئت الفاتورة كاملة، و"partial" إن غمض بعضها، و"unreadable" إن
+  تعذّرت قراءتها أصلاً (صورة مهزوزة أو مظلمة أو مقصوصة أو ليست فاتورة).
+- انقل من الفاتورة: رقمها ("invoice_number")، والرقم الضريبي للمورّد ("supplier_vat_number" —
+  ١٥ رقماً)، والمجاميع كما طُبعت حرفياً: قبل الضريبة ("printed_subtotal")، والضريبة
+  ("printed_vat")، والإجمالي ("printed_total"). ما لم يُطبع منها اتركه null.
+- ⚠️ مبالغ البنود ("amount") تُكتب دائماً **قبل الضريبة** — النظام يضيف الضريبة بنفسه.
+  فإن كانت أسعار الفاتورة شاملة الضريبة فاقسم كل مبلغ على (1 + ${vatPercent}/100) وقرّبه
+  لمنزلتين، واضبط "amounts_include_vat": true. وإن كانت قبل الضريبة فاضبطها false.
+- في رسالة نصية بلا مرفق: المبلغ الذي يذكره المستخدم هو قيمة العملية قبل الضريبة إلا إن قال
+  «شامل الضريبة»، والحقول المطبوعة كلها null، و"readability": "clear".
 
-املأ فقط الكائن المطابق لـ "type" واترك الآخرين فارغين (arrays فارغة). لا تضف أي تعليقات.`;
+# صيغة الإخراج:
+سجّل النتيجة باستدعاء الأداة record_transaction وحدها، ولا تكتب نصاً خارجها.
+املأ فقط الكائن المطابق لـ "type" واترك الآخرين بمصفوفات فارغة.`;
 }
 
 // اسم النموذج الافتراضي في موضع واحد — كان مكرّراً في خمسة نداءات، وتحديثُ
@@ -179,6 +170,36 @@ export function diagnoseClaudeError(status, body) {
   return { reason: 'unknown', message: `تعذّر الاتصال بخدمة Claude (رمز ${status}): ${detail}` };
 }
 
+/* ═══ إعادة المحاولة عند الضغط العابر ═══
+
+   ٤٢٩ (حدّ المعدّل) و٥٢٩ (ضغط الخدمة) و٥xx أعطالٌ عابرة توصي Anthropic
+   بإعادة المحاولة عندها، وكانت تُفشل العملية من أول ردّ فيُطلب من المستخدم
+   إعادة الإرسال يدوياً. فتُعاد مرتين بانتظارٍ متزايد يحترم `retry-after`.
+
+   والمعالجة تجري في `waitUntil` بعد ردّ الويبهوك، ووقتها محدود؛ فلا إعادة
+   بعد أن يتجاوز الطلب الأول ميزانيته — انتظارٌ يُسقط العملية كلّها عند حدّ
+   المنصة أسوأ من خطأٍ واضح الآن. */
+const RETRY_WAITS_MS = [2000, 5000];
+const RETRY_BUDGET_MS = 12000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function isTransientStatus(status) {
+  return status === 429 || status === 529 || (status >= 500 && status < 600);
+}
+
+async function fetchWithRetry(url, init) {
+  const started = Date.now();
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, init);
+    const wait = RETRY_WAITS_MS[attempt];
+    if (!isTransientStatus(res.status) || wait === undefined) return res;
+    const after = Number(res.headers?.get?.('retry-after')) * 1000;
+    const delay = Math.min(Number.isFinite(after) && after > 0 ? after : wait, 10000);
+    if (Date.now() - started + delay > RETRY_BUDGET_MS) return res;
+    await sleep(delay);
+  }
+}
+
 /**
  * نداء واحد إلى Claude يمرّ منه كل استدعاء في هذا الملف.
  *
@@ -198,10 +219,11 @@ export function diagnoseClaudeError(status, body) {
  * @param {string|Array} opts.content نصّ، أو مصفوفة كتل (لإرسال صورة).
  * @param {number} opts.maxTokens
  * @param {string} [opts.label] اسم يظهر في رسالة الخطأ.
- * @returns {Promise<string>} نصّ الرد.
+ * @param {object} [opts.extra] حقول إضافية في جسم الطلب (أدوات، حرارة).
+ * @returns {Promise<object>} ردّ الواجهة كاملاً بعد فحص stop_reason.
  */
-async function callClaude(env, { system, content, maxTokens = 2048, label = 'Claude' }) {
-  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
+async function requestClaude(env, { system, content, maxTokens = 2048, label = 'Claude', extra = {} }) {
+  const res = await fetchWithRetry(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -218,6 +240,7 @@ async function callClaude(env, { system, content, maxTokens = 2048, label = 'Cla
           content: typeof content === 'string' ? [{ type: 'text', text: content }] : content,
         },
       ],
+      ...extra,
     }),
   });
 
@@ -239,12 +262,43 @@ async function callClaude(env, { system, content, maxTokens = 2048, label = 'Cla
   if (data.stop_reason === 'refusal') {
     throw new Error(`${label}: رفض النموذج إكمال الطلب.`);
   }
+  return data;
+}
 
+/** نداء يُرجع نصّ الردّ — للمهام اللغوية الحرّة (تدقيق، مطابقة، تصنيف). */
+async function callClaude(env, opts) {
+  const data = await requestClaude(env, opts);
   return (data.content || [])
     .filter((c) => c.type === 'text')
     .map((c) => c.text)
     .join('\n')
     .trim();
+}
+
+/**
+ * نداء يُلزم النموذج بأداة واحدة ويُرجع مُدخلاتها كائناً جاهزاً.
+ *
+ * ═══ لماذا أداة لا JSON حرّ ═══
+ *
+ * كان ردّ التحليل نصّاً يُقصّ ما بين أول `{` وآخر `}` ثم يُحلَّل. فجملةٌ
+ * قبل الكائن تحوي قوساً، أو فاصلةٌ زائدة، تُفشل العملية كلّها بـ«تعذّر
+ * تحليل رد Claude». والأداة المُلزَمة تُرجع كائناً مُحلَّلاً بمخطّطٍ معروف،
+ * والحرارة صفر لأن قراءة فاتورة لا تحتمل الإبداع.
+ */
+async function callClaudeTool(env, { tool, ...opts }) {
+  const data = await requestClaude(env, {
+    ...opts,
+    extra: {
+      temperature: 0,
+      tools: [tool],
+      tool_choice: { type: 'tool', name: tool.name },
+    },
+  });
+  const block = (data.content || []).find((c) => c.type === 'tool_use' && c.name === tool.name);
+  if (!block || !block.input || typeof block.input !== 'object') {
+    throw new Error(`${opts.label || 'Claude'}: لم يُرجع النموذج نتيجة منظّمة.`);
+  }
+  return block.input;
 }
 
 function extractJson(text) {
@@ -261,6 +315,96 @@ function extractJson(text) {
   }
 }
 
+/* ═══ مخطّط نتيجة التحليل ═══
+
+   نفس شكل `processed_json` المحفوظ مع كل عملية — تقرؤه رسائل التأكيد
+   والترحيل والتقارير كما هو — وتُضاف إليه حقول القراءة من الفاتورة: رقمها،
+   والرقم الضريبي للمورّد، ومجاميعها كما طُبعت. هذه الأخيرة لا تُرحَّل؛
+   تُقارَن بما يُرحَّل (`src/lib/extraction_check.js`). */
+const LINE_ITEM = {
+  type: 'object',
+  properties: {
+    account_code: { type: 'string' },
+    account_name: { type: 'string' },
+    description: { type: 'string' },
+    amount: { type: 'number', description: 'المبلغ قبل الضريبة بعملة العملية' },
+    quantity: { type: ['number', 'null'] },
+    unit_price: { type: ['number', 'null'] },
+  },
+  required: ['account_code', 'account_name', 'description', 'amount'],
+};
+
+const RECORD_TRANSACTION_TOOL = {
+  name: 'record_transaction',
+  description: 'تسجيل نتيجة تحليل العملية المالية وتوجيهها في وافق.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      status: { type: 'string', enum: ['ready', 'need_more'] },
+      question: { type: ['string', 'null'] },
+      type: { type: 'string', enum: ['manual_journal', 'purchase_bill', 'sales_invoice'] },
+      date: { type: 'string', description: 'YYYY-MM-DD' },
+      contact_name: { type: ['string', 'null'] },
+      currency: { type: 'string', description: 'ISO 4217' },
+      exchange_rate: { type: ['number', 'null'] },
+      summary: { type: 'string' },
+      invoice_number: { type: ['string', 'null'] },
+      supplier_vat_number: { type: ['string', 'null'] },
+      printed_subtotal: { type: ['number', 'null'] },
+      printed_vat: { type: ['number', 'null'] },
+      printed_total: { type: ['number', 'null'] },
+      amounts_include_vat: { type: 'boolean' },
+      readability: { type: 'string', enum: ['clear', 'partial', 'unreadable'] },
+      unreadable_fields: { type: 'array', items: { type: 'string' } },
+      manual_journal: {
+        type: 'object',
+        properties: {
+          entries: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                account_code: { type: 'string' },
+                account_name: { type: 'string' },
+                debit: { type: 'number' },
+                credit: { type: 'number' },
+                description: { type: 'string' },
+              },
+              required: ['account_code', 'account_name', 'debit', 'credit'],
+            },
+          },
+        },
+        required: ['entries'],
+      },
+      bill: {
+        type: 'object',
+        properties: {
+          line_items: { type: 'array', items: LINE_ITEM },
+          vat_percent: { type: 'number' },
+        },
+        required: ['line_items', 'vat_percent'],
+      },
+      invoice: {
+        type: 'object',
+        properties: {
+          line_items: { type: 'array', items: LINE_ITEM },
+          vat_percent: { type: 'number' },
+        },
+        required: ['line_items', 'vat_percent'],
+      },
+    },
+    required: ['status', 'type', 'date', 'currency', 'summary', 'readability'],
+  },
+};
+
+/** كتلة مرفق واحد بصيغة واجهة Claude. */
+function mediaBlock(m) {
+  return {
+    type: m.kind === 'document' ? 'document' : 'image',
+    source: { type: 'base64', media_type: m.mediaType, data: m.base64 },
+  };
+}
+
 /**
  * تحليل عملية وتصنيفها.
  * @param {object} opts
@@ -270,48 +414,77 @@ function extractJson(text) {
  * @param {number} opts.vatPercent     نسبة الضريبة (مثل 15).
  * @param {string} opts.baseCurrency   عملة الدفاتر الأساسية (مثل SAR).
  * @param {string} opts.text           نص العملية الحالي.
- * @param {object|null} opts.media      { kind:'image'|'document', mediaType, base64 } لتحليل فاتورة
- *                                      مصوّرة أو ملف PDF. الصور تُرسل ككتلة image، وملفات PDF
- *                                      ككتلة document يقرأها Claude نصّاً ورؤيةً لكل صفحة.
+ * @param {object|Array|null} opts.media  { kind:'image'|'document', mediaType, base64 } لتحليل فاتورة
+ *                                      مصوّرة أو ملف PDF، أو مصفوفة منها لصفحات فاتورة واحدة
+ *                                      (ألبوم صور). الصور تُرسل ككتل image، وملفات PDF ككتلة
+ *                                      document يقرأها Claude نصّاً ورؤيةً لكل صفحة.
  * @param {string|null} opts.priorContext  سياق سابق متراكم (عند استكمال حوار ناقص).
+ * @param {object|null} [opts.priorResult]  نتيجة الجولة السابقة من الحوار نفسه، تُحدَّث لا تُعاد.
+ * @param {{previous:object, prompt:string}|null} [opts.correction] إعادة قراءة بعد مراجعة
+ *                                      حسابية كشفت خللاً (`src/lib/extraction_check.js`).
  * @returns {Promise<object>} كائن التصنيف المنظّم.
  */
 export async function analyzeTransaction(env, opts) {
-  const { accounts, defaultBank, messageDateISO, vatPercent, baseCurrency, text, media, priorContext } = opts;
+  const {
+    accounts,
+    defaultBank,
+    messageDateISO,
+    vatPercent,
+    baseCurrency,
+    text,
+    media,
+    priorContext,
+    priorResult,
+    correction,
+  } = opts;
   const system = buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent, baseCurrency);
 
-  const userContent = [];
-
-  if (media) {
-    userContent.push({
-      type: media.kind === 'document' ? 'document' : 'image',
-      source: { type: 'base64', media_type: media.mediaType, data: media.base64 },
-    });
-  }
+  const files = (Array.isArray(media) ? media : media ? [media] : []).filter(Boolean);
+  const userContent = files.map(mediaBlock);
 
   let userText = '';
   if (priorContext) {
-    userText += `# سياق سابق من نفس المحادثة (عملية غير مكتملة):\n${priorContext}\n\n# رسالة المستخدم الجديدة لاستكمال الناقص:\n`;
+    userText += `# سياق سابق من نفس المحادثة (عملية غير مكتملة):\n${priorContext}\n\n`;
+    // القراءة السابقة للمرفق تُبنى عليها الجولة: كانت كل جولة تقرأ الفاتورة
+    // من الصفر، فيتغيّر ما صحّ فيها بين جواب وآخر.
+    if (priorResult) {
+      userText +=
+        `# قراءتك السابقة للعملية — حدّثها بما في الرسالة الجديدة، وأبقِ ما لم يتغيّر:\n` +
+        `${JSON.stringify(priorResult)}\n\n`;
+    }
+    userText += `# رسالة المستخدم الجديدة لاستكمال الناقص:\n`;
   }
   userText += text || '';
-  if (media?.kind === 'document') {
+  if (files.some((m) => m.kind === 'document')) {
     userText +=
       '\n\n(المرفق ملف PDF لفاتورة وقد يكون متعدد الصفحات — استخرج بياناتها: المورّد/العميل، ' +
-      'رقم الفاتورة وتاريخها، البنود، المبالغ، الضريبة إن وُجدت. إن حوى الملف أكثر من فاتورة ' +
-      'فاعتمد الأولى واذكر ذلك في "summary".)';
-  } else if (media) {
-    userText += '\n\n(المرفق صورة فاتورة — استخرج بياناتها: المورّد/العميل، البنود، المبالغ، الضريبة إن وُجدت.)';
+      'رقم الفاتورة وتاريخها، الرقم الضريبي، البنود، المجاميع المطبوعة. إن حوى الملف أكثر من ' +
+      'فاتورة فاعتمد الأولى واذكر ذلك في "summary".)';
+  } else if (files.length > 1) {
+    userText +=
+      `\n\n(المرفق ${files.length} صور لفاتورة واحدة بالترتيب — صفحاتها أو أجزاؤها. اجمعها ` +
+      'فاتورةً واحدة: لا تكرّر بنداً ظهر في صورتين، والمجاميع من الصفحة التي تحملها.)';
+  } else if (files.length === 1) {
+    userText +=
+      '\n\n(المرفق صورة فاتورة — استخرج بياناتها: المورّد/العميل، رقم الفاتورة وتاريخها، ' +
+      'الرقم الضريبي، البنود، المجاميع المطبوعة.)';
+  }
+  // إعادة القراءة بعد مراجعة حسابية: النتيجة السابقة وما اختلّ فيها.
+  if (correction) {
+    userText +=
+      `\n\n# قراءتك السابقة:\n${JSON.stringify(correction.previous)}\n\n${correction.prompt}`;
   }
   userContent.push({ type: 'text', text: userText || '(بدون نص)' });
 
-  const textPart = await callClaude(env, {
+  const result = await callClaudeTool(env, {
     system,
     content: userContent,
-    maxTokens: 2048,
+    tool: RECORD_TRANSACTION_TOOL,
+    // فاتورة طويلة البنود تتجاوز ٢٠٤٨ رمزاً فتُبتر — والمرفق مظنّتها.
+    maxTokens: files.length ? 4096 : 2048,
     label: 'تحليل العملية',
   });
 
-  const result = extractJson(textPart);
   if (!result || !result.type) {
     throw new Error('رد Claude لا يحتوي على تصنيف صالح');
   }

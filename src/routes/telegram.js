@@ -83,10 +83,13 @@ telegram.post('/telegram-webhook', async (c) => {
     return c.json({ ok: true }); // نُرجع ٢٠٠ حتى لا يعيد تليجرام المحاولة
   }
 
-  const message = update.message || update.edited_message;
+  // ضغطة زر تحمل رسالتها التي ضُغط تحتها — ومنها تُقرأ المحادثة وتُفحص
+  // صلاحيتها كما تُفحص صلاحية الرسالة: زرٌّ في محادثة غير مصرّح لها لا يُنفَّذ.
+  const message =
+    update.message || update.edited_message || update.callback_query?.message || null;
   const chatId = message?.chat?.id;
 
-  // 2) تحديث لا رسالة فيه (منشور قناة، تغيّر عضوية، ردّ استعلام...).
+  // 2) تحديث لا رسالة فيه (منشور قناة، تغيّر عضوية...).
   //    هذا ليس رفض صلاحية — وخلطُه بالرفض كان يكتب «unauthorized chat:
   //    undefined» فيُقرأ على أنه منع، والسبب أن نوع التحديث غير معالَج أصلاً.
   if (!chatId) {

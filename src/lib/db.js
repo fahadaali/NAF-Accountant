@@ -195,6 +195,52 @@ export async function listPostedTransactions(db, chatId, limit = 10) {
   return (results || []).map(toTarget).filter(Boolean);
 }
 
+/* ═══ قوائم المحادثة: المسودات والقيود ═══
+
+   المسودة في وافق فاتورةُ مشتريات أو مبيعات. والقيد اليدوي يُرحَّل مباشرة
+   (وافق لا تدعم مسودته)، فيُعرض في قائمة منفصلة لا بين المسودات. والنوع
+   داخل `processed_json`، فيُقرأ بـ`json_extract`. */
+const LIST_TYPES = {
+  drafts: `json_extract(processed_json, '$.type') IN ('purchase_bill', 'sales_invoice')`,
+  journals: `json_extract(processed_json, '$.type') = 'manual_journal'`,
+};
+
+/**
+ * صفحة من عمليات المحادثة المُرحّلة، الأحدث أولاً.
+ * @param {'drafts'|'journals'} kind
+ * @returns {Promise<{items:Array, total:number}>}
+ */
+export async function listChatDocuments(db, chatId, kind, { offset = 0, limit = 5 } = {}) {
+  const where = `${POSTED_WHERE} AND ${LIST_TYPES[kind] || LIST_TYPES.drafts}`;
+  const { results } = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, media_r2_key, processed_json FROM transactions
+       WHERE ${where} ORDER BY id DESC LIMIT ? OFFSET ?`
+    )
+    .bind(String(chatId), limit, Math.max(0, Number(offset) || 0))
+    .all();
+  const count = await db
+    .prepare(`SELECT COUNT(*) AS n FROM transactions WHERE ${where}`)
+    .bind(String(chatId))
+    .first();
+  return { items: (results || []).map(toTarget).filter(Boolean), total: Number(count?.n || 0) };
+}
+
+/**
+ * عملية مُرحّلة بمعرّفها — محصورة بالمحادثة: زرٌّ في محادثة لا يبلغ عملية
+ * غيرها ولو عُدّل معرّفه.
+ */
+export async function getChatPostedTransaction(db, chatId, txId) {
+  const row = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, media_r2_key, processed_json FROM transactions
+       WHERE ${POSTED_WHERE} AND id = ? LIMIT 1`
+    )
+    .bind(String(chatId), Number(txId))
+    .first();
+  return toTarget(row);
+}
+
 // ----------------------------------------------------------------------------
 // حالة المحادثة (Conversation State) — للحوار التفاعلي عند نقص البيانات.
 // ----------------------------------------------------------------------------
@@ -349,5 +395,114 @@ export async function markRecurringRun(db, id, ym) {
   await db
     .prepare(`UPDATE recurring_transactions SET last_run_ym = ? WHERE id = ?`)
     .bind(ym, id)
+    .run();
+}
+
+// ----------------------------------------------------------------------------
+// صور الألبوم (media group) — `migrations/0008_media_groups.sql`
+// ----------------------------------------------------------------------------
+
+/** تسجيل عنصر ألبوم لحظة وصوله، قبل تنزيل ملفه. */
+export async function addAlbumItem(db, { groupId, chatId, messageId, txId, caption }) {
+  await db
+    .prepare(
+      `INSERT INTO media_group_items (group_id, chat_id, message_id, transaction_id, caption, created_ms)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .bind(String(groupId), String(chatId), String(messageId), txId, caption || null, Date.now())
+    .run();
+}
+
+/** ربط العنصر بملفه المحفوظ — أو '' إن تعذّر تحضيره فلا يُنتظر. */
+export async function setAlbumItemMedia(db, txId, r2Key, mediaType = null) {
+  await db
+    .prepare(`UPDATE media_group_items SET r2_key = ?, media_type = ? WHERE transaction_id = ?`)
+    .bind(r2Key, mediaType, txId)
+    .run();
+}
+
+/**
+ * محاولة استلام المجموعة كلها ذرّياً.
+ *
+ * تنجح حين تكون كل العناصر قد حُفظت ولم يصل جديدٌ منذ `quietMs` — أو دون
+ * شرطٍ مع `force`. والتحديث جملة واحدة، فلا يستلم المجموعةَ عنصران.
+ * @returns {Promise<boolean>} هل استلمها هذا العنصر.
+ */
+export async function claimAlbum(db, { groupId, chatId, txId, quietMs, force = false }) {
+  const g = String(groupId);
+  const c = String(chatId);
+  const res = await db
+    .prepare(
+      `UPDATE media_group_items SET claimed_by = ?
+       WHERE group_id = ? AND chat_id = ? AND claimed_by IS NULL
+         AND (? = 1 OR (
+           NOT EXISTS (SELECT 1 FROM media_group_items
+                       WHERE group_id = ? AND chat_id = ? AND r2_key IS NULL)
+           AND (SELECT MAX(created_ms) FROM media_group_items
+                WHERE group_id = ? AND chat_id = ?) < ?))`
+    )
+    .bind(txId, g, c, force ? 1 : 0, g, c, g, c, Date.now() - quietMs)
+    .run();
+  return Number(res?.meta?.changes || 0) > 0;
+}
+
+/** من استلم عنصر هذه العملية (null = لم يُستلم بعد). */
+export async function albumClaimedBy(db, txId) {
+  const row = await db
+    .prepare(`SELECT claimed_by FROM media_group_items WHERE transaction_id = ? LIMIT 1`)
+    .bind(txId)
+    .first();
+  return row ? row.claimed_by : null;
+}
+
+/** عناصر المجموعة التي استلمتها عملية ما، بترتيب إرسالها. */
+export async function listAlbumItems(db, leaderTxId) {
+  const { results } = await db
+    .prepare(
+      `SELECT message_id, transaction_id, r2_key, media_type, caption FROM media_group_items
+       WHERE claimed_by = ? ORDER BY CAST(message_id AS INTEGER) ASC`
+    )
+    .bind(leaderTxId)
+    .all();
+  return results || [];
+}
+
+/** مفاتيح ملفات الألبوم المرتبطة بعملية — لإرفاقها كلها بالمستند وبتعديلاته. */
+export async function getAlbumKeys(db, txId) {
+  const items = await listAlbumItems(db, txId);
+  return items.map((i) => i.r2_key).filter(Boolean);
+}
+
+/**
+ * ربط ملفات ألبوم بالعملية التي رُحّلت بها.
+ *
+ * العملية المُرحّلة قد لا تكون التي استلمت الألبوم: جوابٌ على سؤال، أو نسخةٌ
+ * معدّلة، يُرحَّل بصفّه هو. فتُنقل الملفات إليه كي تجدها التعديلات اللاحقة.
+ */
+export async function attachAlbumKeys(db, txId, keys) {
+  if (!keys || keys.length < 2) return;
+  await db
+    .prepare(
+      `UPDATE media_group_items SET claimed_by = ?
+       WHERE r2_key IN (${keys.map(() => '?').join(', ')})`
+    )
+    .bind(txId, ...keys)
+    .run();
+}
+
+// ----------------------------------------------------------------------------
+// حالة المستند في وافق — `migrations/0009_wafeq_doc_status.sql`
+// ----------------------------------------------------------------------------
+
+/** حفظ حالة مستند كما قُرئت من وافق الآن. */
+export async function saveWafeqStatus(db, wafeqId, docType, status) {
+  await db
+    .prepare(
+      `INSERT INTO wafeq_doc_status (wafeq_id, doc_type, status, synced_at)
+       VALUES (?, ?, ?, datetime('now'))
+       ON CONFLICT(wafeq_id) DO UPDATE SET
+         status = excluded.status, doc_type = excluded.doc_type, synced_at = datetime('now')`
+    )
+    .bind(String(wafeqId), docType, String(status))
     .run();
 }

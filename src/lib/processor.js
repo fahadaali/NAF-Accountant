@@ -15,8 +15,16 @@ import {
   getPostedTransactionByWafeqId,
   searchPostedTransactions,
   listPostedTransactions,
+  getChatPostedTransaction,
   isMessageProcessed,
   findSimilarPostedToday,
+  addAlbumItem,
+  setAlbumItemMedia,
+  claimAlbum,
+  albumClaimedBy,
+  listAlbumItems,
+  getAlbumKeys,
+  attachAlbumKeys,
 } from './db.js';
 import {
   sendTelegramMessage,
@@ -42,7 +50,15 @@ import {
   getWafeqDraftSummary,
 } from '../services/wafeq.js';
 import { resolveContact } from '../services/contacts.js';
-import { prepareMedia, prepareStoredMedia, extensionFor } from './media.js';
+import { prepareMedia, prepareStoredMedia, prepareAlbumMedia, extensionFor } from './media.js';
+import { validateExtraction, correctionPrompt } from './extraction_check.js';
+import { describeType } from './labels.js';
+import {
+  handleCallbackQuery,
+  showDocumentList,
+  showSearchResults,
+  postedKeyboard,
+} from './telegram_actions.js';
 import {
   baseCurrency,
   currencyNameAr,
@@ -52,6 +68,9 @@ import {
   resolveExchangeRate,
   toBaseAmount,
 } from './currency.js';
+
+/** كلمات تأكيد الإجراء المعلّق (حذف، ترحيل رغم التشابه، ترحيل رغم خلل الأرقام). */
+const CONFIRM_WORDS = /^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i;
 
 /* مهلة سياق المحادثة — رقم واحد لكل القراءات.
    كانت ٦٠ دقيقة في فحص حالات التأكيد، والافتراضية ٣٠ في استرجاع السياق
@@ -156,15 +175,10 @@ function resultTotal(result) {
    لا يستورد من frontend/src/naf. أي تغيير يحدث في السجلّ أولاً. */
 const iso = (v) => `\u2068${v}\u2069`;
 
-/** وصف عربي لنوع العملية. */
-function describeType(type) {
-  return type === 'manual_journal'
-    ? 'قيد محاسبي'
-    : type === 'purchase_bill'
-      ? 'فاتورة مشتريات'
-      : type === 'sales_invoice'
-        ? 'فاتورة مبيعات'
-        : type;
+/** رقم الفاتورة كما قُرئ منها، أو null إن غاب أو جاء بطول لا يكون لرقم فاتورة. */
+function supplierNumber(result) {
+  const n = String(result?.invoice_number || '').trim();
+  return n && n.length <= 64 ? n : null;
 }
 
 /** بناء خريطة رمز الحساب -> معرّف وافق. */
@@ -255,6 +269,16 @@ function vatSection(sub, requestedVat, appliedVat, cur) {
   return { total: sub, lines: `💰 الإجمالي: ${formatMoney(sub, cur)} (بدون ضريبة)\n` };
 }
 
+/** سطور ما قُرئ من الفاتورة نفسها: رقمها والرقم الضريبي لمُصدرها. */
+function documentRefLines(result) {
+  let out = '';
+  const number = supplierNumber(result);
+  if (number) out += `🔢 رقم الفاتورة: ${iso(number)}\n`;
+  const vatNo = String(result.supplier_vat_number || '').trim();
+  if (vatNo) out += `🏷️ الرقم الضريبي: ${iso(vatNo)}\n`;
+  return out;
+}
+
 function confirmBill(result, wafeqId, cur, appliedVat = 0) {
   const items = result.bill?.line_items || [];
   const lines = items
@@ -264,7 +288,9 @@ function confirmBill(result, wafeqId, cur, appliedVat = 0) {
   const vat = vatSection(sub, Number(result.bill?.vat_percent ?? 0), appliedVat, cur);
   return (
     `✅ <b>تم إنشاء فاتورة مشتريات (مسودة) في وافق</b>\n\n` +
-    `📅 التاريخ: ${iso(result.date)}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n${lines}\n\n` +
+    `📅 التاريخ: ${iso(result.date)}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n` +
+    documentRefLines(result) +
+    `${lines}\n\n` +
     vat.lines +
     exchangeLine(result, cur, vat.total) +
     `🧾 رقم المسودة: ${wafeqId ? iso(wafeqId) : 'غير متوفر'}\n\n` +
@@ -319,13 +345,20 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
       amount: li.amount,
       taxRateId: billTaxRate,
     }));
-    const { id, raw } = await createBillDraft(env, {
-      contactId,
-      date: result.date,
-      currency,
-      lineItems,
-      attachmentIds,
-    });
+    /* رقم فاتورة المورّد كما طُبع يُرحَّل بدل رقمٍ مولَّد (`PB-<طابع>`)، فتُطابَق
+       المسودة بورقتها في وافق. وإن رفضت وافق الرقم نفسه — مكرّراً أو بصيغة لا
+       تقبلها — يُعاد الإنشاء برقمٍ مولَّد: مستندٌ بلا رقم المورّد أفضل من لا مستند. */
+    const billOpts = { contactId, date: result.date, currency, lineItems, attachmentIds };
+    const number = supplierNumber(result);
+    let created;
+    try {
+      created = await createBillDraft(env, { ...billOpts, number });
+    } catch (e) {
+      const numberRejected = /failed: 4\d\d/.test(e.message || '') && /number/i.test(e.message || '');
+      if (!number || !numberRejected) throw e;
+      created = await createBillDraft(env, billOpts);
+    }
+    const { id, raw } = created;
     // ما يُعرض = ما طُبِّق: لا معرّف ضريبة ⇐ لا ضريبة على المستند.
     return { wafeqId: id, raw, confirm: confirmBill(result, id, currency, billTaxRate ? billVat : 0) };
   }
@@ -380,24 +413,26 @@ function normName(s) {
  */
 async function finalizeAndPost(env, ctx) {
   const { txId, chatId, result, accounts, messageId, contactId, mediaR2Key, mediaType, prefix } = ctx;
+  // صفحات الألبوم كلها تُرفق بالمستند؛ والمرفق المفرد مصفوفة من عنصر.
+  const mediaKeys = ctx.mediaR2Keys?.length ? ctx.mediaR2Keys : mediaR2Key ? [mediaR2Key] : [];
 
   // تحذير يُلحق برسالة التأكيد حين لا يصل المرفق إلى المستند — الصمت هنا
   // يجعل المستخدم يظنّ الملف مرفقاً وهو ليس كذلك.
   let attachmentWarning = '';
   const attachmentIds = [];
 
-  if (mediaR2Key) {
+  for (const key of mediaKeys) {
     try {
-      const obj = await env.MEDIA.get(mediaR2Key);
+      const obj = await env.MEDIA.get(key);
       if (!obj) throw new Error('الملف غير موجود في التخزين');
 
       const buf = await obj.arrayBuffer();
-      const fname = mediaR2Key.split('/').pop() || 'attachment';
+      const fname = key.split('/').pop() || 'attachment';
       const attId = await uploadAttachment(
         env,
         buf,
         fname,
-        mediaType || obj.httpMetadata?.contentType || 'application/octet-stream'
+        (mediaKeys.length === 1 && mediaType) || obj.httpMetadata?.contentType || 'application/octet-stream'
       );
       if (!attId) throw new Error('وافق لم يُرجع معرّفاً للمرفق');
       attachmentIds.push(attId);
@@ -456,7 +491,14 @@ async function finalizeAndPost(env, ctx) {
     }
   }
 
-  await updateTransaction(env.DB, txId, { wafeqDraftId: wafeqId, status: 'posted' });
+  // المرفق يُربط بالصفّ الذي رُحّل — قد يكون جواباً على سؤال لا الرسالة التي
+  // حملت الملف — فتجده التعديلات اللاحقة ولا يضيع عند أولها.
+  await updateTransaction(env.DB, txId, {
+    wafeqDraftId: wafeqId,
+    status: 'posted',
+    mediaR2Key: mediaKeys[0] || undefined,
+  });
+  await attachAlbumKeys(env.DB, txId, mediaKeys);
   await writeLog(env.DB, { transactionId: txId, action: 'wafeq_post', status: 'success' });
   await clearConversationState(env.DB, chatId);
 
@@ -464,7 +506,9 @@ async function finalizeAndPost(env, ctx) {
   // في قناة التبليغ لا في المحاسبة، فلا يُصعَّد: تصعيده يُدخل المعالج مسار
   // الخطأ فيسم عمليةً ناجحة بأنها فاشلة، ويبقى قيدها في وافق بلا مقابل هنا.
   try {
-    await sendTelegramMessage(env, chatId, (prefix || '') + confirm + attachmentWarning);
+    await sendTelegramMessage(env, chatId, (prefix || '') + confirm + attachmentWarning, {
+      replyMarkup: postedKeyboard(txId),
+    });
   } catch (e) {
     await writeLog(env.DB, {
       transactionId: txId,
@@ -513,6 +557,9 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
     contactId = r.contactId;
   }
 
+  // صفحات الألبوم تنتقل مع العملية إلى نسختها المعدّلة كما ينتقل المرفق المفرد.
+  const albumKeys = await getAlbumKeys(env.DB, chosen.id);
+
   // احذف المستند القديم أولاً لتجنّب التكرار في وافق.
   try {
     await deleteDocument(env, chosen.result.type, chosen.wafeqId);
@@ -554,6 +601,7 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
       // المرفق ينتقل مع العملية إلى نسختها المعدّلة — التعديل يعيد إنشاء المستند
       // في وافق، فلولا هذا لضاع مرفق الفاتورة عند أول تعديل على المبلغ.
       mediaR2Key: chosen.mediaR2Key || null,
+      mediaR2Keys: albumKeys.length ? albumKeys : null,
       mediaType: null,
       prefix: '✏️ <b>تم تعديل العملية</b> (حُذفت النسخة السابقة وأُنشئت محدّثة)\n\n',
     });
@@ -600,10 +648,26 @@ function formatProbeReport(report) {
     })
     .join('\n');
 
+  // مسار إجراءٍ يردّ ٤٠٥ على GET موجودٌ ويقبل طريقة أخرى — وهو المرشّح للاعتماد.
+  const actionMark = (status) => (status === 405 ? '✅' : status === 404 ? '❌' : '⚠️');
+  const approval = Object.entries(report.approval || {})
+    .map(([label, a]) => {
+      const actions = Object.entries(a.actions || {})
+        .map(([name, status]) => `${actionMark(status)} <code>${name}/</code> — ${status}`)
+        .join('\n   ');
+      return (
+        `• <b>${label}</b>: الحالات الموجودة ${a.statuses?.length ? a.statuses.join('، ') : 'لا شيء'}` +
+        (a.draftId ? `\n   مسارات الإجراء على مسودة:\n   ${actions}` : '\n   لا مسودة لفحص مسارات الإجراء')
+      );
+    })
+    .join('\n');
+
   return (
     `🔎 <b>تشخيص واجهة مرفقات وافق</b>\n\n` +
     `<b>المسارات الجذرية</b>\n${paths || 'لا شيء'}\n\n` +
     `<b>حقول المستندات</b>\n${docs || 'لا شيء'}\n\n` +
+    `<b>اعتماد المسودات</b> (قراءة فقط — لم يُعتمد شيء)\n${approval || 'لا شيء'}\n` +
+    `في هذا القسم: ✅ موجود (يردّ ${iso('405')} على القراءة) · ❌ غير موجود\n\n` +
     `✅ موجود · ❌ غير موجود · ⚠️ صلاحية أو خطأ آخر`
   );
 }
@@ -683,31 +747,39 @@ const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانوني
 • ملف <code>PDF</code> (حتى 10 ميغابايت) — تُقرأ صفحاته نصّاً وصورةً.
 • صور: <code>JPG</code>، <code>PNG</code>، <code>HEIC</code> (الافتراضية في الآيفون)، <code>WebP</code>، <code>GIF</code>، <code>AVIF</code>، <code>TIFF</code>، <code>BMP</code>.
 • الصيغ التي لا يقرأها المحلّل تُحوَّل تلقائياً، ويُحفظ الأصل كما أرسلته.
+• فاتورة من عدة صفحات؟ أرسل صورها معاً <b>ألبوماً واحداً</b> فتُقرأ فاتورةً واحدة.
+• لأدقّ قراءة أرسل الصورة <b>كملف</b> (📎 ← ملف): تليجرام يضغط الصور العادية.
+• تُطابَق المجاميع المطبوعة بالبنود قبل الترحيل، فإن اختلفت سألتك.
 
 <b>التوجيه التلقائي:</b>
 • رواتب/تحويلات صادرة ← قيد محاسبي
 • سداد/مشتريات ← فاتورة مشتريات (مسودة)
 • وارد من عميل ← فاتورة مبيعات + ضريبة 15٪ (مسودة)
 
-<b>2) تعديل عملية</b> — أرسل التعديل مباشرة:
+<b>2) مسوداتك</b> — من زر القائمة بجانب حقل الكتابة:
+• <code>/drafts</code> — آخر المسودات، ولكلٍّ منها بطاقة بأزرار: تعديل، حذف، عرض المرفق
+• <code>/search جرير</code> — بحث في العمليات المُرحّلة
+• رسالة كل ترحيل تحمل أزرار التعديل والحذف مباشرة
+
+<b>3) تعديل عملية</b> — بالزر، أو أرسل التعديل مباشرة:
 • <code>عدّل المبلغ إلى 600</code>
 • <code>خلّه بدون ضريبة</code>
 • <code>غيّر المورّد إلى جرير</code>
 • <code>عدّل المسودة قبل الأخيرة المبلغ 900</code>
 
-<b>3) حذف عملية</b> (يطلب كتابة «تأكيد»):
+<b>4) حذف عملية</b> — بالزر، أو كتابةً (يطلب «تأكيد»):
 • <code>احذف القيد</code>
 • <code>احذف فاتورة جرير</code>
 • <code>احذف المسودة mjou_xxx</code>
 • <code>احذف جميع المسودات في وافق</code>
 
-<b>4) أوامر أخرى</b>
-• <code>جديد</code> — إلغاء أي عملية جارية والبدء من نظيف
+<b>5) أوامر أخرى</b>
+• <code>/new</code> أو <code>جديد</code> — إلغاء أي عملية جارية والبدء من نظيف
 • <code>حالة</code> — فحص القناة والمنصة ومعرّف هذه المحادثة
 • <code>تشخيص</code> — فحص اتصال المرفقات بوافق (قراءة فقط)
 • <code>/help</code> — هذه الرسالة
 
-<b>5) العملات</b>
+<b>6) العملات</b>
 • العملة الافتراضية <b>الريال</b> — لا حاجة لذكرها.
 • لعملة أخرى اذكرها: <code>دفعت 500 دولار رسوم منصة</code>
 • الدولار محسوب بالربط الرسمي <code>3.75</code>. لسعر مختلف اذكره: <code>بسعر 3.78</code>
@@ -724,6 +796,50 @@ function mediaPlaceholder(media) {
   if (!media) return '';
   return media.kind === 'document' ? '(ملف PDF مرفق)' : '(صورة مرفقة)';
 }
+
+/* ═══ توقيت الألبوم ═══
+   تصل صور الألبوم تحديثاتٍ متتابعة خلال ثانية أو اثنتين، وكلٌّ منها يُنزَّل
+   ويُحضَّر على حدة. فينتظر كل عنصر قليلاً ثم يحاول الاستلام: ينجح حين تكون
+   كل العناصر محفوظة ولم يصل جديدٌ منذ ALBUM_QUIET_MS. وبعد آخر محاولة يُستلم
+   بلا شرط، فلا يعلق ألبومٌ عنصرُه الأخير لم يكتمل. */
+const ALBUM_FIRST_WAIT_MS = 3000;
+const ALBUM_POLL_MS = 1500;
+const ALBUM_QUIET_MS = 2000;
+const ALBUM_MAX_POLLS = 4;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** @returns {Promise<'leader'|'follower'>} دور هذا العنصر في ألبومه. */
+async function coordinateAlbum(env, { groupId, chatId, txId }) {
+  await sleep(ALBUM_FIRST_WAIT_MS);
+  for (let poll = 0; poll <= ALBUM_MAX_POLLS; poll++) {
+    const force = poll === ALBUM_MAX_POLLS;
+    if (await claimAlbum(env.DB, { groupId, chatId, txId, quietMs: ALBUM_QUIET_MS, force })) {
+      return 'leader';
+    }
+    const by = await albumClaimedBy(env.DB, txId);
+    if (by !== null && by !== undefined) return by === txId ? 'leader' : 'follower';
+    if (!force) await sleep(ALBUM_POLL_MS);
+  }
+  // لم يُستلم ولم يستلم — يُعالَج وحده بدل أن يضيع.
+  return 'leader';
+}
+
+/** أقصى حجم يسمح تليجرام للبوت بتنزيله عبر getFile. */
+const TELEGRAM_DOWNLOAD_LIMIT = 20 * 1024 * 1024;
+
+/**
+ * أكبر نسخة من صورة تليجرام المضغوطة.
+ * تليجرام يعيد ضغط الصورة المرسلة «صورةً» إلى قرابة ١٢٨٠ بكسل، فتضيع
+ * تفاصيل الإيصالات الكثيفة — و`compressed` يُبقي ذلك معروفاً لنصيحة المستخدم.
+ */
+function photoAttachment(sizes) {
+  const largest = sizes[sizes.length - 1];
+  return { fileId: largest.file_id, size: largest.file_size || 0, compressed: true };
+}
+
+/** نصيحة تُلحق حين تُقرأ صورة مضغوطة قراءةً ناقصة. */
+const SEND_AS_FILE_TIP =
+  '\n\n💡 لدقة أعلى أرسل الفاتورة <b>كملف</b> لا كصورة (📎 ← ملف): تليجرام يضغط الصور فتضيع أرقامها الصغيرة.';
 
 /** تصنيف مبدئي لمرفق تليجرام: هل يبدو ملف PDF من نوعه المعلن أو اسمه؟ */
 function looksLikePdf(document) {
@@ -764,6 +880,12 @@ async function notifyFailure(env, chatId, text, transactionId = null) {
 // للعملية صفٌّ تُنسب إليه. فصار المعالج كلّه داخل حارسٍ واحد.
 // ---------------------------------------------------------------------------
 export async function processTelegramUpdate(env, update) {
+  // ضغطة زر: لها معالجها، وهو يبلّغ فشله بنفسه ويسجّله.
+  if (update.callback_query) {
+    await handleCallbackQuery(env, update.callback_query);
+    return;
+  }
+
   const message = update.message || update.edited_message;
   if (!message || !message.chat) return;
   const chatId = message.chat.id;
@@ -800,6 +922,32 @@ async function handleTelegramMessage(env, message, isEdited = false) {
   // ---- أمر المساعدة (لا يُسجّل كعملية) ----
   if (/^\/(help|start)\b/i.test(incomingText.trim()) || /^(مساعدة|المساعدة|الأوامر)$/.test(incomingText.trim())) {
     await sendTelegramMessage(env, chatId, HELP_TEXT);
+    return;
+  }
+
+  // ---- أوامر القائمة (لا تُسجّل كعمليات) ----
+  // في المجموعات يصل الأمر بلاحقة اسم البوت («‎/drafts@NafBot»)، فتُنزع.
+  const command = /^\/([a-z_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/i.exec(incomingText.trim());
+  const commandName = command ? command[1].toLowerCase() : null;
+  const commandArgs = command ? (command[2] || '').trim() : '';
+
+  if (commandName === 'drafts' || /^(مسوداتي|المسودات)$/.test(incomingText.trim())) {
+    await showDocumentList(env, chatId, 'drafts', 0);
+    return;
+  }
+  if (commandName === 'search') {
+    if (commandArgs) {
+      await showSearchResults(env, chatId, commandArgs);
+    } else {
+      // الكلمة تأتي في الرسالة التالية.
+      await setConversationState(env.DB, chatId, { kind: 'search_query' });
+      await sendTelegramMessage(env, chatId, '🔎 أرسل كلمة البحث: اسم المورّد أو العميل، أو جزءاً من الوصف.');
+    }
+    return;
+  }
+  if (commandName === 'new') {
+    await clearConversationState(env.DB, chatId);
+    await sendTelegramMessage(env, chatId, '🔄 تم إلغاء أي عملية جارية. أرسل عمليتك الجديدة الآن.');
     return;
   }
 
@@ -866,9 +1014,9 @@ async function handleTelegramMessage(env, message, isEdited = false) {
   // المعلن من تليجرام مستنتج من الامتداد فلا يُعتمد عليه — يُحسم بعد التنزيل
   // من بايتات الملف نفسه في prepareMedia، وهنا نضع تصنيفاً مبدئياً فقط.
   const attachment = message.photo
-    ? { fileId: message.photo[message.photo.length - 1].file_id }
+    ? photoAttachment(message.photo)
     : message.document
-      ? { fileId: message.document.file_id }
+      ? { fileId: message.document.file_id, size: message.document.file_size || 0, compressed: false }
       : null;
 
   let sourceType = 'text';
@@ -883,10 +1031,36 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     status: 'received',
   });
 
+  // عنصر ألبوم: يُسجَّل لحظة وصوله — قبل تنزيله — كي ينتظره بقية العناصر.
+  // وإن تعذّر التسجيل — جدول الألبوم لم يُنشأ بعد (الترحيل `0008` لم يُطبَّق)
+  // أو القاعدة متعثّرة — تُعالَج الصورة وحدها كما كانت قبل الألبومات، بدل أن
+  // تفشل.
+  let albumId = attachment && message.media_group_id ? String(message.media_group_id) : null;
+  if (albumId) {
+    try {
+      await addAlbumItem(env.DB, {
+        groupId: albumId,
+        chatId,
+        messageId,
+        txId,
+        caption: message.caption || null,
+      });
+    } catch (e) {
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: 'album_merged',
+        status: 'error',
+        errorDetails: `تعذّر تسجيل عنصر الألبوم فعولج وحده: ${e.message || String(e)}`,
+      });
+      albumId = null;
+    }
+  }
+
   try {
     let finalText = message.text || message.caption || '';
     let media = null;
     let mediaR2Key = null;
+    let mediaR2Keys = null;
     let mediaType = null;
 
     // ---- معالجة الصوت ----
@@ -912,10 +1086,24 @@ async function handleTelegramMessage(env, message, isEdited = false) {
 
     // ---- معالجة المرفق (فاتورة مصوّرة أو ملف PDF) ----
     if (attachment) {
-      const buffer = await downloadTelegramFile(env, attachment.fileId);
-
-      // النوع الحقيقي والتحويل عند اللزوم (HEIC من الآيفون مثلاً) — من البايتات.
-      const prepared = await prepareMedia(env, buffer);
+      // واجهة البوت لا تنزّل ما فوق ٢٠ ميغابايت، وكان ذلك يعود خطأً مبهماً
+      // («getFile failed: 400») بعد محاولة التنزيل. فيُقال قبلها بوضوح.
+      if (attachment.size > TELEGRAM_DOWNLOAD_LIMIT) {
+        throw new Error(
+          `حجم الملف (${iso((attachment.size / 1048576).toFixed(1))} ميغابايت) يتجاوز ما يسمح تليجرام ` +
+            `للبوت بتنزيله (${iso('20')} ميغابايت). أرسل الصفحات المطلوبة فقط أو صورة مضغوطة.`
+        );
+      }
+      let prepared;
+      try {
+        const buffer = await downloadTelegramFile(env, attachment.fileId);
+        // النوع الحقيقي والتحويل عند اللزوم (HEIC من الآيفون مثلاً) — من البايتات.
+        prepared = await prepareMedia(env, buffer);
+      } catch (e) {
+        // عنصر ألبوم تعذّر تحضيره لا يُنتظر — بقية الصفحات تمضي بدونه.
+        if (albumId) await setAlbumItemMedia(env.DB, txId, '');
+        throw e;
+      }
 
       sourceType = prepared.kind === 'document' ? 'pdf' : 'image';
       mediaType = prepared.mediaType;
@@ -935,6 +1123,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       }
 
       await updateTransaction(env.DB, txId, { mediaR2Key, sourceType });
+      if (albumId) await setAlbumItemMedia(env.DB, txId, mediaR2Key, mediaType);
       media = { kind: prepared.kind, mediaType, base64: prepared.base64 };
       await writeLog(env.DB, {
         transactionId: txId,
@@ -947,6 +1136,36 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       });
     }
 
+    /* ---- ألبوم: صفحات فاتورة واحدة تُقرأ معاً ----
+       عنصرٌ واحد يستلم المجموعة ويحلّلها في طلب واحد بتعليقها، والبقية
+       تنسحب. صفّ العنصر المنسحب يبقى بحالة «مستلمة» كما تبقى رسائل التحكّم:
+       رسالةٌ وصلت ولم تصر عملية مستقلة. */
+    if (albumId) {
+      const role = await coordinateAlbum(env, { groupId: albumId, chatId, txId });
+      if (role === 'follower') {
+        await markControlReply(env, txId, 'album_merged');
+        return;
+      }
+      const items = (await listAlbumItems(env.DB, txId)).filter((i) => i.r2_key);
+      if (items.length > 1) {
+        const buffers = [];
+        for (const it of items) {
+          const obj = await env.MEDIA.get(it.r2_key);
+          if (obj) buffers.push(await obj.arrayBuffer());
+        }
+        media = await prepareAlbumMedia(env, buffers);
+        mediaR2Keys = items.map((i) => i.r2_key);
+        finalText = finalText || items.map((i) => i.caption).find(Boolean) || '';
+        await updateTransaction(env.DB, txId, { rawText: finalText || null });
+        await writeLog(env.DB, {
+          transactionId: txId,
+          action: 'album_merged',
+          status: 'info',
+          errorDetails: `${items.length} صفحات في طلب واحد`,
+        });
+      }
+    }
+
     // ---- كلمة إعادة/إلغاء تمسح أي سياق عالق وتبدأ من جديد ----
     const RESET_WORDS = ['إلغاء', 'الغاء', 'جديد', 'ابدأ من جديد', 'ابدا من جديد', 'إلغاء العملية', 'reset', 'cancel'];
     if (finalText && RESET_WORDS.includes(finalText.trim())) {
@@ -956,13 +1175,47 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       return;
     }
 
-    // ---- تأكيد الحذف (رداً على سؤال التأكيد) ----
     const pendingState = await getConversationState(env.DB, chatId, CONVERSATION_TTL_MINUTES);
+
+    // ---- كلمة البحث (بعد ‎/search بلا كلمة) ----
+    // رسالة بلا نص (صورة مثلاً) ليست كلمة بحث: يُلغى البحث وتمضي الرسالة عمليةً.
+    if (pendingState && pendingState.kind === 'search_query' && !finalText) {
+      await clearConversationState(env.DB, chatId);
+    } else if (pendingState && pendingState.kind === 'search_query') {
+      await clearConversationState(env.DB, chatId);
+      await markControlReply(env, txId, 'search');
+      await showSearchResults(env, chatId, finalText);
+      return;
+    }
+
+    // ---- نصّ التعديل (بعد زر «تعديل» على عملية بعينها) ----
+    // الهدف معروف من الزر، فلا يُسأل Claude أيّ العمليات المقصودة.
+    if (pendingState && pendingState.kind === 'edit_target') {
+      if (!finalText) {
+        await markControlReply(env, txId, 'edit_without_text');
+        await sendTelegramMessage(env, chatId, '✏️ أرسل التعديل نصّاً — مثل: <code>عدّل المبلغ إلى 600</code>.');
+        return;
+      }
+      await clearConversationState(env.DB, chatId);
+      const chosen = await getChatPostedTransaction(env.DB, chatId, pendingState.targetTxId);
+      if (!chosen) {
+        await updateTransaction(env.DB, txId, {
+          status: 'failed',
+          errorMessage: 'العملية المستهدفة لم تعد قائمة',
+        });
+        await sendTelegramMessage(env, chatId, '⚠️ العملية لم تعد قائمة — حُذفت أو عُدّلت. افتح /drafts.');
+        return;
+      }
+      await performEdit(env, { txId, chatId, messageId, chosen, instruction: finalText });
+      return;
+    }
+
+    // ---- تأكيد الحذف (رداً على سؤال التأكيد) ----
     if (pendingState && pendingState.kind === 'confirm_delete') {
       const answer = (finalText || '').trim();
       await clearConversationState(env.DB, chatId);
 
-      if (!/^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
+      if (!CONFIRM_WORDS.test(answer)) {
         await markControlReply(env, txId, 'cancel_delete');
         await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الحذف. لم يُحذف شيء.');
         return;
@@ -1032,7 +1285,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         await updateTransaction(env.DB, pendingState.originTxId, { status: 'duplicate' });
       }
 
-      if (!/^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
+      if (!CONFIRM_WORDS.test(answer)) {
         await markControlReply(env, txId, 'cancel_duplicate');
         await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الترحيل. لم تُسجّل العملية.');
         return;
@@ -1050,6 +1303,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         messageId,
         contactId: pendingState.contactId || null,
         mediaR2Key: pendingState.mediaR2Key || null,
+        mediaR2Keys: pendingState.mediaR2Keys || null,
         mediaType: pendingState.mediaType || null,
         prefix: '⚠️ <b>رُحّلت رغم التشابه</b>\n\n',
       });
@@ -1203,6 +1457,21 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     let priorContext = null;
     if (prior) {
       priorContext = prior.accumulatedText || null;
+      // صفحات ألبوم سابق تُستعاد كلها، لا الأولى وحدها.
+      if (!media && prior.mediaR2Keys?.length > 1) {
+        const buffers = [];
+        for (const key of prior.mediaR2Keys) {
+          const obj = await env.MEDIA.get(key);
+          if (obj) buffers.push(await obj.arrayBuffer());
+        }
+        const restored = await prepareAlbumMedia(env, buffers).catch(() => []);
+        if (restored.length) {
+          media = restored;
+          mediaR2Keys = prior.mediaR2Keys;
+          mediaR2Key = prior.mediaR2Key || prior.mediaR2Keys[0];
+          mediaType = prior.mediaType || null;
+        }
+      }
       // إن كان هناك مرفق سابق ولم يصل مرفق جديد، أعِد تحميله من R2 مع التحقق من صلاحيته.
       if (!media && prior.mediaR2Key) {
         const obj = await env.MEDIA.get(prior.mediaR2Key);
@@ -1242,6 +1511,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         messageId,
         contactId,
         mediaR2Key: prior.mediaR2Key,
+        mediaR2Keys: prior.mediaR2Keys || null,
         mediaType: prior.mediaType,
       });
       return;
@@ -1263,7 +1533,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     const base = baseCurrency(env);
 
     // ---- التحليل والتصنيف عبر Claude ----
-    const result = await analyzeTransaction(env, {
+    const analyzeOpts = {
       accounts,
       defaultBank,
       messageDateISO: dateISO,
@@ -1272,7 +1542,34 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       text: finalText,
       media,
       priorContext,
-    });
+      priorResult: prior?.previousResult || null,
+    };
+    const analyzeStarted = Date.now();
+    let result = await analyzeTransaction(env, analyzeOpts);
+    const analyzeMs = Date.now() - analyzeStarted;
+
+    /* ---- مراجعة حسابية، وإعادة قراءة واحدة عند الخلل ----
+       الإعادة تحمل القراءة السابقة وما اختلّ فيها تحديداً، فأغلب أخطاء
+       القراءة — سعرٌ شامل قُرئ صافياً، رقمٌ سقطت منه منزلة — تُصحَّح هنا
+       دون أن يُسأل المستخدم. وما بقي بعدها يُسأل عنه أدناه. */
+    // «تأكيد» رداً على سؤال خلل الأرقام: يُرحَّل كما قُرئ، فلا داعي لإعادة القراءة.
+    const acceptedAsRead = !!prior?.mismatchAsked && CONFIRM_WORDS.test((finalText || '').trim());
+    let check = validateExtraction(result, { accounts, todayISO: dateISO });
+    // والإعادة تضاعف زمن التحليل، والمعالجة محدودة الوقت بعد ردّ الويبهوك:
+    // تحليلٌ أوّل بطيء يُسأل بعده المستخدم مباشرة بدل المخاطرة بقطعها.
+    if (!check.ok && result.status === 'ready' && !acceptedAsRead && analyzeMs < 12000) {
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: 'extraction_check',
+        status: 'info',
+        errorDetails: `إعادة قراءة: ${check.issues.map((i) => i.code).join(',')}`,
+      });
+      result = await analyzeTransaction(env, {
+        ...analyzeOpts,
+        correction: { previous: result, prompt: correctionPrompt(check.issues) },
+      });
+      check = validateExtraction(result, { accounts, todayISO: dateISO });
+    }
     const currencyState = settleCurrency(env, result);
     await updateTransaction(env.DB, txId, {
       processedJson: JSON.stringify(result),
@@ -1291,21 +1588,76 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     }
 
     const needRate = currencyState.reason === 'no_rate';
-    if (result.status === 'need_more' || needRate) {
+    // فاتورة لم تُقرأ أصلاً لا تُرحَّل ولو عدّها النموذج جاهزة.
+    const unreadable = !!media && result.readability === 'unreadable';
+    // الصورة المضغوطة التي قُرئت ناقصة تُلحق بها نصيحة الإرسال كملف.
+    const tip = attachment?.compressed && result.readability !== 'clear' ? SEND_AS_FILE_TIP : '';
+    if (result.status === 'need_more' || needRate || unreadable) {
       const accumulated =
         (priorContext ? priorContext + '\n---\n' : '') + (finalText || mediaPlaceholder(media));
       await setConversationState(env.DB, chatId, {
         accumulatedText: accumulated,
         mediaR2Key,
+        mediaR2Keys,
         mediaType,
+        previousResult: unreadable ? null : result,
       });
       await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
       const question = needRate
         ? `كم سعر صرف ${currencyNameAr(result.currency)} (${iso(result.currency)}) مقابل ` +
           `${currencyNameAr(base)}؟ أرسل الرقم فقط — مثال: ${iso('3.75')}`
-        : result.question || 'أحتاج معلومات إضافية لإكمال العملية.';
-      await sendTelegramMessage(env, chatId, `❓ ${question}`);
+        : unreadable
+          ? 'تعذّرت قراءة الفاتورة من المرفق. أعد إرسالها كاملةً في الإطار وبإضاءة أوضح، ' +
+            'أو اكتب المبلغ واسم المورّد نصاً.'
+          : result.question || 'أحتاج معلومات إضافية لإكمال العملية.';
+      await sendTelegramMessage(
+        env,
+        chatId,
+        `❓ ${question}${unreadable && attachment?.compressed ? SEND_AS_FILE_TIP : tip}`
+      );
       return;
+    }
+
+    /* ---- قراءةٌ ما زالت مختلّة بعد الإعادة: يُسأل المستخدم ----
+       بالسياق المتراكم نفسه، فجوابه («الإجمالي ١١٥٠ شامل الضريبة») يُقرأ مع
+       الفاتورة في الجولة التالية. و«تأكيد» يرحّلها كما قُرئت: الفاتورة
+       الورقية نفسها قد تكون غير متسقة، والقرار حينها لصاحبها لا للآلة. */
+    if (!check.ok && !acceptedAsRead) {
+      const accumulated =
+        (priorContext ? priorContext + '\n---\n' : '') + (finalText || mediaPlaceholder(media));
+      await setConversationState(env.DB, chatId, {
+        accumulatedText: accumulated,
+        mediaR2Key,
+        mediaR2Keys,
+        mediaType,
+        mismatchAsked: true,
+        previousResult: result,
+      });
+      await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: 'extraction_check',
+        status: 'error',
+        errorDetails: check.issues.map((i) => i.message).join(' | '),
+      });
+      await sendTelegramMessage(
+        env,
+        chatId,
+        `⚠️ <b>أرقام الفاتورة لا تتطابق</b>\n\n` +
+          check.issues.map((i) => `• ${i.message}`).join('\n') +
+          `\n\nأرسل التصحيح (مثل: <code>الإجمالي 1150 شامل الضريبة</code>)، ` +
+          `أو اكتب «تأكيد» للترحيل كما قُرئت، أو «جديد» للإلغاء.` +
+          tip
+      );
+      return;
+    }
+    if (acceptedAsRead) {
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: 'extraction_check',
+        status: 'info',
+        errorDetails: `رُحّلت كما قُرئت بتأكيد المستخدم: ${check.issues.map((i) => i.code).join(',')}`,
+      });
     }
 
     // ---- حلّ جهة الاتصال (للفواتير) — مطابقة ذكية أو سؤال عند النقص/التعدد ----
@@ -1319,7 +1671,9 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         await setConversationState(env.DB, chatId, {
           accumulatedText: accumulated,
           mediaR2Key,
+          mediaR2Keys,
           mediaType,
+          previousResult: result,
         });
         await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
         await sendTelegramMessage(env, chatId, `❓ من أي ${who}؟ الرجاء ذكر اسم ${who} لإتمام الفاتورة.`);
@@ -1334,6 +1688,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
           analyzed: result,
           candidates: r.candidates,
           mediaR2Key,
+          mediaR2Keys,
           mediaType,
         });
         await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
@@ -1362,6 +1717,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         analyzed: result,
         contactId,
         mediaR2Key,
+        mediaR2Keys,
         mediaType,
         // صفّ العملية التي أُثير عليها التشابه — كان يبقى `awaiting_info`
         // إلى الأبد مهما كان الجواب.
@@ -1380,6 +1736,8 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     }
 
     // ---- الترحيل إلى وافق ----
+    // ما لا يمنع الترحيل ويستحق المراجعة (رقم ضريبي بصيغة غريبة) يتقدّم التأكيد.
+    const notes = check.warnings.map((w) => `ℹ️ ${w.message}`).join('\n');
     await finalizeAndPost(env, {
       txId,
       chatId,
@@ -1388,7 +1746,9 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       messageId,
       contactId,
       mediaR2Key,
+      mediaR2Keys,
       mediaType,
+      prefix: notes ? `${notes}\n\n` : '',
     });
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);
