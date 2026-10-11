@@ -351,3 +351,95 @@ export async function markRecurringRun(db, id, ym) {
     .bind(ym, id)
     .run();
 }
+
+// ----------------------------------------------------------------------------
+// صور الألبوم (media group) — `migrations/0008_media_groups.sql`
+// ----------------------------------------------------------------------------
+
+/** تسجيل عنصر ألبوم لحظة وصوله، قبل تنزيل ملفه. */
+export async function addAlbumItem(db, { groupId, chatId, messageId, txId, caption }) {
+  await db
+    .prepare(
+      `INSERT INTO media_group_items (group_id, chat_id, message_id, transaction_id, caption, created_ms)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .bind(String(groupId), String(chatId), String(messageId), txId, caption || null, Date.now())
+    .run();
+}
+
+/** ربط العنصر بملفه المحفوظ — أو '' إن تعذّر تحضيره فلا يُنتظر. */
+export async function setAlbumItemMedia(db, txId, r2Key, mediaType = null) {
+  await db
+    .prepare(`UPDATE media_group_items SET r2_key = ?, media_type = ? WHERE transaction_id = ?`)
+    .bind(r2Key, mediaType, txId)
+    .run();
+}
+
+/**
+ * محاولة استلام المجموعة كلها ذرّياً.
+ *
+ * تنجح حين تكون كل العناصر قد حُفظت ولم يصل جديدٌ منذ `quietMs` — أو دون
+ * شرطٍ مع `force`. والتحديث جملة واحدة، فلا يستلم المجموعةَ عنصران.
+ * @returns {Promise<boolean>} هل استلمها هذا العنصر.
+ */
+export async function claimAlbum(db, { groupId, chatId, txId, quietMs, force = false }) {
+  const g = String(groupId);
+  const c = String(chatId);
+  const res = await db
+    .prepare(
+      `UPDATE media_group_items SET claimed_by = ?
+       WHERE group_id = ? AND chat_id = ? AND claimed_by IS NULL
+         AND (? = 1 OR (
+           NOT EXISTS (SELECT 1 FROM media_group_items
+                       WHERE group_id = ? AND chat_id = ? AND r2_key IS NULL)
+           AND (SELECT MAX(created_ms) FROM media_group_items
+                WHERE group_id = ? AND chat_id = ?) < ?))`
+    )
+    .bind(txId, g, c, force ? 1 : 0, g, c, g, c, Date.now() - quietMs)
+    .run();
+  return Number(res?.meta?.changes || 0) > 0;
+}
+
+/** من استلم عنصر هذه العملية (null = لم يُستلم بعد). */
+export async function albumClaimedBy(db, txId) {
+  const row = await db
+    .prepare(`SELECT claimed_by FROM media_group_items WHERE transaction_id = ? LIMIT 1`)
+    .bind(txId)
+    .first();
+  return row ? row.claimed_by : null;
+}
+
+/** عناصر المجموعة التي استلمتها عملية ما، بترتيب إرسالها. */
+export async function listAlbumItems(db, leaderTxId) {
+  const { results } = await db
+    .prepare(
+      `SELECT message_id, transaction_id, r2_key, media_type, caption FROM media_group_items
+       WHERE claimed_by = ? ORDER BY CAST(message_id AS INTEGER) ASC`
+    )
+    .bind(leaderTxId)
+    .all();
+  return results || [];
+}
+
+/** مفاتيح ملفات الألبوم المرتبطة بعملية — لإرفاقها كلها بالمستند وبتعديلاته. */
+export async function getAlbumKeys(db, txId) {
+  const items = await listAlbumItems(db, txId);
+  return items.map((i) => i.r2_key).filter(Boolean);
+}
+
+/**
+ * ربط ملفات ألبوم بالعملية التي رُحّلت بها.
+ *
+ * العملية المُرحّلة قد لا تكون التي استلمت الألبوم: جوابٌ على سؤال، أو نسخةٌ
+ * معدّلة، يُرحَّل بصفّه هو. فتُنقل الملفات إليه كي تجدها التعديلات اللاحقة.
+ */
+export async function attachAlbumKeys(db, txId, keys) {
+  if (!keys || keys.length < 2) return;
+  await db
+    .prepare(
+      `UPDATE media_group_items SET claimed_by = ?
+       WHERE r2_key IN (${keys.map(() => '?').join(', ')})`
+    )
+    .bind(txId, ...keys)
+    .run();
+}

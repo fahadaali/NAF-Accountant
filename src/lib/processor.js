@@ -17,6 +17,13 @@ import {
   listPostedTransactions,
   isMessageProcessed,
   findSimilarPostedToday,
+  addAlbumItem,
+  setAlbumItemMedia,
+  claimAlbum,
+  albumClaimedBy,
+  listAlbumItems,
+  getAlbumKeys,
+  attachAlbumKeys,
 } from './db.js';
 import {
   sendTelegramMessage,
@@ -42,7 +49,7 @@ import {
   getWafeqDraftSummary,
 } from '../services/wafeq.js';
 import { resolveContact } from '../services/contacts.js';
-import { prepareMedia, prepareStoredMedia, extensionFor } from './media.js';
+import { prepareMedia, prepareStoredMedia, prepareAlbumMedia, extensionFor } from './media.js';
 import { validateExtraction, correctionPrompt } from './extraction_check.js';
 import {
   baseCurrency,
@@ -409,24 +416,26 @@ function normName(s) {
  */
 async function finalizeAndPost(env, ctx) {
   const { txId, chatId, result, accounts, messageId, contactId, mediaR2Key, mediaType, prefix } = ctx;
+  // صفحات الألبوم كلها تُرفق بالمستند؛ والمرفق المفرد مصفوفة من عنصر.
+  const mediaKeys = ctx.mediaR2Keys?.length ? ctx.mediaR2Keys : mediaR2Key ? [mediaR2Key] : [];
 
   // تحذير يُلحق برسالة التأكيد حين لا يصل المرفق إلى المستند — الصمت هنا
   // يجعل المستخدم يظنّ الملف مرفقاً وهو ليس كذلك.
   let attachmentWarning = '';
   const attachmentIds = [];
 
-  if (mediaR2Key) {
+  for (const key of mediaKeys) {
     try {
-      const obj = await env.MEDIA.get(mediaR2Key);
+      const obj = await env.MEDIA.get(key);
       if (!obj) throw new Error('الملف غير موجود في التخزين');
 
       const buf = await obj.arrayBuffer();
-      const fname = mediaR2Key.split('/').pop() || 'attachment';
+      const fname = key.split('/').pop() || 'attachment';
       const attId = await uploadAttachment(
         env,
         buf,
         fname,
-        mediaType || obj.httpMetadata?.contentType || 'application/octet-stream'
+        (mediaKeys.length === 1 && mediaType) || obj.httpMetadata?.contentType || 'application/octet-stream'
       );
       if (!attId) throw new Error('وافق لم يُرجع معرّفاً للمرفق');
       attachmentIds.push(attId);
@@ -485,7 +494,14 @@ async function finalizeAndPost(env, ctx) {
     }
   }
 
-  await updateTransaction(env.DB, txId, { wafeqDraftId: wafeqId, status: 'posted' });
+  // المرفق يُربط بالصفّ الذي رُحّل — قد يكون جواباً على سؤال لا الرسالة التي
+  // حملت الملف — فتجده التعديلات اللاحقة ولا يضيع عند أولها.
+  await updateTransaction(env.DB, txId, {
+    wafeqDraftId: wafeqId,
+    status: 'posted',
+    mediaR2Key: mediaKeys[0] || undefined,
+  });
+  await attachAlbumKeys(env.DB, txId, mediaKeys);
   await writeLog(env.DB, { transactionId: txId, action: 'wafeq_post', status: 'success' });
   await clearConversationState(env.DB, chatId);
 
@@ -542,6 +558,9 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
     contactId = r.contactId;
   }
 
+  // صفحات الألبوم تنتقل مع العملية إلى نسختها المعدّلة كما ينتقل المرفق المفرد.
+  const albumKeys = await getAlbumKeys(env.DB, chosen.id);
+
   // احذف المستند القديم أولاً لتجنّب التكرار في وافق.
   try {
     await deleteDocument(env, chosen.result.type, chosen.wafeqId);
@@ -583,6 +602,7 @@ async function performEdit(env, { txId, chatId, messageId, chosen, instruction }
       // المرفق ينتقل مع العملية إلى نسختها المعدّلة — التعديل يعيد إنشاء المستند
       // في وافق، فلولا هذا لضاع مرفق الفاتورة عند أول تعديل على المبلغ.
       mediaR2Key: chosen.mediaR2Key || null,
+      mediaR2Keys: albumKeys.length ? albumKeys : null,
       mediaType: null,
       prefix: '✏️ <b>تم تعديل العملية</b> (حُذفت النسخة السابقة وأُنشئت محدّثة)\n\n',
     });
@@ -752,6 +772,33 @@ const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانوني
 function mediaPlaceholder(media) {
   if (!media) return '';
   return media.kind === 'document' ? '(ملف PDF مرفق)' : '(صورة مرفقة)';
+}
+
+/* ═══ توقيت الألبوم ═══
+   تصل صور الألبوم تحديثاتٍ متتابعة خلال ثانية أو اثنتين، وكلٌّ منها يُنزَّل
+   ويُحضَّر على حدة. فينتظر كل عنصر قليلاً ثم يحاول الاستلام: ينجح حين تكون
+   كل العناصر محفوظة ولم يصل جديدٌ منذ ALBUM_QUIET_MS. وبعد آخر محاولة يُستلم
+   بلا شرط، فلا يعلق ألبومٌ عنصرُه الأخير لم يكتمل. */
+const ALBUM_FIRST_WAIT_MS = 3000;
+const ALBUM_POLL_MS = 1500;
+const ALBUM_QUIET_MS = 2000;
+const ALBUM_MAX_POLLS = 4;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** @returns {Promise<'leader'|'follower'>} دور هذا العنصر في ألبومه. */
+async function coordinateAlbum(env, { groupId, chatId, txId }) {
+  await sleep(ALBUM_FIRST_WAIT_MS);
+  for (let poll = 0; poll <= ALBUM_MAX_POLLS; poll++) {
+    const force = poll === ALBUM_MAX_POLLS;
+    if (await claimAlbum(env.DB, { groupId, chatId, txId, quietMs: ALBUM_QUIET_MS, force })) {
+      return 'leader';
+    }
+    const by = await albumClaimedBy(env.DB, txId);
+    if (by !== null && by !== undefined) return by === txId ? 'leader' : 'follower';
+    if (!force) await sleep(ALBUM_POLL_MS);
+  }
+  // لم يُستلم ولم يستلم — يُعالَج وحده بدل أن يضيع.
+  return 'leader';
 }
 
 /** أقصى حجم يسمح تليجرام للبوت بتنزيله عبر getFile. */
@@ -929,10 +976,23 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     status: 'received',
   });
 
+  // عنصر ألبوم: يُسجَّل لحظة وصوله — قبل تنزيله — كي ينتظره بقية العناصر.
+  const albumId = attachment && message.media_group_id ? String(message.media_group_id) : null;
+  if (albumId) {
+    await addAlbumItem(env.DB, {
+      groupId: albumId,
+      chatId,
+      messageId,
+      txId,
+      caption: message.caption || null,
+    });
+  }
+
   try {
     let finalText = message.text || message.caption || '';
     let media = null;
     let mediaR2Key = null;
+    let mediaR2Keys = null;
     let mediaType = null;
 
     // ---- معالجة الصوت ----
@@ -966,10 +1026,16 @@ async function handleTelegramMessage(env, message, isEdited = false) {
             `للبوت بتنزيله (${iso('20')} ميغابايت). أرسل الصفحات المطلوبة فقط أو صورة مضغوطة.`
         );
       }
-      const buffer = await downloadTelegramFile(env, attachment.fileId);
-
-      // النوع الحقيقي والتحويل عند اللزوم (HEIC من الآيفون مثلاً) — من البايتات.
-      const prepared = await prepareMedia(env, buffer);
+      let prepared;
+      try {
+        const buffer = await downloadTelegramFile(env, attachment.fileId);
+        // النوع الحقيقي والتحويل عند اللزوم (HEIC من الآيفون مثلاً) — من البايتات.
+        prepared = await prepareMedia(env, buffer);
+      } catch (e) {
+        // عنصر ألبوم تعذّر تحضيره لا يُنتظر — بقية الصفحات تمضي بدونه.
+        if (albumId) await setAlbumItemMedia(env.DB, txId, '');
+        throw e;
+      }
 
       sourceType = prepared.kind === 'document' ? 'pdf' : 'image';
       mediaType = prepared.mediaType;
@@ -989,6 +1055,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       }
 
       await updateTransaction(env.DB, txId, { mediaR2Key, sourceType });
+      if (albumId) await setAlbumItemMedia(env.DB, txId, mediaR2Key, mediaType);
       media = { kind: prepared.kind, mediaType, base64: prepared.base64 };
       await writeLog(env.DB, {
         transactionId: txId,
@@ -999,6 +1066,36 @@ async function handleTelegramMessage(env, message, isEdited = false) {
             ? null
             : `converted ${prepared.originalType} -> ${prepared.mediaType}`,
       });
+    }
+
+    /* ---- ألبوم: صفحات فاتورة واحدة تُقرأ معاً ----
+       عنصرٌ واحد يستلم المجموعة ويحلّلها في طلب واحد بتعليقها، والبقية
+       تنسحب. صفّ العنصر المنسحب يبقى بحالة «مستلمة» كما تبقى رسائل التحكّم:
+       رسالةٌ وصلت ولم تصر عملية مستقلة. */
+    if (albumId) {
+      const role = await coordinateAlbum(env, { groupId: albumId, chatId, txId });
+      if (role === 'follower') {
+        await markControlReply(env, txId, 'album_merged');
+        return;
+      }
+      const items = (await listAlbumItems(env.DB, txId)).filter((i) => i.r2_key);
+      if (items.length > 1) {
+        const buffers = [];
+        for (const it of items) {
+          const obj = await env.MEDIA.get(it.r2_key);
+          if (obj) buffers.push(await obj.arrayBuffer());
+        }
+        media = await prepareAlbumMedia(env, buffers);
+        mediaR2Keys = items.map((i) => i.r2_key);
+        finalText = finalText || items.map((i) => i.caption).find(Boolean) || '';
+        await updateTransaction(env.DB, txId, { rawText: finalText || null });
+        await writeLog(env.DB, {
+          transactionId: txId,
+          action: 'album_merged',
+          status: 'info',
+          errorDetails: `${items.length} صفحات في طلب واحد`,
+        });
+      }
     }
 
     // ---- كلمة إعادة/إلغاء تمسح أي سياق عالق وتبدأ من جديد ----
@@ -1104,6 +1201,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         messageId,
         contactId: pendingState.contactId || null,
         mediaR2Key: pendingState.mediaR2Key || null,
+        mediaR2Keys: pendingState.mediaR2Keys || null,
         mediaType: pendingState.mediaType || null,
         prefix: '⚠️ <b>رُحّلت رغم التشابه</b>\n\n',
       });
@@ -1257,6 +1355,21 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     let priorContext = null;
     if (prior) {
       priorContext = prior.accumulatedText || null;
+      // صفحات ألبوم سابق تُستعاد كلها، لا الأولى وحدها.
+      if (!media && prior.mediaR2Keys?.length > 1) {
+        const buffers = [];
+        for (const key of prior.mediaR2Keys) {
+          const obj = await env.MEDIA.get(key);
+          if (obj) buffers.push(await obj.arrayBuffer());
+        }
+        const restored = await prepareAlbumMedia(env, buffers).catch(() => []);
+        if (restored.length) {
+          media = restored;
+          mediaR2Keys = prior.mediaR2Keys;
+          mediaR2Key = prior.mediaR2Key || prior.mediaR2Keys[0];
+          mediaType = prior.mediaType || null;
+        }
+      }
       // إن كان هناك مرفق سابق ولم يصل مرفق جديد، أعِد تحميله من R2 مع التحقق من صلاحيته.
       if (!media && prior.mediaR2Key) {
         const obj = await env.MEDIA.get(prior.mediaR2Key);
@@ -1296,6 +1409,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         messageId,
         contactId,
         mediaR2Key: prior.mediaR2Key,
+        mediaR2Keys: prior.mediaR2Keys || null,
         mediaType: prior.mediaType,
       });
       return;
@@ -1382,6 +1496,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       await setConversationState(env.DB, chatId, {
         accumulatedText: accumulated,
         mediaR2Key,
+        mediaR2Keys,
         mediaType,
         previousResult: unreadable ? null : result,
       });
@@ -1411,6 +1526,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       await setConversationState(env.DB, chatId, {
         accumulatedText: accumulated,
         mediaR2Key,
+        mediaR2Keys,
         mediaType,
         mismatchAsked: true,
         previousResult: result,
@@ -1453,6 +1569,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         await setConversationState(env.DB, chatId, {
           accumulatedText: accumulated,
           mediaR2Key,
+          mediaR2Keys,
           mediaType,
           previousResult: result,
         });
@@ -1469,6 +1586,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
           analyzed: result,
           candidates: r.candidates,
           mediaR2Key,
+          mediaR2Keys,
           mediaType,
         });
         await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
@@ -1497,6 +1615,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         analyzed: result,
         contactId,
         mediaR2Key,
+        mediaR2Keys,
         mediaType,
         // صفّ العملية التي أُثير عليها التشابه — كان يبقى `awaiting_info`
         // إلى الأبد مهما كان الجواب.
@@ -1525,6 +1644,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       messageId,
       contactId,
       mediaR2Key,
+      mediaR2Keys,
       mediaType,
       prefix: notes ? `${notes}\n\n` : '',
     });

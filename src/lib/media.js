@@ -286,3 +286,67 @@ export function prepareStoredMedia(buffer) {
   }
   return null;
 }
+
+/**
+ * سقف حجم ملفات الألبوم مجتمعةً قبل الترميز.
+ * حدّ طلب Claude ٣٢ ميغابايت، وbase64 يزيد الثلث، ويبقى هامش للنص والشجرة.
+ */
+const ALBUM_BUDGET_BYTES = 20 * 1024 * 1024;
+
+/**
+ * تحضير صفحات فاتورة واحدة أُرسلت ألبوماً، لطلب Claude واحد.
+ *
+ * كل عنصر سبق أن مرّ بـ`prepareMedia` وحُفظ، فصيغته مقبولة. لكن عشر صور
+ * بحدّها الفردي (٤٫٨ ميغابايت) تتجاوز حدّ الطلب كاملاً، فتُصغَّر الصور إلى
+ * ١٦٠٠ بكسل — دقةٌ تكفي لقراءة الأرقام — حين يتجاوز مجموعها السقف.
+ *
+ * @param {object} env
+ * @param {Array<ArrayBuffer>} buffers بايتات العناصر بالترتيب.
+ * @returns {Promise<Array<{kind:'image'|'document', mediaType:string, base64:string}>>}
+ */
+export async function prepareAlbumMedia(env, buffers) {
+  const total = buffers.reduce((s, b) => s + b.byteLength, 0);
+  const shrink = total > ALBUM_BUDGET_BYTES;
+  const out = [];
+  let size = 0;
+
+  for (const buffer of buffers) {
+    const detected = sniffMediaType(buffer);
+    if (!detected) continue;
+    let bytes = buffer;
+    let mediaType = detected;
+
+    if (shrink && detected !== 'application/pdf' && env.IMAGES) {
+      try {
+        const result = await env.IMAGES.input(new Blob([buffer]).stream())
+          .transform({ width: 1600, fit: 'scale-down' })
+          .output({ format: 'image/jpeg', quality: 80 });
+        bytes = await result.response().arrayBuffer();
+        mediaType = 'image/jpeg';
+      } catch (_) {
+        /* يبقى الأصل، ويحكم السقف أدناه. */
+      }
+    }
+
+    const accepted =
+      mediaType === 'application/pdf'
+        ? bytes.byteLength <= MAX_PDF_BYTES
+        : CLAUDE_IMAGE_TYPES.includes(mediaType) && bytes.byteLength <= MAX_IMAGE_BYTES;
+    if (!accepted) continue;
+
+    size += bytes.byteLength;
+    out.push({
+      kind: mediaType === 'application/pdf' ? 'document' : 'image',
+      mediaType,
+      base64: arrayBufferToBase64(bytes),
+    });
+  }
+
+  if (size > ALBUM_BUDGET_BYTES) {
+    throw new Error(
+      `صفحات الألبوم مجتمعةً أكبر من أن تُقرأ في طلب واحد. أرسلها على دفعات أصغر، ` +
+        `أو أرسل الفاتورة ملف ${iso('PDF')} واحداً.`
+    );
+  }
+  return out;
+}
