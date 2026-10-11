@@ -170,6 +170,36 @@ export function diagnoseClaudeError(status, body) {
   return { reason: 'unknown', message: `تعذّر الاتصال بخدمة Claude (رمز ${status}): ${detail}` };
 }
 
+/* ═══ إعادة المحاولة عند الضغط العابر ═══
+
+   ٤٢٩ (حدّ المعدّل) و٥٢٩ (ضغط الخدمة) و٥xx أعطالٌ عابرة توصي Anthropic
+   بإعادة المحاولة عندها، وكانت تُفشل العملية من أول ردّ فيُطلب من المستخدم
+   إعادة الإرسال يدوياً. فتُعاد مرتين بانتظارٍ متزايد يحترم `retry-after`.
+
+   والمعالجة تجري في `waitUntil` بعد ردّ الويبهوك، ووقتها محدود؛ فلا إعادة
+   بعد أن يتجاوز الطلب الأول ميزانيته — انتظارٌ يُسقط العملية كلّها عند حدّ
+   المنصة أسوأ من خطأٍ واضح الآن. */
+const RETRY_WAITS_MS = [2000, 5000];
+const RETRY_BUDGET_MS = 12000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function isTransientStatus(status) {
+  return status === 429 || status === 529 || (status >= 500 && status < 600);
+}
+
+async function fetchWithRetry(url, init) {
+  const started = Date.now();
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, init);
+    const wait = RETRY_WAITS_MS[attempt];
+    if (!isTransientStatus(res.status) || wait === undefined) return res;
+    const after = Number(res.headers?.get?.('retry-after')) * 1000;
+    const delay = Math.min(Number.isFinite(after) && after > 0 ? after : wait, 10000);
+    if (Date.now() - started + delay > RETRY_BUDGET_MS) return res;
+    await sleep(delay);
+  }
+}
+
 /**
  * نداء واحد إلى Claude يمرّ منه كل استدعاء في هذا الملف.
  *
@@ -193,7 +223,7 @@ export function diagnoseClaudeError(status, body) {
  * @returns {Promise<object>} ردّ الواجهة كاملاً بعد فحص stop_reason.
  */
 async function requestClaude(env, { system, content, maxTokens = 2048, label = 'Claude', extra = {} }) {
-  const res = await fetch(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
+  const res = await fetchWithRetry(`${env.CLAUDE_API_BASE || 'https://api.anthropic.com/v1'}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -389,13 +419,24 @@ function mediaBlock(m) {
  *                                      (ألبوم صور). الصور تُرسل ككتل image، وملفات PDF ككتلة
  *                                      document يقرأها Claude نصّاً ورؤيةً لكل صفحة.
  * @param {string|null} opts.priorContext  سياق سابق متراكم (عند استكمال حوار ناقص).
+ * @param {object|null} [opts.priorResult]  نتيجة الجولة السابقة من الحوار نفسه، تُحدَّث لا تُعاد.
  * @param {{previous:object, prompt:string}|null} [opts.correction] إعادة قراءة بعد مراجعة
  *                                      حسابية كشفت خللاً (`src/lib/extraction_check.js`).
  * @returns {Promise<object>} كائن التصنيف المنظّم.
  */
 export async function analyzeTransaction(env, opts) {
-  const { accounts, defaultBank, messageDateISO, vatPercent, baseCurrency, text, media, priorContext, correction } =
-    opts;
+  const {
+    accounts,
+    defaultBank,
+    messageDateISO,
+    vatPercent,
+    baseCurrency,
+    text,
+    media,
+    priorContext,
+    priorResult,
+    correction,
+  } = opts;
   const system = buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent, baseCurrency);
 
   const files = (Array.isArray(media) ? media : media ? [media] : []).filter(Boolean);
@@ -403,7 +444,15 @@ export async function analyzeTransaction(env, opts) {
 
   let userText = '';
   if (priorContext) {
-    userText += `# سياق سابق من نفس المحادثة (عملية غير مكتملة):\n${priorContext}\n\n# رسالة المستخدم الجديدة لاستكمال الناقص:\n`;
+    userText += `# سياق سابق من نفس المحادثة (عملية غير مكتملة):\n${priorContext}\n\n`;
+    // القراءة السابقة للمرفق تُبنى عليها الجولة: كانت كل جولة تقرأ الفاتورة
+    // من الصفر، فيتغيّر ما صحّ فيها بين جواب وآخر.
+    if (priorResult) {
+      userText +=
+        `# قراءتك السابقة للعملية — حدّثها بما في الرسالة الجديدة، وأبقِ ما لم يتغيّر:\n` +
+        `${JSON.stringify(priorResult)}\n\n`;
+    }
+    userText += `# رسالة المستخدم الجديدة لاستكمال الناقص:\n`;
   }
   userText += text || '';
   if (files.some((m) => m.kind === 'document')) {

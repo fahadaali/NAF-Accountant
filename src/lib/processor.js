@@ -754,6 +754,23 @@ function mediaPlaceholder(media) {
   return media.kind === 'document' ? '(ملف PDF مرفق)' : '(صورة مرفقة)';
 }
 
+/** أقصى حجم يسمح تليجرام للبوت بتنزيله عبر getFile. */
+const TELEGRAM_DOWNLOAD_LIMIT = 20 * 1024 * 1024;
+
+/**
+ * أكبر نسخة من صورة تليجرام المضغوطة.
+ * تليجرام يعيد ضغط الصورة المرسلة «صورةً» إلى قرابة ١٢٨٠ بكسل، فتضيع
+ * تفاصيل الإيصالات الكثيفة — و`compressed` يُبقي ذلك معروفاً لنصيحة المستخدم.
+ */
+function photoAttachment(sizes) {
+  const largest = sizes[sizes.length - 1];
+  return { fileId: largest.file_id, size: largest.file_size || 0, compressed: true };
+}
+
+/** نصيحة تُلحق حين تُقرأ صورة مضغوطة قراءةً ناقصة. */
+const SEND_AS_FILE_TIP =
+  '\n\n💡 لدقة أعلى أرسل الفاتورة <b>كملف</b> لا كصورة (📎 ← ملف): تليجرام يضغط الصور فتضيع أرقامها الصغيرة.';
+
 /** تصنيف مبدئي لمرفق تليجرام: هل يبدو ملف PDF من نوعه المعلن أو اسمه؟ */
 function looksLikePdf(document) {
   if (!document) return false;
@@ -895,9 +912,9 @@ async function handleTelegramMessage(env, message, isEdited = false) {
   // المعلن من تليجرام مستنتج من الامتداد فلا يُعتمد عليه — يُحسم بعد التنزيل
   // من بايتات الملف نفسه في prepareMedia، وهنا نضع تصنيفاً مبدئياً فقط.
   const attachment = message.photo
-    ? { fileId: message.photo[message.photo.length - 1].file_id }
+    ? photoAttachment(message.photo)
     : message.document
-      ? { fileId: message.document.file_id }
+      ? { fileId: message.document.file_id, size: message.document.file_size || 0, compressed: false }
       : null;
 
   let sourceType = 'text';
@@ -941,6 +958,14 @@ async function handleTelegramMessage(env, message, isEdited = false) {
 
     // ---- معالجة المرفق (فاتورة مصوّرة أو ملف PDF) ----
     if (attachment) {
+      // واجهة البوت لا تنزّل ما فوق ٢٠ ميغابايت، وكان ذلك يعود خطأً مبهماً
+      // («getFile failed: 400») بعد محاولة التنزيل. فيُقال قبلها بوضوح.
+      if (attachment.size > TELEGRAM_DOWNLOAD_LIMIT) {
+        throw new Error(
+          `حجم الملف (${iso((attachment.size / 1048576).toFixed(1))} ميغابايت) يتجاوز ما يسمح تليجرام ` +
+            `للبوت بتنزيله (${iso('20')} ميغابايت). أرسل الصفحات المطلوبة فقط أو صورة مضغوطة.`
+        );
+      }
       const buffer = await downloadTelegramFile(env, attachment.fileId);
 
       // النوع الحقيقي والتحويل عند اللزوم (HEIC من الآيفون مثلاً) — من البايتات.
@@ -1301,8 +1326,11 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       text: finalText,
       media,
       priorContext,
+      priorResult: prior?.previousResult || null,
     };
+    const analyzeStarted = Date.now();
     let result = await analyzeTransaction(env, analyzeOpts);
+    const analyzeMs = Date.now() - analyzeStarted;
 
     /* ---- مراجعة حسابية، وإعادة قراءة واحدة عند الخلل ----
        الإعادة تحمل القراءة السابقة وما اختلّ فيها تحديداً، فأغلب أخطاء
@@ -1311,7 +1339,9 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     // «تأكيد» رداً على سؤال خلل الأرقام: يُرحَّل كما قُرئ، فلا داعي لإعادة القراءة.
     const acceptedAsRead = !!prior?.mismatchAsked && CONFIRM_WORDS.test((finalText || '').trim());
     let check = validateExtraction(result, { accounts, todayISO: dateISO });
-    if (!check.ok && result.status === 'ready' && !acceptedAsRead) {
+    // والإعادة تضاعف زمن التحليل، والمعالجة محدودة الوقت بعد ردّ الويبهوك:
+    // تحليلٌ أوّل بطيء يُسأل بعده المستخدم مباشرة بدل المخاطرة بقطعها.
+    if (!check.ok && result.status === 'ready' && !acceptedAsRead && analyzeMs < 12000) {
       await writeLog(env.DB, {
         transactionId: txId,
         action: 'extraction_check',
@@ -1342,20 +1372,32 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     }
 
     const needRate = currencyState.reason === 'no_rate';
-    if (result.status === 'need_more' || needRate) {
+    // فاتورة لم تُقرأ أصلاً لا تُرحَّل ولو عدّها النموذج جاهزة.
+    const unreadable = !!media && result.readability === 'unreadable';
+    // الصورة المضغوطة التي قُرئت ناقصة تُلحق بها نصيحة الإرسال كملف.
+    const tip = attachment?.compressed && result.readability !== 'clear' ? SEND_AS_FILE_TIP : '';
+    if (result.status === 'need_more' || needRate || unreadable) {
       const accumulated =
         (priorContext ? priorContext + '\n---\n' : '') + (finalText || mediaPlaceholder(media));
       await setConversationState(env.DB, chatId, {
         accumulatedText: accumulated,
         mediaR2Key,
         mediaType,
+        previousResult: unreadable ? null : result,
       });
       await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
       const question = needRate
         ? `كم سعر صرف ${currencyNameAr(result.currency)} (${iso(result.currency)}) مقابل ` +
           `${currencyNameAr(base)}؟ أرسل الرقم فقط — مثال: ${iso('3.75')}`
-        : result.question || 'أحتاج معلومات إضافية لإكمال العملية.';
-      await sendTelegramMessage(env, chatId, `❓ ${question}`);
+        : unreadable
+          ? 'تعذّرت قراءة الفاتورة من المرفق. أعد إرسالها كاملةً في الإطار وبإضاءة أوضح، ' +
+            'أو اكتب المبلغ واسم المورّد نصاً.'
+          : result.question || 'أحتاج معلومات إضافية لإكمال العملية.';
+      await sendTelegramMessage(
+        env,
+        chatId,
+        `❓ ${question}${unreadable && attachment?.compressed ? SEND_AS_FILE_TIP : tip}`
+      );
       return;
     }
 
@@ -1371,6 +1413,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         mediaR2Key,
         mediaType,
         mismatchAsked: true,
+        previousResult: result,
       });
       await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
       await writeLog(env.DB, {
@@ -1385,7 +1428,8 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         `⚠️ <b>أرقام الفاتورة لا تتطابق</b>\n\n` +
           check.issues.map((i) => `• ${i.message}`).join('\n') +
           `\n\nأرسل التصحيح (مثل: <code>الإجمالي 1150 شامل الضريبة</code>)، ` +
-          `أو اكتب «تأكيد» للترحيل كما قُرئت، أو «جديد» للإلغاء.`
+          `أو اكتب «تأكيد» للترحيل كما قُرئت، أو «جديد» للإلغاء.` +
+          tip
       );
       return;
     }
@@ -1410,6 +1454,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
           accumulatedText: accumulated,
           mediaR2Key,
           mediaType,
+          previousResult: result,
         });
         await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
         await sendTelegramMessage(env, chatId, `❓ من أي ${who}؟ الرجاء ذكر اسم ${who} لإتمام الفاتورة.`);

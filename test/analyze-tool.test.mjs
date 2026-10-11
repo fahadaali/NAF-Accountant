@@ -107,3 +107,48 @@ test('ردّ بلا كتلة أداة يُرفض برسالة عربية لا ب
     /لم يُرجع النموذج نتيجة منظّمة/
   );
 });
+
+test('ضغط الخدمة (529) يُعاد بعده الطلب بدل إفشال العملية', async () => {
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls === 1) {
+      return new Response('{"type":"error","error":{"type":"overloaded_error"}}', {
+        status: 529,
+        headers: { 'retry-after': '0' },
+      });
+    }
+    return new Response(
+      JSON.stringify({ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'record_transaction', input: BILL }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  };
+  // الانتظار الأول ثانيتان — يُختصر هنا ليبقى الاختبار سريعاً.
+  const realTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = (fn) => realTimeout(fn, 0);
+  try {
+    const out = await analyzeTransaction({ CLAUDE_API_KEY: 'k' }, { ...OPTS, text: 'دفعت 100' });
+    assert.equal(calls, 2);
+    assert.equal(out.type, 'purchase_bill');
+  } finally {
+    globalThis.fetch = realFetch;
+    globalThis.setTimeout = realTimeout;
+  }
+});
+
+test('القراءة السابقة تُمرَّر مع السياق في جولة الاستكمال', async () => {
+  const { requests } = await withFakeClaude(
+    { stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'record_transaction', input: BILL }] },
+    () =>
+      analyzeTransaction({ CLAUDE_API_KEY: 'k' }, {
+        ...OPTS,
+        text: 'المورّد جرير',
+        priorContext: '(صورة مرفقة)',
+        priorResult: { ...BILL, contact_name: null },
+      })
+  );
+  const text = requests[0].body.messages[0].content.at(-1).text;
+  assert.match(text, /قراءتك السابقة للعملية/);
+  assert.match(text, /INV-2291/);
+});
