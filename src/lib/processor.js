@@ -43,6 +43,7 @@ import {
 } from '../services/wafeq.js';
 import { resolveContact } from '../services/contacts.js';
 import { prepareMedia, prepareStoredMedia, extensionFor } from './media.js';
+import { validateExtraction, correctionPrompt } from './extraction_check.js';
 import {
   baseCurrency,
   currencyNameAr,
@@ -52,6 +53,9 @@ import {
   resolveExchangeRate,
   toBaseAmount,
 } from './currency.js';
+
+/** كلمات تأكيد الإجراء المعلّق (حذف، ترحيل رغم التشابه، ترحيل رغم خلل الأرقام). */
+const CONFIRM_WORDS = /^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i;
 
 /* مهلة سياق المحادثة — رقم واحد لكل القراءات.
    كانت ٦٠ دقيقة في فحص حالات التأكيد، والافتراضية ٣٠ في استرجاع السياق
@@ -987,7 +991,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       const answer = (finalText || '').trim();
       await clearConversationState(env.DB, chatId);
 
-      if (!/^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
+      if (!CONFIRM_WORDS.test(answer)) {
         await markControlReply(env, txId, 'cancel_delete');
         await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الحذف. لم يُحذف شيء.');
         return;
@@ -1057,7 +1061,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         await updateTransaction(env.DB, pendingState.originTxId, { status: 'duplicate' });
       }
 
-      if (!/^(تأكيد|تاكيد|نعم|أجل|اجل|تم|أكيد|اكيد|yes|y)$/i.test(answer)) {
+      if (!CONFIRM_WORDS.test(answer)) {
         await markControlReply(env, txId, 'cancel_duplicate');
         await sendTelegramMessage(env, chatId, '✔️ تم إلغاء الترحيل. لم تُسجّل العملية.');
         return;
@@ -1288,7 +1292,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     const base = baseCurrency(env);
 
     // ---- التحليل والتصنيف عبر Claude ----
-    const result = await analyzeTransaction(env, {
+    const analyzeOpts = {
       accounts,
       defaultBank,
       messageDateISO: dateISO,
@@ -1297,7 +1301,29 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       text: finalText,
       media,
       priorContext,
-    });
+    };
+    let result = await analyzeTransaction(env, analyzeOpts);
+
+    /* ---- مراجعة حسابية، وإعادة قراءة واحدة عند الخلل ----
+       الإعادة تحمل القراءة السابقة وما اختلّ فيها تحديداً، فأغلب أخطاء
+       القراءة — سعرٌ شامل قُرئ صافياً، رقمٌ سقطت منه منزلة — تُصحَّح هنا
+       دون أن يُسأل المستخدم. وما بقي بعدها يُسأل عنه أدناه. */
+    // «تأكيد» رداً على سؤال خلل الأرقام: يُرحَّل كما قُرئ، فلا داعي لإعادة القراءة.
+    const acceptedAsRead = !!prior?.mismatchAsked && CONFIRM_WORDS.test((finalText || '').trim());
+    let check = validateExtraction(result, { accounts, todayISO: dateISO });
+    if (!check.ok && result.status === 'ready' && !acceptedAsRead) {
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: 'extraction_check',
+        status: 'info',
+        errorDetails: `إعادة قراءة: ${check.issues.map((i) => i.code).join(',')}`,
+      });
+      result = await analyzeTransaction(env, {
+        ...analyzeOpts,
+        correction: { previous: result, prompt: correctionPrompt(check.issues) },
+      });
+      check = validateExtraction(result, { accounts, todayISO: dateISO });
+    }
     const currencyState = settleCurrency(env, result);
     await updateTransaction(env.DB, txId, {
       processedJson: JSON.stringify(result),
@@ -1331,6 +1357,45 @@ async function handleTelegramMessage(env, message, isEdited = false) {
         : result.question || 'أحتاج معلومات إضافية لإكمال العملية.';
       await sendTelegramMessage(env, chatId, `❓ ${question}`);
       return;
+    }
+
+    /* ---- قراءةٌ ما زالت مختلّة بعد الإعادة: يُسأل المستخدم ----
+       بالسياق المتراكم نفسه، فجوابه («الإجمالي ١١٥٠ شامل الضريبة») يُقرأ مع
+       الفاتورة في الجولة التالية. و«تأكيد» يرحّلها كما قُرئت: الفاتورة
+       الورقية نفسها قد تكون غير متسقة، والقرار حينها لصاحبها لا للآلة. */
+    if (!check.ok && !acceptedAsRead) {
+      const accumulated =
+        (priorContext ? priorContext + '\n---\n' : '') + (finalText || mediaPlaceholder(media));
+      await setConversationState(env.DB, chatId, {
+        accumulatedText: accumulated,
+        mediaR2Key,
+        mediaType,
+        mismatchAsked: true,
+      });
+      await updateTransaction(env.DB, txId, { status: 'awaiting_info' });
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: 'extraction_check',
+        status: 'error',
+        errorDetails: check.issues.map((i) => i.message).join(' | '),
+      });
+      await sendTelegramMessage(
+        env,
+        chatId,
+        `⚠️ <b>أرقام الفاتورة لا تتطابق</b>\n\n` +
+          check.issues.map((i) => `• ${i.message}`).join('\n') +
+          `\n\nأرسل التصحيح (مثل: <code>الإجمالي 1150 شامل الضريبة</code>)، ` +
+          `أو اكتب «تأكيد» للترحيل كما قُرئت، أو «جديد» للإلغاء.`
+      );
+      return;
+    }
+    if (acceptedAsRead) {
+      await writeLog(env.DB, {
+        transactionId: txId,
+        action: 'extraction_check',
+        status: 'info',
+        errorDetails: `رُحّلت كما قُرئت بتأكيد المستخدم: ${check.issues.map((i) => i.code).join(',')}`,
+      });
     }
 
     // ---- حلّ جهة الاتصال (للفواتير) — مطابقة ذكية أو سؤال عند النقص/التعدد ----
@@ -1405,6 +1470,8 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     }
 
     // ---- الترحيل إلى وافق ----
+    // ما لا يمنع الترحيل ويستحق المراجعة (رقم ضريبي بصيغة غريبة) يتقدّم التأكيد.
+    const notes = check.warnings.map((w) => `ℹ️ ${w.message}`).join('\n');
     await finalizeAndPost(env, {
       txId,
       chatId,
@@ -1414,6 +1481,7 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       contactId,
       mediaR2Key,
       mediaType,
+      prefix: notes ? `${notes}\n\n` : '',
     });
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);

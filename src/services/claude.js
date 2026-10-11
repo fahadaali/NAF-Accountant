@@ -389,10 +389,13 @@ function mediaBlock(m) {
  *                                      (ألبوم صور). الصور تُرسل ككتل image، وملفات PDF ككتلة
  *                                      document يقرأها Claude نصّاً ورؤيةً لكل صفحة.
  * @param {string|null} opts.priorContext  سياق سابق متراكم (عند استكمال حوار ناقص).
+ * @param {{previous:object, prompt:string}|null} [opts.correction] إعادة قراءة بعد مراجعة
+ *                                      حسابية كشفت خللاً (`src/lib/extraction_check.js`).
  * @returns {Promise<object>} كائن التصنيف المنظّم.
  */
 export async function analyzeTransaction(env, opts) {
-  const { accounts, defaultBank, messageDateISO, vatPercent, baseCurrency, text, media, priorContext } = opts;
+  const { accounts, defaultBank, messageDateISO, vatPercent, baseCurrency, text, media, priorContext, correction } =
+    opts;
   const system = buildSystemPrompt(accounts, defaultBank, messageDateISO, vatPercent, baseCurrency);
 
   const files = (Array.isArray(media) ? media : media ? [media] : []).filter(Boolean);
@@ -416,6 +419,11 @@ export async function analyzeTransaction(env, opts) {
     userText +=
       '\n\n(المرفق صورة فاتورة — استخرج بياناتها: المورّد/العميل، رقم الفاتورة وتاريخها، ' +
       'الرقم الضريبي، البنود، المجاميع المطبوعة.)';
+  }
+  // إعادة القراءة بعد مراجعة حسابية: النتيجة السابقة وما اختلّ فيها.
+  if (correction) {
+    userText +=
+      `\n\n# قراءتك السابقة:\n${JSON.stringify(correction.previous)}\n\n${correction.prompt}`;
   }
   userContent.push({ type: 'text', text: userText || '(بدون نص)' });
 
