@@ -15,6 +15,7 @@ import {
   getPostedTransactionByWafeqId,
   searchPostedTransactions,
   listPostedTransactions,
+  getChatPostedTransaction,
   isMessageProcessed,
   findSimilarPostedToday,
   addAlbumItem,
@@ -51,6 +52,13 @@ import {
 import { resolveContact } from '../services/contacts.js';
 import { prepareMedia, prepareStoredMedia, prepareAlbumMedia, extensionFor } from './media.js';
 import { validateExtraction, correctionPrompt } from './extraction_check.js';
+import { describeType } from './labels.js';
+import {
+  handleCallbackQuery,
+  showDocumentList,
+  showSearchResults,
+  postedKeyboard,
+} from './telegram_actions.js';
 import {
   baseCurrency,
   currencyNameAr,
@@ -166,17 +174,6 @@ function resultTotal(result) {
    نفس تعريف `isolate` في naf-format بالسجلّ؛ يُكرَّر هنا لأن الخادم
    لا يستورد من frontend/src/naf. أي تغيير يحدث في السجلّ أولاً. */
 const iso = (v) => `\u2068${v}\u2069`;
-
-/** وصف عربي لنوع العملية. */
-function describeType(type) {
-  return type === 'manual_journal'
-    ? 'قيد محاسبي'
-    : type === 'purchase_bill'
-      ? 'فاتورة مشتريات'
-      : type === 'sales_invoice'
-        ? 'فاتورة مبيعات'
-        : type;
-}
 
 /** رقم الفاتورة كما قُرئ منها، أو null إن غاب أو جاء بطول لا يكون لرقم فاتورة. */
 function supplierNumber(result) {
@@ -509,7 +506,9 @@ async function finalizeAndPost(env, ctx) {
   // في قناة التبليغ لا في المحاسبة، فلا يُصعَّد: تصعيده يُدخل المعالج مسار
   // الخطأ فيسم عمليةً ناجحة بأنها فاشلة، ويبقى قيدها في وافق بلا مقابل هنا.
   try {
-    await sendTelegramMessage(env, chatId, (prefix || '') + confirm + attachmentWarning);
+    await sendTelegramMessage(env, chatId, (prefix || '') + confirm + attachmentWarning, {
+      replyMarkup: postedKeyboard(txId),
+    });
   } catch (e) {
     await writeLog(env.DB, {
       transactionId: txId,
@@ -732,31 +731,39 @@ const HELP_TEXT = `🤖 <b>المحاسب الذكي — ناف القانوني
 • ملف <code>PDF</code> (حتى 10 ميغابايت) — تُقرأ صفحاته نصّاً وصورةً.
 • صور: <code>JPG</code>، <code>PNG</code>، <code>HEIC</code> (الافتراضية في الآيفون)، <code>WebP</code>، <code>GIF</code>، <code>AVIF</code>، <code>TIFF</code>، <code>BMP</code>.
 • الصيغ التي لا يقرأها المحلّل تُحوَّل تلقائياً، ويُحفظ الأصل كما أرسلته.
+• فاتورة من عدة صفحات؟ أرسل صورها معاً <b>ألبوماً واحداً</b> فتُقرأ فاتورةً واحدة.
+• لأدقّ قراءة أرسل الصورة <b>كملف</b> (📎 ← ملف): تليجرام يضغط الصور العادية.
+• تُطابَق المجاميع المطبوعة بالبنود قبل الترحيل، فإن اختلفت سألتك.
 
 <b>التوجيه التلقائي:</b>
 • رواتب/تحويلات صادرة ← قيد محاسبي
 • سداد/مشتريات ← فاتورة مشتريات (مسودة)
 • وارد من عميل ← فاتورة مبيعات + ضريبة 15٪ (مسودة)
 
-<b>2) تعديل عملية</b> — أرسل التعديل مباشرة:
+<b>2) مسوداتك</b> — من زر القائمة بجانب حقل الكتابة:
+• <code>/drafts</code> — آخر المسودات، ولكلٍّ منها بطاقة بأزرار: تعديل، حذف، عرض المرفق
+• <code>/search جرير</code> — بحث في العمليات المُرحّلة
+• رسالة كل ترحيل تحمل أزرار التعديل والحذف مباشرة
+
+<b>3) تعديل عملية</b> — بالزر، أو أرسل التعديل مباشرة:
 • <code>عدّل المبلغ إلى 600</code>
 • <code>خلّه بدون ضريبة</code>
 • <code>غيّر المورّد إلى جرير</code>
 • <code>عدّل المسودة قبل الأخيرة المبلغ 900</code>
 
-<b>3) حذف عملية</b> (يطلب كتابة «تأكيد»):
+<b>4) حذف عملية</b> — بالزر، أو كتابةً (يطلب «تأكيد»):
 • <code>احذف القيد</code>
 • <code>احذف فاتورة جرير</code>
 • <code>احذف المسودة mjou_xxx</code>
 • <code>احذف جميع المسودات في وافق</code>
 
-<b>4) أوامر أخرى</b>
-• <code>جديد</code> — إلغاء أي عملية جارية والبدء من نظيف
+<b>5) أوامر أخرى</b>
+• <code>/new</code> أو <code>جديد</code> — إلغاء أي عملية جارية والبدء من نظيف
 • <code>حالة</code> — فحص القناة والمنصة ومعرّف هذه المحادثة
 • <code>تشخيص</code> — فحص اتصال المرفقات بوافق (قراءة فقط)
 • <code>/help</code> — هذه الرسالة
 
-<b>5) العملات</b>
+<b>6) العملات</b>
 • العملة الافتراضية <b>الريال</b> — لا حاجة لذكرها.
 • لعملة أخرى اذكرها: <code>دفعت 500 دولار رسوم منصة</code>
 • الدولار محسوب بالربط الرسمي <code>3.75</code>. لسعر مختلف اذكره: <code>بسعر 3.78</code>
@@ -857,6 +864,12 @@ async function notifyFailure(env, chatId, text, transactionId = null) {
 // للعملية صفٌّ تُنسب إليه. فصار المعالج كلّه داخل حارسٍ واحد.
 // ---------------------------------------------------------------------------
 export async function processTelegramUpdate(env, update) {
+  // ضغطة زر: لها معالجها، وهو يبلّغ فشله بنفسه ويسجّله.
+  if (update.callback_query) {
+    await handleCallbackQuery(env, update.callback_query);
+    return;
+  }
+
   const message = update.message || update.edited_message;
   if (!message || !message.chat) return;
   const chatId = message.chat.id;
@@ -893,6 +906,32 @@ async function handleTelegramMessage(env, message, isEdited = false) {
   // ---- أمر المساعدة (لا يُسجّل كعملية) ----
   if (/^\/(help|start)\b/i.test(incomingText.trim()) || /^(مساعدة|المساعدة|الأوامر)$/.test(incomingText.trim())) {
     await sendTelegramMessage(env, chatId, HELP_TEXT);
+    return;
+  }
+
+  // ---- أوامر القائمة (لا تُسجّل كعمليات) ----
+  // في المجموعات يصل الأمر بلاحقة اسم البوت («‎/drafts@NafBot»)، فتُنزع.
+  const command = /^\/([a-z_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/i.exec(incomingText.trim());
+  const commandName = command ? command[1].toLowerCase() : null;
+  const commandArgs = command ? (command[2] || '').trim() : '';
+
+  if (commandName === 'drafts' || /^(مسوداتي|المسودات)$/.test(incomingText.trim())) {
+    await showDocumentList(env, chatId, 'drafts', 0);
+    return;
+  }
+  if (commandName === 'search') {
+    if (commandArgs) {
+      await showSearchResults(env, chatId, commandArgs);
+    } else {
+      // الكلمة تأتي في الرسالة التالية.
+      await setConversationState(env.DB, chatId, { kind: 'search_query' });
+      await sendTelegramMessage(env, chatId, '🔎 أرسل كلمة البحث: اسم المورّد أو العميل، أو جزءاً من الوصف.');
+    }
+    return;
+  }
+  if (commandName === 'new') {
+    await clearConversationState(env.DB, chatId);
+    await sendTelegramMessage(env, chatId, '🔄 تم إلغاء أي عملية جارية. أرسل عمليتك الجديدة الآن.');
     return;
   }
 
@@ -1107,8 +1146,39 @@ async function handleTelegramMessage(env, message, isEdited = false) {
       return;
     }
 
-    // ---- تأكيد الحذف (رداً على سؤال التأكيد) ----
     const pendingState = await getConversationState(env.DB, chatId, CONVERSATION_TTL_MINUTES);
+
+    // ---- كلمة البحث (بعد ‎/search بلا كلمة) ----
+    if (pendingState && pendingState.kind === 'search_query') {
+      await clearConversationState(env.DB, chatId);
+      await markControlReply(env, txId, 'search');
+      await showSearchResults(env, chatId, finalText);
+      return;
+    }
+
+    // ---- نصّ التعديل (بعد زر «تعديل» على عملية بعينها) ----
+    // الهدف معروف من الزر، فلا يُسأل Claude أيّ العمليات المقصودة.
+    if (pendingState && pendingState.kind === 'edit_target') {
+      if (!finalText) {
+        await markControlReply(env, txId, 'edit_without_text');
+        await sendTelegramMessage(env, chatId, '✏️ أرسل التعديل نصّاً — مثل: <code>عدّل المبلغ إلى 600</code>.');
+        return;
+      }
+      await clearConversationState(env.DB, chatId);
+      const chosen = await getChatPostedTransaction(env.DB, chatId, pendingState.targetTxId);
+      if (!chosen) {
+        await updateTransaction(env.DB, txId, {
+          status: 'failed',
+          errorMessage: 'العملية المستهدفة لم تعد قائمة',
+        });
+        await sendTelegramMessage(env, chatId, '⚠️ العملية لم تعد قائمة — حُذفت أو عُدّلت. افتح /drafts.');
+        return;
+      }
+      await performEdit(env, { txId, chatId, messageId, chosen, instruction: finalText });
+      return;
+    }
+
+    // ---- تأكيد الحذف (رداً على سؤال التأكيد) ----
     if (pendingState && pendingState.kind === 'confirm_delete') {
       const answer = (finalText || '').trim();
       await clearConversationState(env.DB, chatId);

@@ -195,6 +195,52 @@ export async function listPostedTransactions(db, chatId, limit = 10) {
   return (results || []).map(toTarget).filter(Boolean);
 }
 
+/* ═══ قوائم المحادثة: المسودات والقيود ═══
+
+   المسودة في وافق فاتورةُ مشتريات أو مبيعات. والقيد اليدوي يُرحَّل مباشرة
+   (وافق لا تدعم مسودته)، فيُعرض في قائمة منفصلة لا بين المسودات. والنوع
+   داخل `processed_json`، فيُقرأ بـ`json_extract`. */
+const LIST_TYPES = {
+  drafts: `json_extract(processed_json, '$.type') IN ('purchase_bill', 'sales_invoice')`,
+  journals: `json_extract(processed_json, '$.type') = 'manual_journal'`,
+};
+
+/**
+ * صفحة من عمليات المحادثة المُرحّلة، الأحدث أولاً.
+ * @param {'drafts'|'journals'} kind
+ * @returns {Promise<{items:Array, total:number}>}
+ */
+export async function listChatDocuments(db, chatId, kind, { offset = 0, limit = 5 } = {}) {
+  const where = `${POSTED_WHERE} AND ${LIST_TYPES[kind] || LIST_TYPES.drafts}`;
+  const { results } = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, media_r2_key, processed_json FROM transactions
+       WHERE ${where} ORDER BY id DESC LIMIT ? OFFSET ?`
+    )
+    .bind(String(chatId), limit, Math.max(0, Number(offset) || 0))
+    .all();
+  const count = await db
+    .prepare(`SELECT COUNT(*) AS n FROM transactions WHERE ${where}`)
+    .bind(String(chatId))
+    .first();
+  return { items: (results || []).map(toTarget).filter(Boolean), total: Number(count?.n || 0) };
+}
+
+/**
+ * عملية مُرحّلة بمعرّفها — محصورة بالمحادثة: زرٌّ في محادثة لا يبلغ عملية
+ * غيرها ولو عُدّل معرّفه.
+ */
+export async function getChatPostedTransaction(db, chatId, txId) {
+  const row = await db
+    .prepare(
+      `SELECT id, wafeq_draft_id, media_r2_key, processed_json FROM transactions
+       WHERE ${POSTED_WHERE} AND id = ? LIMIT 1`
+    )
+    .bind(String(chatId), Number(txId))
+    .first();
+  return toTarget(row);
+}
+
 // ----------------------------------------------------------------------------
 // حالة المحادثة (Conversation State) — للحوار التفاعلي عند نقص البيانات.
 // ----------------------------------------------------------------------------
