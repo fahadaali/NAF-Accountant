@@ -12,6 +12,8 @@
 //   d:v:<txId>     بطاقة عملية            d:f:<txId>     إرسال مرفقها
 //   d:e:<txId>     تعديل (يطلب نصّه)      d:x:<txId>     طلب الحذف
 //   d:xy:<txId>    تأكيد الحذف
+//   d:vn / d:xn    مثل d:v / d:x لكن في رسالة جديدة — لأزرار رسالة التأكيد، كي
+//                  لا يُمحى نصّ التأكيد نفسه بالبطاقة.
 //
 // ═══ الحالة في وافق ═══
 //
@@ -197,8 +199,8 @@ export function postedKeyboard(txId) {
     inline_keyboard: [
       [
         { text: 'تعديل', callback_data: `d:e:${txId}` },
-        { text: 'حذف', callback_data: `d:x:${txId}` },
-        { text: 'عرض', callback_data: `d:v:${txId}` },
+        { text: 'حذف', callback_data: `d:xn:${txId}` },
+        { text: 'عرض', callback_data: `d:vn:${txId}` },
       ],
     ],
   };
@@ -311,7 +313,11 @@ async function sendAttachments(env, chatId, t) {
 export async function handleCallbackQuery(env, cq) {
   const chatId = cq.message?.chat?.id;
   const messageId = cq.message?.message_id;
-  const [scope, action, arg] = String(cq.data || '').split(':');
+  const [scope, rawAction, arg] = String(cq.data || '').split(':');
+  // «vn» و«xn» يُرسلان رسالة جديدة بدل تعديل رسالة الزر.
+  const asNew = rawAction === 'vn' || rawAction === 'xn';
+  const action = asNew ? rawAction[0] : rawAction;
+  const target = asNew ? null : messageId;
 
   if (scope !== 'd' || !chatId) {
     await answerCallbackQuery(env, cq.id);
@@ -337,7 +343,7 @@ export async function handleCallbackQuery(env, cq) {
     if (action === 'v') {
       await answerCallbackQuery(env, cq.id);
       const status = await syncStatus(env, t);
-      await show(env, chatId, messageId, documentCardText(t, status), documentCardKeyboard(t, { status }));
+      await show(env, chatId, target, documentCardText(t, status), documentCardKeyboard(t, { status }));
       return;
     }
 
@@ -346,7 +352,7 @@ export async function handleCallbackQuery(env, cq) {
       const status = await syncStatus(env, t);
       if (!isEditable(t, status)) {
         await answerCallbackQuery(env, cq.id, `الفاتورة ${statusLabel(t, status)} — لا تُعدَّل من هنا.`);
-        await show(env, chatId, messageId, documentCardText(t, status), documentCardKeyboard(t, { status }));
+        await show(env, chatId, target, documentCardText(t, status), documentCardKeyboard(t, { status }));
         return;
       }
     }
@@ -379,7 +385,7 @@ export async function handleCallbackQuery(env, cq) {
       await show(
         env,
         chatId,
-        messageId,
+        target,
         `⚠️ <b>تأكيد الحذف</b>\n\nسيُحذف من وافق:\n${describeType(t.result.type)} — ${shortLabel(t)}\n` +
           `🧾 ${iso(t.wafeqId)}\n\nلا رجعة في هذا الإجراء.`,
         {

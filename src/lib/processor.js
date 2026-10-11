@@ -1165,7 +1165,10 @@ async function handleTelegramMessage(env, message, isEdited = false) {
     const pendingState = await getConversationState(env.DB, chatId, CONVERSATION_TTL_MINUTES);
 
     // ---- كلمة البحث (بعد ‎/search بلا كلمة) ----
-    if (pendingState && pendingState.kind === 'search_query') {
+    // رسالة بلا نص (صورة مثلاً) ليست كلمة بحث: يُلغى البحث وتمضي الرسالة عمليةً.
+    if (pendingState && pendingState.kind === 'search_query' && !finalText) {
+      await clearConversationState(env.DB, chatId);
+    } else if (pendingState && pendingState.kind === 'search_query') {
       await clearConversationState(env.DB, chatId);
       await markControlReply(env, txId, 'search');
       await showSearchResults(env, chatId, finalText);

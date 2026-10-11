@@ -195,3 +195,10 @@ test('مسودة حُذفت داخل وافق تُوسم محذوفة هنا', a
   const edit = calls.find((c) => c.url.includes('/editMessageText'));
   assert.match(edit.body.text, /محذوفة من وافق/);
 });
+
+test('«عرض» تحت رسالة التأكيد يرسل البطاقة جديدةً ولا يمحو التأكيد', async () => {
+  const calls = await run(press('d:vn:2'), fakeDb([row(2, 'purchase_bill')]));
+  assert.ok(!calls.some((c) => c.url.includes('/editMessageText')), 'رسالة التأكيد لا تُعدَّل');
+  const sent = calls.find((c) => c.url.includes('/sendMessage'));
+  assert.ok(sent.body.reply_markup.inline_keyboard.flat().some((b) => b.callback_data === 'd:x:2'));
+});
