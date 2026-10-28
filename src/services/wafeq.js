@@ -461,27 +461,34 @@ export async function uploadAttachment(env, buffer, filename, contentType) {
 
 let purchaseTaxRateCache = null; // { key, id } — لكل عامل، لا جلب في كل فاتورة
 
-/** هل المعدّل من نوع المشتريات؟ قراءة دفاعية: شكل الردّ غير موثّق هنا. */
-function isPurchaseRate(r) {
-  const kind = [r.type, r.tax_type, r.kind, r.usage, r.applies_to, r.category]
-    .filter((v) => typeof v === 'string')
-    .join(' ')
-    .toLowerCase();
-  if (kind) {
-    if (/purchase|expense|input/.test(kind)) return true;
-    if (/sale|income|output|revenue/.test(kind)) return false;
-  }
-  const name = [r.name, r.name_en, r.name_ar, r.display_name, r.label]
-    .filter((v) => typeof v === 'string')
-    .join(' ');
-  return /purchase|مشتريات|مدخلات/i.test(name);
-}
+/* شكل المعدّل كما في مرجع وافق (`GET /tax-rates/`):
+   { id, name, friendly_name, description, rate, tax_type }
+   و`tax_type` ∈ SALES | PURCHASES | REVERSE_CHARGE | OUT_OF_SCOPE. */
 
-/** نسبة المعدّل كرقم مئوي (15)، وإن جاءت كسراً (0.15) تُحوَّل. */
+/** نسبة المعدّل رقماً مئوياً (15). `rate` عشري، وقد يأتي كسراً (0.15). */
 function ratePercent(r) {
-  const v = Number(r.rate ?? r.percentage ?? r.percent ?? r.tax_rate ?? r.value);
+  const v = Number(r.rate);
   if (!Number.isFinite(v)) return null;
   return v > 0 && v < 1 ? +(v * 100).toFixed(4) : v;
+}
+
+function rateLabel(r) {
+  return [r.name, r.friendly_name, r.description].filter((v) => typeof v === 'string').join(' ');
+}
+
+/* في السعودية قد يكون لدى وافق أكثر من معدّل مشتريات بـ15%: المشتريات
+   القياسية، والاستيراد الذي تُدفع ضريبته في الجمارك. فاتورة المورّد المحلي
+   — وهي ما يصل البوت — تأخذ القياسي، فيُستبعد الاستيراد قبل الحسم. */
+const IMPORT_RE = /import|custom|استيراد|مستورد|جمارك|جمرك/i;
+const STANDARD_RE = /standard|قياسي|الأساسي/i;
+
+/** يختار معدّلاً واحداً من المرشّحين، أو null إن بقي الاختيار تخميناً. */
+function pickPurchaseRate(candidates) {
+  if (candidates.length <= 1) return candidates[0] || null;
+  const local = candidates.filter((r) => !IMPORT_RE.test(rateLabel(r)));
+  if (local.length === 1) return local[0];
+  const standard = local.filter((r) => STANDARD_RE.test(rateLabel(r)));
+  return standard.length === 1 ? standard[0] : null;
 }
 
 /**
@@ -498,29 +505,30 @@ export async function resolvePurchaseTaxRateId(env, percent) {
 
   const headers = { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` };
   const candidates = [];
-  let url = `${base}/tax-rates/?page_size=100`;
+  let url = `${base}/tax-rates/?tax_type=PURCHASES&page_size=100`;
   let guard = 0;
   try {
     while (url && guard < 20) {
       guard++;
       const res = await fetch(url, { headers });
-      if (!res.ok) return null; // لا يُخزَّن الفشل — يُعاد المحاولة في الفاتورة التالية
+      if (!res.ok) return null;
       const data = await res.json();
-      const list = Array.isArray(data) ? data : data.results || data.data || [];
-      for (const r of list) {
-        if (!r || !r.id || r.is_archived === true || r.archived === true) continue;
-        if (isPurchaseRate(r) && ratePercent(r) === Number(percent)) candidates.push(String(r.id));
+      for (const r of data.results || []) {
+        // يُعاد فحص النوع: لا يُعتمد على المرشِّح وحده لما يُرفق بمستند ضريبي.
+        if (r && r.id && r.tax_type === 'PURCHASES' && ratePercent(r) === Number(percent)) {
+          candidates.push(r);
+        }
       }
-      url = Array.isArray(data) ? null : data.next || null;
+      url = data.next || null;
     }
   } catch (_) {
     return null;
   }
 
-  // أكثر من مرشّح = لا حسم: الاختيار بينها تخمين، والمتغيّر الصريح يفصل.
-  const id = candidates.length === 1 ? candidates[0] : null;
-  purchaseTaxRateCache = { key, id };
-  return id;
+  const picked = pickPurchaseRate(candidates);
+  if (!picked) return null; // لا يُخزَّن الفشل — تُعاد المحاولة في الفاتورة التالية
+  purchaseTaxRateCache = { key, id: String(picked.id) };
+  return purchaseTaxRateCache.id;
 }
 
 /** للاختبارات فقط. */
