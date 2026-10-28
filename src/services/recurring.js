@@ -10,7 +10,12 @@ import {
   getActiveAccounts,
   writeLog,
 } from '../lib/db.js';
-import { postJournalEntryDraft, createBillDraft, createInvoiceDraft } from './wafeq.js';
+import {
+  postJournalEntryDraft,
+  createBillDraft,
+  createInvoiceDraft,
+  resolvePurchaseTaxRateId,
+} from './wafeq.js';
 import { resolveContact } from './contacts.js';
 import { baseCurrency, normalizeCurrency, resolveExchangeRate } from '../lib/currency.js';
 import { sendTelegramMessage } from './telegram.js';
@@ -84,11 +89,13 @@ export async function runDueRecurring(env) {
         wafeqId = id;
       } else if (result.type === 'purchase_bill') {
         const vat = Number(result.bill?.vat_percent ?? 0);
+        // معدّل المشتريات لا المبيعات — انظر `resolvePurchaseTaxRateId`.
+        const billTaxRate = vat > 0 ? await resolvePurchaseTaxRateId(env, vat) : null;
         const lineItems = (result.bill?.line_items || []).map((li) => ({
           account: idMap[li.account_code] || li.account_code,
           description: li.description,
           amount: li.amount,
-          taxRateId: vat > 0 ? env.VAT_TAX_RATE_ID || null : null,
+          taxRateId: billTaxRate,
         }));
         const { id } = await createBillDraft(env, { contactId, date: today, currency, lineItems });
         wafeqId = id;
