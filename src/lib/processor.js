@@ -42,6 +42,7 @@ import {
   postJournalEntryDraft,
   createBillDraft,
   createInvoiceDraft,
+  resolvePurchaseTaxRateId,
   createContact,
   uploadAttachment,
   attachmentLinkState,
@@ -242,9 +243,10 @@ function confirmManualJournal(result, wafeqId, cur) {
  *
  * @param {number} requestedVat النسبة التي طلبها التحليل.
  * @param {number} appliedVat   النسبة التي أُرفقت بالمستند فعلاً (0 = لم تُطبَّق).
+ * @param {string} rateVar      المتغيّر الذي يحمل المعرّف: المبيعات والمشتريات منفصلان.
  * @returns {{lines:string, total:number}}
  */
-function vatSection(sub, requestedVat, appliedVat, cur) {
+function vatSection(sub, requestedVat, appliedVat, cur, rateVar = 'VAT_TAX_RATE_ID') {
   if (appliedVat > 0) {
     const vat = +((sub * appliedVat) / 100).toFixed(2);
     const total = +(sub + vat).toFixed(2);
@@ -262,7 +264,7 @@ function vatSection(sub, requestedVat, appliedVat, cur) {
       lines:
         `💰 الإجمالي: ${formatMoney(sub, cur)} (بدون ضريبة)\n` +
         `⚠️ لم تُطبَّق ضريبة ${iso(requestedVat + '%')}: معرّف الضريبة ` +
-        `<code>VAT_TAX_RATE_ID</code> غير مضبوط. أضِفه في إعدادات Cloudflare ` +
+        `<code>${rateVar}</code> غير مضبوط. أضِفه في إعدادات Cloudflare ` +
         `ثم عدّل المستند في وافق.\n`,
     };
   }
@@ -285,7 +287,13 @@ function confirmBill(result, wafeqId, cur, appliedVat = 0) {
     .map((li) => `• ${li.account_name} — ${formatMoney(li.amount, cur)}`)
     .join('\n');
   const sub = items.reduce((s, li) => s + Number(li.amount || 0), 0);
-  const vat = vatSection(sub, Number(result.bill?.vat_percent ?? 0), appliedVat, cur);
+  const vat = vatSection(
+    sub,
+    Number(result.bill?.vat_percent ?? 0),
+    appliedVat,
+    cur,
+    'VAT_PURCHASE_TAX_RATE_ID'
+  );
   return (
     `✅ <b>تم إنشاء فاتورة مشتريات (مسودة) في وافق</b>\n\n` +
     `📅 التاريخ: ${iso(result.date)}\n🏢 المورّد: ${result.contact_name || 'غير محدّد'}\n` +
@@ -336,9 +344,10 @@ async function postToWafeq(env, result, accounts, ref, attachmentIds, contactId)
   }
 
   if (result.type === 'purchase_bill') {
-    // ضريبة المشتريات (Input VAT) — تُطبّق إن كانت النسبة > 0 ومعرّف الضريبة مضبوط.
+    /* ضريبة المشتريات (Input VAT) — معرّفها غير معرّف ضريبة المبيعات: كان
+       `VAT_TAX_RATE_ID` يُرفق هنا أيضاً فتخرج فاتورة المشتريات بضريبة مبيعات. */
     const billVat = Number(result.bill?.vat_percent ?? 0);
-    const billTaxRate = billVat > 0 ? env.VAT_TAX_RATE_ID || null : null;
+    const billTaxRate = billVat > 0 ? await resolvePurchaseTaxRateId(env, billVat) : null;
     const lineItems = (result.bill?.line_items || []).map((li) => ({
       account: idMap[li.account_code] || li.account_code,
       description: li.description,

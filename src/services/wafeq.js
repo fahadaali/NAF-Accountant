@@ -448,6 +448,87 @@ export async function uploadAttachment(env, buffer, filename, contentType) {
 }
 
 // ============================================================================
+// معدّل ضريبة المشتريات (Input VAT) — مستقل عن معدّل ضريبة المبيعات.
+// ============================================================================
+//
+// كان `VAT_TAX_RATE_ID` يُرفق بفاتورة البيع وفاتورة المشتريات معاً، وهو معدّل
+// ضريبة المبيعات (المخرجات). فتخرج كل فاتورة مشتريات في وافق بضريبة مبيعات،
+// ويتضخّم المستحق للهيئة بدل أن يُخصم منه. ووافق يفصل بين المعدّلين، لكلٍّ معرّفه.
+//
+// الأولوية: `VAT_PURCHASE_TAX_RATE_ID` إن ضُبط، وإلا يُكتشف من قائمة معدّلات
+// وافق. ⛔ ولا رجوع أبداً إلى `VAT_TAX_RATE_ID`: فاتورة بلا ضريبة يقول التأكيد
+// إنها بلا ضريبة، وفاتورة بضريبة خاطئة لا يقول شيء إنها خاطئة.
+
+let purchaseTaxRateCache = null; // { key, id } — لكل عامل، لا جلب في كل فاتورة
+
+/** هل المعدّل من نوع المشتريات؟ قراءة دفاعية: شكل الردّ غير موثّق هنا. */
+function isPurchaseRate(r) {
+  const kind = [r.type, r.tax_type, r.kind, r.usage, r.applies_to, r.category]
+    .filter((v) => typeof v === 'string')
+    .join(' ')
+    .toLowerCase();
+  if (kind) {
+    if (/purchase|expense|input/.test(kind)) return true;
+    if (/sale|income|output|revenue/.test(kind)) return false;
+  }
+  const name = [r.name, r.name_en, r.name_ar, r.display_name, r.label]
+    .filter((v) => typeof v === 'string')
+    .join(' ');
+  return /purchase|مشتريات|مدخلات/i.test(name);
+}
+
+/** نسبة المعدّل كرقم مئوي (15)، وإن جاءت كسراً (0.15) تُحوَّل. */
+function ratePercent(r) {
+  const v = Number(r.rate ?? r.percentage ?? r.percent ?? r.tax_rate ?? r.value);
+  if (!Number.isFinite(v)) return null;
+  return v > 0 && v < 1 ? +(v * 100).toFixed(4) : v;
+}
+
+/**
+ * معرّف معدّل ضريبة المشتريات في وافق، أو null إن تعذّر حسمه.
+ * @param {number} percent النسبة المطلوبة (مثل 15).
+ */
+export async function resolvePurchaseTaxRateId(env, percent) {
+  const explicit = String(env.VAT_PURCHASE_TAX_RATE_ID || '').trim();
+  if (explicit) return explicit;
+
+  const base = env.WAFEQ_API_BASE || 'https://api.wafeq.com/v1';
+  const key = `${base}|${percent}`;
+  if (purchaseTaxRateCache && purchaseTaxRateCache.key === key) return purchaseTaxRateCache.id;
+
+  const headers = { Authorization: `Api-Key ${env.WAFEQ_API_KEY}` };
+  const candidates = [];
+  let url = `${base}/tax-rates/?page_size=100`;
+  let guard = 0;
+  try {
+    while (url && guard < 20) {
+      guard++;
+      const res = await fetch(url, { headers });
+      if (!res.ok) return null; // لا يُخزَّن الفشل — يُعاد المحاولة في الفاتورة التالية
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : data.results || data.data || [];
+      for (const r of list) {
+        if (!r || !r.id || r.is_archived === true || r.archived === true) continue;
+        if (isPurchaseRate(r) && ratePercent(r) === Number(percent)) candidates.push(String(r.id));
+      }
+      url = Array.isArray(data) ? null : data.next || null;
+    }
+  } catch (_) {
+    return null;
+  }
+
+  // أكثر من مرشّح = لا حسم: الاختيار بينها تخمين، والمتغيّر الصريح يفصل.
+  const id = candidates.length === 1 ? candidates[0] : null;
+  purchaseTaxRateCache = { key, id };
+  return id;
+}
+
+/** للاختبارات فقط. */
+export function _resetPurchaseTaxRateCache() {
+  purchaseTaxRateCache = null;
+}
+
+// ============================================================================
 // فاتورة مشتريات (Bill) — مسار السداد/المشتريات.
 // ============================================================================
 

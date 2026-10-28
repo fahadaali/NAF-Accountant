@@ -350,6 +350,7 @@ dashboard.get('/settings/status', async (c) => {
       AUTHORIZED_CHAT_IDS: mask(env.AUTHORIZED_CHAT_IDS),
       DEFAULT_BANK_ACCOUNT_CODE: mask(env.DEFAULT_BANK_ACCOUNT_CODE),
       VAT_TAX_RATE_ID: mask(env.VAT_TAX_RATE_ID),
+      VAT_PURCHASE_TAX_RATE_ID: mask(env.VAT_PURCHASE_TAX_RATE_ID),
       // بيسكامب — التجديد التلقائي:
       BASECAMP_CLIENT_ID: mask(env.BASECAMP_CLIENT_ID),
       BASECAMP_CLIENT_SECRET: mask(env.BASECAMP_CLIENT_SECRET),
